@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+*.egg-info/
+
+# Secrets / personal
+.ssh/
+.gnupg/
+.bash_history*
+.sudo_as_admin_successful
+dead.letter
+
+# System / desktop
+.cache/
+.config/
+.local/
+.vnc/
+.dmrc
+.idlerc/
+.mongodb/
+.Xauthority
+.xsession-errors*
+.wget-hsts
+.lesshst
+.python_history
+.profile
+.bashrc
+.bash_logout
+.claude.json
+.claude/
+snap/
+Desktop/
+Downloads/
+
+# Build artifacts / packages
+*.deb
+protonvpn*/
+
+# Runtime output
+wav_output/
+*.out
+gui.log
+weather_service.out
+
+# Data / feeds
+feeds/
+sample_feed.json
+weather_data/
+weather_rss/
+
+# Other projects (not yet tracked)
+chatgpt_env/
+scripts/
+etc/
+weather_station/
+audio_playlist/

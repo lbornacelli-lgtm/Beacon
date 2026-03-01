@@ -1,0 +1,14 @@
+[
+  {
+    "type": "weather",
+    "description": "Sunny skies with a high of 72 degrees and light winds from the southwest."
+  },
+  {
+    "type": "alert",
+    "description": "Frost advisory in effect tonight. Temperatures will drop to 28 degrees."
+  },
+  {
+    "type": "forecast",
+    "description": "Expect rain showers through Wednesday morning followed by clearing skies."
+  }
+]
