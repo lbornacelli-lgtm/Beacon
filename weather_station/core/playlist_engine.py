@@ -2,6 +2,7 @@
 import os
 from datetime import datetime, timedelta
 from core.audio_engine import AudioEngine
+from services.playback_tracker import PlaybackTracker
 
 class PlaylistEngine:
     def __init__(self, folders, fm_enabled=False):
@@ -10,6 +11,7 @@ class PlaylistEngine:
         """
         self.folders = folders
         self.audio = AudioEngine(fm_enabled=fm_enabled)
+        self._tracker = PlaybackTracker()
 
     def build_playlist(self):
         """Build one-hour playlist in required order"""
@@ -43,6 +45,7 @@ class PlaylistEngine:
         playlist = self.build_playlist()
         for wav_file in playlist:
             self.audio.play(wav_file)
+            self._tracker.record_play(wav_file)
 
         # Calculate sleep until next top-of-hour
         now = datetime.now()

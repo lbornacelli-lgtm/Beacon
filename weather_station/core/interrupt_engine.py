@@ -1,5 +1,8 @@
 import os
 from audio_engine import audio_engine
+from services.playback_tracker import PlaybackTracker
+
+_tracker = PlaybackTracker()
 
 PRIORITY_FOLDER = "audio/alerts/tornado"
 ALERT_TONE_FOLDER = "audio/alert_tones"
@@ -37,3 +40,4 @@ def interrupt_if_needed():
             tone_path = os.path.join(ALERT_TONE_FOLDER, tone_files[0])
 
         audio_engine.duck_and_play(alert_file, tone_path)
+        _tracker.record_play(alert_file)
