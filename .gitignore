@@ -19,6 +19,7 @@ chatgpt_env/
 *.watchdog
 wav_output/
 weather_data/
+audio_playlist/
 
 # -----------------------------------------------
 # Credentials & personal config
