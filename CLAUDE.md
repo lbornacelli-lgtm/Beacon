@@ -40,21 +40,25 @@ This is a **Weather Station monitoring system** for Gainesville, FL and surround
 
 ## Key Services (Docker Compose)
 
-| Service         | Container            | Port  | Description                     |
-|-----------------|----------------------|-------|---------------------------------|
-| mongodb         | weather_mongo        | 27017 | MongoDB data store              |
-| rss_fetcher     | weather_rss_fetcher  | -     | Fetches NOAA RSS feeds          |
-| alert_worker    | weather_alerts       | -     | Processes alert rules           |
-| web_dashboard   | weather_web          | 5000  | Flask web UI                    |
-| grafana         | weather_grafana      | 3000  | Grafana visualization           |
+| Service         | Container            | Port          | Description                                          |
+|-----------------|----------------------|---------------|------------------------------------------------------|
+| mongodb         | weather_mongo        | internal only | MongoDB data store (no host port — local mongod owns 27017) |
+| rss_fetcher     | weather_rss_fetcher  | -             | NWS FL alerts every 30s + NHC RSS every 5min         |
+| obs_fetcher     | weather_obs_fetcher  | -             | 19 FL ASOS station observations every 15min          |
+| alert_worker    | weather_alerts       | -             | Processes alert rules                                |
+| web_dashboard   | weather_web          | 5000          | Flask web UI                                         |
+| grafana         | weather_grafana      | 3000          | Grafana visualization                                |
 
-## RSS Feed Sources
+## Data Sources
 
-- `KGNV` — Gainesville, FL
-- `KOCF` — Ocala, FL
-- `KPAK` — Palatka, FL
+**NWS Alerts** — `api.weather.gov/alerts/active?area=FL` (statewide FL, polled every 30s, deduped by alert ID)
 
-Feeds fetched every **30 minutes**; XML files kept for **7 days**.
+**ASOS Current Observations** — 19 FL stations polled every 15min, deduped by `observation_time`:
+`KGNV` `KOCF` `KPAK` `KJAX` `KTLH` `KPNS` `KECP` `KMCO` `KDAB` `KTPA` `KSRQ` `KLAL` `KRSW` `KFLL` `KMIA` `KPBI` `KEYW` `KSPG` `KAPF`
+
+**NHC RSS** — Atlantic and East Pacific tropical weather feeds, polled every 5min
+
+XML files kept for **7 days** under `weather_rss/feeds/`.
 
 ## Stack
 
