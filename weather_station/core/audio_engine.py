@@ -3,6 +3,7 @@ from services.file_router import FileRouter
 from processing.audio_chain import apply_audio_chain
 from services.tts_engine import TTSEngine
 from services.fm_transmitter import FMTransmitter
+from services.icecast_streamer import IcecastStreamer
 
 class AudioEngine:
     def __init__(self, settings):
@@ -11,7 +12,11 @@ class AudioEngine:
 
         self.file_router = FileRouter(settings)
         self.tts_engine = TTSEngine(settings)
-        self.fm_transmitter = FMTransmitter(settings)
+
+        self._icecast_streamer = IcecastStreamer(settings)
+        self._icecast_streamer.start()
+
+        self.fm_transmitter = FMTransmitter(settings, icecast_streamer=self._icecast_streamer)
 
         self.logger.info("AudioEngine initialized")
 
