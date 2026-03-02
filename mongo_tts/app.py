@@ -21,9 +21,19 @@ def _serialize(entry):
     return entry
 
 
+def _make_title(entry):
+    if entry.get("title"):
+        return entry["title"]
+    desc = entry.get("description", "")
+    words = desc.split()
+    return " ".join(words[:6]) + ("…" if len(words) > 6 else "") if words else "—"
+
+
 @app.route("/")
 def index():
     entries = [_serialize(e) for e in db.all_entries()]
+    for e in entries:
+        e["_title"] = _make_title(e)
     return render_template("index.html", entries=entries, wav_dir=str(WAV_OUTPUT_DIR))
 
 

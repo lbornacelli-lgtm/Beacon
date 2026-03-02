@@ -82,3 +82,25 @@ def test_feedback_modal_present_in_index(client):
     resp = c.get("/")
     assert resp.status_code == 200
     assert b"feedbackModal" in resp.data
+
+
+def test_title_column_present(client):
+    c, mock_col = client
+    mock_col.find.return_value = []
+    resp = c.get("/")
+    assert resp.status_code == 200
+    assert b"Title" in resp.data
+
+
+def test_title_generated_from_description(client):
+    c, mock_col = client
+    mock_col.find.return_value = [{
+        "_id": "507f1f77bcf86cd799439011",
+        "type": "alert",
+        "description": "Frost advisory in effect tonight temperatures drop",
+        "_wav_file": None,
+        "_imported_at": "2024-01-01T00:00:00",
+    }]
+    resp = c.get("/")
+    assert resp.status_code == 200
+    assert b"Frost advisory in effect tonight" in resp.data

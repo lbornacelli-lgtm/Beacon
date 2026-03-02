@@ -60,6 +60,7 @@
           <tr>
             <th>ID</th>
             <th>Type</th>
+            <th>Title</th>
             <th>Description</th>
             <th>Imported</th>
             <th>WAV</th>
@@ -71,12 +72,13 @@
           <tr>
             <td><code style="font-size:0.75rem">{{ e._id }}</code></td>
             <td>{{ e.get('type', '—') }}</td>
+            <td><strong>{{ e._title }}</strong></td>
             <td class="desc-cell" title="{{ e.get('description', '') }}">{{ e.get('description', '—') }}</td>
             <td>{{ e.get('_imported_at', '—')[:19] }}</td>
             <td>
               {% if e._wav_file %}
                 <span class="badge badge-wav">WAV</span>
-                <a href="/wav/{{ e._id }}" class="ms-1" title="Play">▶</a>
+                <a href="/wav/{{ e._id }}" class="ms-1" title="{{ e._title }}">▶ {{ e._title }}</a>
               {% else %}
                 <span class="badge badge-none">None</span>
               {% endif %}
@@ -92,7 +94,7 @@
             </td>
           </tr>
         {% else %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No entries yet. Import a file to get started.</td></tr>
+          <tr><td colspan="7" class="text-center text-muted py-4">No entries yet. Import a file to get started.</td></tr>
         {% endfor %}
         </tbody>
       </table>
