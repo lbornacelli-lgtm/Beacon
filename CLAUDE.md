@@ -88,6 +88,30 @@ cd /home/lh_admin/mongo_tts && python app.py
 - `MONGO_URI` — MongoDB connection string (default: `mongodb://mongodb:27017`)
 - Set in `docker-compose.yml` for containerized services; set in `config.py` for local runs.
 
+## Git Workflow
+
+Default branch is `main` — branch protection is enabled, changes go via feature branches and PRs.
+
+```bash
+# Start a new feature
+git checkout main && git pull
+git checkout -b feature/your-feature-name
+
+# Work, commit, push
+git add <files>
+git commit -m "Description of change"
+git push origin feature/your-feature-name
+
+# Open a PR
+gh pr create --base main --title "..." --body "..."
+
+# After merge, clean up
+git checkout main && git pull
+git branch -d feature/your-feature-name
+```
+
+Branch naming: `feature/`, `fix/`, `chore/` prefixes.
+
 ## Development Notes
 
 - Logs go to `weather_rss/logs/` and are also written to service-specific `.log` files.
