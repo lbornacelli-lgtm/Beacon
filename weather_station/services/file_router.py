@@ -20,6 +20,17 @@ ALERT_FOLDER_MAP = {
     "flood watch":                  "flooding",
     "coastal flood warning":        "flooding",
     "coastal flood watch":          "flooding",
+    # Hurricane / Tropical
+    "hurricane warning":            "hurricane",
+    "hurricane watch":              "hurricane",
+    "tropical storm warning":       "hurricane",
+    "tropical storm watch":         "hurricane",
+    "storm surge warning":          "hurricane",
+    "storm surge watch":            "hurricane",
+    "hurricane local statement":    "hurricane",
+    "extreme wind warning":         "hurricane",
+    "hurricane force wind warning": "hurricane",
+    "hurricane force wind watch":   "hurricane",
     # Fire
     "red flag warning":             "fire",
     "fire weather watch":           "fire",
