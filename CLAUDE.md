@@ -103,6 +103,8 @@ XML files kept for **7 days** under `weather_rss/feeds/`.
 - **Visualization**: Grafana
 - **GUI**: Tkinter
 - **Feed parsing**: `feedparser`, `requests`
+- **TTS**: Text-to-speech engine (WAV output via `wav_output/`, audio library in `audio_playlist/`)
+- **FM Transmission**: FM transmitter air chain (`FM Transmitter Air Chain.py`, `weather_station/fm/`)
 
 ## Common Commands
 
