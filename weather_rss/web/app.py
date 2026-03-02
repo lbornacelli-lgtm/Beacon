@@ -8,12 +8,22 @@ DB_NAME = "weather_rss"
 COLLECTION = "feed_status"
 
 STALE_THRESHOLD_MIN = 30  # feeds older than 30 minutes are considered stale
+ALERTS_LIMIT = 50         # most recent NWS alerts to display
+
+# Severity → row colour
+SEVERITY_CLASS = {
+    "Extreme":  "sev-extreme",
+    "Severe":   "sev-severe",
+    "Moderate": "sev-moderate",
+    "Minor":    "sev-minor",
+}
 
 # -------------------- APP -----------------------
 app = Flask(__name__)
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
-status_col = db[COLLECTION]
+status_col  = db[COLLECTION]
+alerts_col  = db["nws_alerts"]
 
 # -------------------- TEMPLATE ------------------
 HTML_TEMPLATE = """
@@ -21,15 +31,32 @@ HTML_TEMPLATE = """
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="refresh" content="60">
 <title>Weather RSS Dashboard</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #999; padding: 8px; text-align: center; }
+  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+  h2   { margin: 24px 0 8px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; margin-bottom: 32px; }
+  th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; }
   th { background: #333; color: white; }
-  .OK { background-color: #d4f8d4; }
+  td.center { text-align: center; }
+
+  /* Feed status colours */
+  .OK    { background-color: #d4f8d4; }
   .STALE { background-color: #fff3cd; }
   .ERROR { background-color: #f8d7da; }
+
+  /* Alert severity colours */
+  .sev-extreme  { background-color: #f8d7da; }
+  .sev-severe   { background-color: #ffe5b4; }
+  .sev-moderate { background-color: #fff3cd; }
+  .sev-minor    { background-color: #d4f8d4; }
+
+  .badge { display:inline-block; padding:2px 8px; border-radius:4px;
+           font-size:0.8rem; font-weight:bold; }
+  .badge-yes { background:#d4f8d4; color:#155724; }
+  .badge-no  { background:#f8d7da; color:#721c24; }
+
   .feedback-btn { float: right; padding: 6px 14px; background: #555; color: #fff;
                   border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
   .feedback-btn:hover { background: #333; }
@@ -40,17 +67,20 @@ HTML_TEMPLATE = """
                                    margin-top: 4px; border: 1px solid #ccc; border-radius: 4px; }
   dialog textarea { resize: vertical; height: 100px; }
   .dialog-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; }
-  .btn-primary { background: #0d6efd; color: #fff; border: none; padding: 6px 14px;
-                 border-radius: 4px; cursor: pointer; }
+  .btn-primary   { background: #0d6efd; color: #fff; border: none; padding: 6px 14px;
+                   border-radius: 4px; cursor: pointer; }
   .btn-secondary { background: #6c757d; color: #fff; border: none; padding: 6px 14px;
                    border-radius: 4px; cursor: pointer; }
+  small { color: #888; }
 </style>
 </head>
 <body>
+
 <div style="display:flex; justify-content:space-between; align-items:center;">
-  <h1 style="margin:0 0 16px">Weather RSS Dashboard</h1>
+  <h1 style="margin:0 0 4px">Weather RSS Dashboard</h1>
   <button class="feedback-btn" onclick="document.getElementById('feedbackDialog').showModal()">Feedback</button>
 </div>
+<small>Auto-refreshes every 60 seconds &mdash; {{ now }}</small>
 
 {% if request.args.get('msg') %}
 <p style="color:green; font-weight:bold;">{{ request.args.get('msg') }}</p>
@@ -72,6 +102,42 @@ HTML_TEMPLATE = """
     </div>
   </form>
 </dialog>
+
+<!-- ===== NWS ALERTS ===== -->
+<h2>NWS Alerts <small>({{ alerts|length }} most recent)</small></h2>
+<table>
+  <tr>
+    <th>Event</th>
+    <th>Headline</th>
+    <th>Severity</th>
+    <th>Areas</th>
+    <th>Sender</th>
+    <th>Sent</th>
+    <th>WAV</th>
+  </tr>
+  {% for a in alerts %}
+  <tr class="{{ a.sev_class }}">
+    <td><strong>{{ a.event }}</strong></td>
+    <td>{{ a.headline }}</td>
+    <td class="center">{{ a.severity }}</td>
+    <td>{{ a.area_desc }}</td>
+    <td>{{ a.sender }}</td>
+    <td class="center">{{ a.sent }}</td>
+    <td class="center">
+      {% if a.tts_generated %}
+        <span class="badge badge-yes">&#10003; WAV</span>
+      {% else %}
+        <span class="badge badge-no">Pending</span>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" style="text-align:center;color:#888;">No alerts in database</td></tr>
+  {% endfor %}
+</table>
+
+<!-- ===== RSS FEED STATUS ===== -->
+<h2>RSS Feed Status</h2>
 <table>
   <tr>
     <th>Feed Filename</th>
@@ -83,66 +149,95 @@ HTML_TEMPLATE = """
   {% for feed in feeds %}
   <tr class="{{ feed.row_class }}">
     <td>{{ feed.filename }}</td>
-    <td>{{ feed.last_success or "—" }}</td>
-    <td>{{ feed.age_min or "—" }}</td>
-    <td>{{ feed.file_size_kb or "—" }}</td>
-    <td>{{ feed.status }}</td>
+    <td class="center">{{ feed.last_success or "—" }}</td>
+    <td class="center">{{ feed.age_min or "—" }}</td>
+    <td class="center">{{ feed.file_size_kb or "—" }}</td>
+    <td class="center">{{ feed.status }}</td>
   </tr>
+  {% else %}
+  <tr><td colspan="5" style="text-align:center;color:#888;">No feed status data</td></tr>
   {% endfor %}
 </table>
+
 </body>
 </html>
 """
 
-# -------------------- ROUTE ----------------------
+# -------------------- ROUTES ----------------------
 @app.route("/")
 def dashboard():
-    feeds = []
     now = datetime.now(timezone.utc)
 
+    # --- RSS feed status ---
+    feeds = []
     for feed in status_col.find():
         last_success = feed.get("last_success")
         age_min = None
         row_class = "OK"
 
         if last_success:
-            # convert last_success from ISODate / datetime
             if isinstance(last_success, str):
                 last_success = datetime.fromisoformat(last_success)
-            # Normalise to UTC-aware for comparison
             if last_success.tzinfo is None:
                 last_success = last_success.replace(tzinfo=timezone.utc)
             age_min = round((now - last_success).total_seconds() / 60, 1)
 
         status = feed.get("status", "UNKNOWN")
-
-        # Mark STALE if too old
         if status == "OK" and age_min and age_min > STALE_THRESHOLD_MIN:
             row_class = "STALE"
         elif status == "ERROR":
             row_class = "ERROR"
 
         feeds.append({
-            "filename": feed.get("filename", "—"),
+            "filename":     feed.get("filename", "—"),
             "last_success": last_success.strftime("%Y-%m-%d %H:%M:%S") if last_success else None,
-            "age_min": age_min,
+            "age_min":      age_min,
             "file_size_kb": feed.get("file_size_kb", "—"),
-            "status": status,
-            "row_class": row_class
+            "status":       status,
+            "row_class":    row_class,
         })
 
-    return render_template_string(HTML_TEMPLATE, feeds=feeds)
+    # --- NWS alerts ---
+    alerts = []
+    for a in alerts_col.find({}, sort=[("fetched_at", -1)], limit=ALERTS_LIMIT):
+        sent = a.get("sent", "")
+        if isinstance(sent, datetime):
+            sent = sent.strftime("%Y-%m-%d %H:%M")
+        elif isinstance(sent, str) and sent:
+            try:
+                sent = datetime.fromisoformat(sent).strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                pass
+
+        severity = a.get("severity", "")
+        alerts.append({
+            "event":         a.get("event", "—"),
+            "headline":      a.get("headline", "—"),
+            "severity":      severity,
+            "area_desc":     a.get("area_desc", "—"),
+            "sender":        a.get("sender", "—"),
+            "sent":          sent or "—",
+            "tts_generated": a.get("tts_generated", False),
+            "sev_class":     SEVERITY_CLASS.get(severity, ""),
+        })
+
+    return render_template_string(
+        HTML_TEMPLATE,
+        feeds=feeds,
+        alerts=alerts,
+        now=now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+    )
 
 # -------------------- FEEDBACK ------------------
 @app.route("/feedback", methods=["POST"])
 def submit_feedback():
-    name = request.form.get("name", "").strip()
+    name    = request.form.get("name", "").strip()
     message = request.form.get("message", "").strip()
     if not message:
         return redirect(url_for("dashboard") + "?msg=Feedback+message+is+required")
     db["feedback"].insert_one({
-        "name": name or "Anonymous",
-        "message": message,
+        "name":         name or "Anonymous",
+        "message":      message,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     })
     return redirect(url_for("dashboard") + "?msg=Thank+you+for+your+feedback!")
