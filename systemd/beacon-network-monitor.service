@@ -1,0 +1,15 @@
+[Unit]
+Description=Beacon Network Monitor — email alert on ETH/WiFi state change
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/lh_admin/scripts/network_monitor.py
+Restart=on-failure
+RestartSec=10
+
+StandardOutput=append:/home/lh_admin/weather_station/logs/network_monitor.log
+StandardError=append:/home/lh_admin/weather_station/logs/network_monitor.log
+
+[Install]
+WantedBy=default.target
