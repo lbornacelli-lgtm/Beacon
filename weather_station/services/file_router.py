@@ -53,7 +53,7 @@ ALERT_FOLDER_MAP = {
 }
 
 # Root of the broadcast-facing audio library
-ALERT_AUDIO_ROOT = "/home/lh_admin/audio_playlist/alerts"
+ALERT_AUDIO_ROOT = "/home/lh_admin/weather_station/audio/alerts"
 
 
 class FileRouter:

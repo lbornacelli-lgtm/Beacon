@@ -7,7 +7,7 @@ from services.playback_tracker import PlaybackTracker
 
 logger = logging.getLogger("WavCleanup")
 
-ALERT_AUDIO_ROOT = "/home/lh_admin/audio_playlist/alerts"
+ALERT_AUDIO_ROOT = "/home/lh_admin/weather_station/audio/alerts"
 DELETION_LOG     = "/home/lh_admin/weather_station/logs/wav_deletions.jsonl"
 MAX_AGE_DAYS     = 3
 
