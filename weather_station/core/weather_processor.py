@@ -11,26 +11,22 @@ class WeatherProcessor:
     def fetch_and_process(self):
         """
         Decide which audio to play:
-        - Alerts override everything
-        - Top-of-hour content
+        - Pending alert WAVs override everything (priority_1 first)
+        - Top-of-hour content at :00
         - Educational audio otherwise
         """
         try:
-            alert_active = False  # Replace with real alert logic
-            top_of_hour = datetime.now().minute == 0  # top of the hour
+            next_alert = self.audio_engine.file_router.get_next_alert_file()
 
-            if alert_active:
-                category = "alerts"
-                # Example: TTS alert
-                self.audio_engine.play_tts("Severe weather alert in your area!")
-            elif top_of_hour:
-                category = "top_of_hour"
+            if next_alert:
+                self.logger.info(f"Alert detected — broadcasting: {next_alert}")
+                self.audio_engine.play_alert(next_alert)
+            elif datetime.now().minute == 0:
+                self.logger.info("Top of hour — playing top_of_hour content")
+                self.audio_engine.play_next("top_of_hour")
             else:
-                category = "educational"
-
-            if not alert_active:  # normal audio playback
-                self.logger.info(f"Fetching and processing {category} audio...")
-                self.audio_engine.play_next(category)
+                self.logger.info("Playing educational audio")
+                self.audio_engine.play_next("educational")
 
         except Exception as e:
             self.logger.error(f"Error in fetch_and_process: {e}")

@@ -55,6 +55,12 @@ ALERT_FOLDER_MAP = {
 # Root of the broadcast-facing audio library
 ALERT_AUDIO_ROOT = "/home/lh_admin/weather_station/audio/alerts"
 
+# Subfolders checked in priority order for playback
+ALERT_PRIORITY_ORDER = [
+    "priority_1", "tornado", "thunderstorm", "hurricane",
+    "flooding", "fire", "freeze", "fog", "other_alerts",
+]
+
 
 class FileRouter:
     def __init__(self, settings):
@@ -79,6 +85,26 @@ class FileRouter:
         os.makedirs(path, exist_ok=True)
         self.logger.debug(f"Routing '{event_type}' → {path}")
         return path
+
+    def get_next_alert_file(self) -> str | None:
+        """
+        Return the oldest pending alert WAV across all subfolders, checking
+        higher-priority subfolders first (priority_1 → tornado → … → other_alerts).
+        Returns None when no alert WAVs are waiting.
+        """
+        for subfolder in ALERT_PRIORITY_ORDER:
+            folder = os.path.join(ALERT_AUDIO_ROOT, subfolder)
+            if not os.path.isdir(folder):
+                continue
+            files = sorted(
+                f for f in os.listdir(folder)
+                if f.lower().endswith(".wav") and "_processed" not in f
+            )
+            if files:
+                path = os.path.join(folder, files[0])
+                self.logger.info(f"Next alert: {path}")
+                return path
+        return None
 
     def get_next_file(self, category="educational"):
         folder = self.audio_dirs.get(category)

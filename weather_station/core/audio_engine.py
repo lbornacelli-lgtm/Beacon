@@ -1,4 +1,5 @@
 import logging
+import os
 from services.file_router import FileRouter
 from processing.audio_chain import apply_audio_chain
 from services.tts_engine import TTSEngine
@@ -29,6 +30,20 @@ class AudioEngine:
             # Send processed audio to FM
             self.fm_transmitter.play_wav(output_file)
             self.logger.info(f"Processed and broadcasted: {output_file}")
+
+    def play_alert(self, wav_path: str):
+        """Apply audio chain, broadcast the alert, then delete the file so it isn't replayed."""
+        output_file = wav_path.replace(".wav", "_processed.wav")
+        try:
+            apply_audio_chain(wav_path, output_file)
+            self.fm_transmitter.play_wav(output_file)
+            self.logger.info(f"Alert broadcast: {wav_path}")
+        finally:
+            for f in (wav_path, output_file):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
 
     def play_tts(self, text):
         tts_file = "/tmp/tts_output.wav"
