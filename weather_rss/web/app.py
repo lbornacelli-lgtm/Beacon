@@ -1,3 +1,4 @@
+import json
 import os
 from flask import Flask, redirect, render_template_string, request, url_for
 from pymongo import MongoClient
@@ -101,6 +102,15 @@ HTML_TEMPLATE = """
 </div>
 <small>Auto-refreshes every 60 seconds &mdash; {{ now }}</small>
 
+{% if now_playing %}
+<p style="margin:8px 0; font-size:0.95rem;">
+  <strong>&#9654; Now Playing:</strong>
+  {{ now_playing.title }}
+  <span style="color:#666;">[{{ now_playing.category }}]</span>
+  &mdash; <small>started {{ now_playing.started_at }}</small>
+</p>
+{% endif %}
+
 {% if request.args.get('msg') %}
 <p style="color:green; font-weight:bold;">{{ request.args.get('msg') }}</p>
 {% endif %}
@@ -162,7 +172,9 @@ HTML_TEMPLATE = """
     <th>ICAO</th>
     <th>Airport</th>
     <th>Cat</th>
+    <th>Temp °F</th>
     <th>Temp °C</th>
+    <th>Dewp °F</th>
     <th>Dewp °C</th>
     <th>Wind Dir</th>
     <th>Wind kt</th>
@@ -175,7 +187,9 @@ HTML_TEMPLATE = """
     <td><strong>{{ ap.icaoId }}</strong></td>
     <td>{{ ap.name }}</td>
     <td class="center {{ ap.flt_class }}">{{ ap.fltCat }}</td>
+    <td class="center">{{ ap.temp_f }}</td>
     <td class="center">{{ ap.temp }}</td>
+    <td class="center">{{ ap.dewp_f }}</td>
     <td class="center">{{ ap.dewp }}</td>
     <td class="center">{{ ap.wdir }}</td>
     <td class="center">{{ ap.wspd }}</td>
@@ -184,7 +198,7 @@ HTML_TEMPLATE = """
     <td class="center">{{ ap.obsTime }}</td>
   </tr>
   {% else %}
-  <tr><td colspan="10" class="no-data">No METAR data</td></tr>
+  <tr><td colspan="12" class="no-data">No METAR data</td></tr>
   {% endfor %}
 </table>
 
@@ -331,18 +345,28 @@ def dashboard():
                 obs = dt.strftime("%m-%d %H:%MZ")
             except ValueError:
                 pass
+        def to_f(c):
+            try:
+                return round(float(c) * 9 / 5 + 32, 1)
+            except (TypeError, ValueError):
+                return ""
+
+        temp_c = ap.get("temp", "")
+        dewp_c = ap.get("dewp", "")
         airports.append({
-            "icaoId":   ap.get("icaoId", ""),
-            "name":     ap.get("name", ""),
-            "fltCat":   flt_cat,
+            "icaoId":    ap.get("icaoId", ""),
+            "name":      ap.get("name", ""),
+            "fltCat":    flt_cat,
             "flt_class": FLTCAT_CLASS.get(flt_cat, ""),
-            "temp":     ap.get("temp", ""),
-            "dewp":     ap.get("dewp", ""),
-            "wdir":     ap.get("wdir", ""),
-            "wspd":     ap.get("wspd", ""),
-            "visib":    ap.get("visib", ""),
-            "rawOb":    ap.get("rawOb", ""),
-            "obsTime":  obs,
+            "temp":      temp_c,
+            "temp_f":    to_f(temp_c),
+            "dewp":      dewp_c,
+            "dewp_f":    to_f(dewp_c),
+            "wdir":      ap.get("wdir", ""),
+            "wspd":      ap.get("wspd", ""),
+            "visib":     ap.get("visib", ""),
+            "rawOb":     ap.get("rawOb", ""),
+            "obsTime":   obs,
         })
 
     # --- FL Traffic ---
@@ -370,6 +394,14 @@ def dashboard():
             "fetched_at":     fetched,
         })
 
+    # --- Now Playing ---
+    now_playing = None
+    try:
+        with open("/tmp/beacon_now_playing.json") as f:
+            now_playing = json.load(f)
+    except (FileNotFoundError, ValueError):
+        pass
+
     return render_template_string(
         HTML_TEMPLATE,
         feeds=feeds,
@@ -378,6 +410,7 @@ def dashboard():
         traffic=traffic,
         school=school,
         now=now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        now_playing=now_playing,
     )
 
 # -------------------- FEEDBACK ------------------

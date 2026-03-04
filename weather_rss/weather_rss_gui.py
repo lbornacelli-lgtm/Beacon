@@ -137,14 +137,16 @@ class SystemdMonitor(tk.Tk):
         # --- Airport Weather Treeview ---
         self.airport_tree = ttk.Treeview(
             self.tab_airport,
-            columns=("icaoId", "name", "fltCat", "temp", "dewp", "wdir", "wspd", "visib", "obsTime"),
+            columns=("icaoId", "name", "fltCat", "temp_f", "temp", "dewp_f", "dewp", "wdir", "wspd", "visib", "obsTime"),
             show="headings",
         )
         airport_col_cfg = {
             "icaoId":  ("ICAO",       60),
-            "name":    ("Airport",   260),
+            "name":    ("Airport",   220),
             "fltCat":  ("Cat",        50),
+            "temp_f":  ("Temp °F",    70),
             "temp":    ("Temp °C",    70),
+            "dewp_f":  ("Dewp °F",    70),
             "dewp":    ("Dewp °C",    70),
             "wdir":    ("Wdir",       60),
             "wspd":    ("Wspd kt",    65),
@@ -175,6 +177,14 @@ class SystemdMonitor(tk.Tk):
             command=self._restart_stream,
         )
         restart_btn.pack(side="right", padx=6)
+
+        # Now Playing row
+        icecast_np = ttk.Frame(self.tab_icecast)
+        icecast_np.pack(fill="x", padx=8, pady=(0, 6))
+        ttk.Label(icecast_np, text="Now Playing:", font=("Arial", 10, "bold")).pack(side="left")
+        self.now_playing_var = tk.StringVar(value="—")
+        ttk.Label(icecast_np, textvariable=self.now_playing_var,
+                  font=("Arial", 10)).pack(side="left", padx=6)
 
         self.icecast_tree = ttk.Treeview(
             self.tab_icecast,
@@ -268,6 +278,13 @@ class SystemdMonitor(tk.Tk):
         else:
             self.school_no_data.place_forget()
 
+    @staticmethod
+    def _to_f(c):
+        try:
+            return round(float(c) * 9 / 5 + 32, 1)
+        except (TypeError, ValueError):
+            return ""
+
     def _refresh_airport(self):
         for row in self.airport_tree.get_children():
             self.airport_tree.delete(row)
@@ -276,12 +293,16 @@ class SystemdMonitor(tk.Tk):
         for rec in airport_metar_col.find().sort("icaoId", 1):
             flt_cat = rec.get("fltCat", "")
             obs_time = rec.get("obsTime", "")
+            temp_c = rec.get("temp", "")
+            dewp_c = rec.get("dewp", "")
             iid = self.airport_tree.insert("", "end", values=(
                 rec.get("icaoId", ""),
                 rec.get("name", ""),
                 flt_cat,
-                rec.get("temp", ""),
-                rec.get("dewp", ""),
+                self._to_f(temp_c),
+                temp_c,
+                self._to_f(dewp_c),
+                dewp_c,
                 rec.get("wdir", ""),
                 rec.get("wspd", ""),
                 rec.get("visib", ""),
@@ -346,6 +367,19 @@ class SystemdMonitor(tk.Tk):
             except (ValueError, TypeError):
                 pass
             self.icecast_tree.insert("", "end", values=(ip, connected, agent))
+
+        # Now Playing — read from station engine's JSON file
+        try:
+            with open("/tmp/beacon_now_playing.json") as f:
+                np = json.load(f)
+            title    = np.get("title", "—")
+            category = np.get("category", "")
+            started  = np.get("started_at", "")
+            self.now_playing_var.set(
+                f"{title}  [{category}]  —  started {started}" if started else f"{title}  [{category}]"
+            )
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.now_playing_var.set("— (station engine not running)")
 
     def _restart_stream(self):
         if not messagebox.askyesno("Restart Stream",
