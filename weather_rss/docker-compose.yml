@@ -50,6 +50,19 @@ services:
       - IPAWS_BASE_URL=https://tdl.apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent
     command: python ipaws_fetcher.py
 
+  extended_fetcher:
+    build: .
+    container_name: weather_rss_extended_fetcher
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    depends_on:
+      - mongodb
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017
+      - LOG_FILE=/app/logs/extended_fetcher.log
+    command: python extended_fetcher.py
+
   alert_worker:
     build: .
     container_name: weather_alerts
