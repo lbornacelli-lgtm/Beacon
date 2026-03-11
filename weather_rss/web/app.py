@@ -54,6 +54,84 @@ def _save_zone_overrides(data):
     with open(ZONE_OVERRIDES_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+# ---- Stream alert email ----
+def _send_stream_alert_email(subject: str, body: str) -> tuple[bool, str]:
+    import smtplib
+    from email.message import EmailMessage
+    cfg = _load_smtp_cfg()
+    host      = cfg.get("smtp_host", "").strip()
+    port      = int(cfg.get("smtp_port", 587))
+    use_tls   = bool(cfg.get("use_tls", True))
+    use_auth  = bool(cfg.get("use_auth", True))
+    user      = cfg.get("smtp_user", "").strip()
+    passwd    = cfg.get("smtp_pass", "")
+    mail_from = cfg.get("mail_from", "").strip() or user
+    mail_to   = cfg.get("mail_to", "").strip()
+    if not host:
+        return False, "No SMTP host configured"
+    if not mail_to:
+        return False, "No recipient configured"
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"]    = mail_from
+        msg["To"]      = mail_to
+        msg.set_content(body)
+        with smtplib.SMTP(host, port, timeout=10) as smtp:
+            smtp.ehlo()
+            if use_tls:
+                smtp.starttls()
+                smtp.ehlo()
+            if use_auth and user and passwd:
+                smtp.login(user, passwd)
+            smtp.send_message(msg)
+        return True, f"Alert sent to {mail_to}"
+    except Exception as exc:
+        return False, str(exc)
+
+# ---- Port 8000 stream monitor ----
+import threading as _threading
+
+_MONITOR_STREAM = STREAMS[0]   # port 8000, All Florida
+_monitor_state  = {"live": None}  # None = unknown, True/False = last known state
+
+def _check_stream_8000_live() -> bool:
+    import xml.etree.ElementTree as ET, base64
+    s = _MONITOR_STREAM
+    try:
+        req = _ureq.Request(f"http://localhost:{s['port']}/admin/stats")
+        req.add_header("Authorization",
+                       "Basic " + base64.b64encode(b"admin:1002LBorn1!").decode())
+        with _ureq.urlopen(req, timeout=5) as resp:
+            tree = ET.fromstring(resp.read())
+        for src in tree.findall(".//source"):
+            if src.get("mount") == s["mount"]:
+                return True
+        return False
+    except Exception:
+        return False
+
+def _stream_monitor_loop():
+    while True:
+        _time.sleep(30)
+        live = _check_stream_8000_live()
+        prev = _monitor_state["live"]
+        _monitor_state["live"] = live
+        if prev is True and not live:
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            _send_stream_alert_email(
+                subject=f"FPREN Stream Alert — Port 8000 Offline ({now})",
+                body=(
+                    f"Stream port 8000 (All Florida / {_MONITOR_STREAM['mount']}) "
+                    f"has stopped streaming.\n\n"
+                    f"Detected at: {now}\n"
+                    f"Dashboard: http://10.242.41.77:5000\n"
+                ),
+            )
+
+_monitor_thread = _threading.Thread(target=_stream_monitor_loop, daemon=True)
+_monitor_thread.start()
+
 # ---- Weather cities config ----
 WEATHER_CITIES = [
     {"name": "Gainesville",  "icao": "KGNV", "lat": 29.6917, "lon": -82.2760},
@@ -375,6 +453,10 @@ HTML_TEMPLATE = """
 
 <!-- ===== ICECAST TAB ===== -->
 <div id="tab-icecast" class="tab-panel">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <button class="btn-smtp-test" onclick="testStreamAlert()">&#128276; Test Port 8000 Alert Email</button>
+    <span id="ice-alert-status" class="smtp-status"></span>
+  </div>
   <div id="ice-load" style="text-align:center;padding:40px;color:#888;font-size:1rem;">Click the Icecast tab to load stream status&hellip;</div>
   <div id="ice-grid" class="ice-grid"></div>
 </div>
@@ -706,6 +788,20 @@ function setSmtpStatus(msg, ok=true) {
   const el = document.getElementById('smtp-status');
   el.textContent = msg;
   el.style.color = ok ? '#2e7d32' : '#c0392b';
+}
+
+// ---- Stream alert test ----
+function testStreamAlert() {
+  const el = document.getElementById('ice-alert-status');
+  el.textContent = 'Sending test alert…';
+  el.style.color = '#666';
+  fetch('/api/stream-alert/test', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      el.textContent = d.message;
+      el.style.color = d.ok ? '#2e7d32' : '#c0392b';
+    })
+    .catch(() => { el.textContent = 'Request failed'; el.style.color = '#c0392b'; });
 }
 
 // ---- Icecast ----
@@ -1117,6 +1213,21 @@ def api_icecast():
             pass
         results.append(entry)
     return jsonify(results)
+
+# -------------------- STREAM ALERT TEST ---------
+@app.route("/api/stream-alert/test", methods=["POST"])
+def api_stream_alert_test():
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    ok, msg = _send_stream_alert_email(
+        subject=f"FPREN Stream Alert TEST — Port 8000 ({now})",
+        body=(
+            f"This is a TEST alert for stream port 8000 (All Florida / {_MONITOR_STREAM['mount']}).\n\n"
+            f"If you received this, stream-down email alerts are working correctly.\n"
+            f"Sent at: {now}\n"
+            f"Dashboard: http://10.242.41.77:5000\n"
+        ),
+    )
+    return jsonify({"ok": ok, "message": msg})
 
 # -------------------- FEEDBACK ------------------
 @app.route("/feedback", methods=["POST"])
