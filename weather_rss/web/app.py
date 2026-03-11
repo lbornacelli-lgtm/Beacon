@@ -1218,23 +1218,35 @@ def api_icecast():
     return jsonify(results)
 
 # -------------------- ALERT WAV DOWNLOAD --------
+_ALL_FLORIDA_ZONE = "/home/lh_admin/weather_station/audio/zones/all_florida"
 _WAV_SEARCH_ROOTS = [
-    "/home/lh_admin/weather_station/audio/alerts",
+    _ALL_FLORIDA_ZONE,
     "/home/lh_admin/audio_playlist/alerts",
+    "/home/lh_admin/weather_station/audio/alerts",
     "/home/lh_admin/wav_output",
 ]
 
-def _resolve_wav(wav_path: str):
-    """Return a real path for wav_path, searching fallback roots by filename."""
+def _alert_id_to_filename(alert_id: str) -> str:
+    """Convert alert_id URN to WAV filename: replace : and . with _"""
+    return alert_id.replace(":", "_").replace(".", "_") + ".wav"
+
+def _resolve_wav(wav_path: str, alert_id: str = None):
+    """Return a real path for the alert WAV, searching all_florida first."""
+    candidates = []
+    # Prefer filename derived from alert_id (all_florida zone naming)
+    if alert_id:
+        candidates.append(_alert_id_to_filename(alert_id))
+    # Also try basename from wav_path
+    if wav_path:
+        candidates.append(os.path.basename(wav_path))
+    # Direct path check
     if wav_path and os.path.isfile(wav_path):
         return wav_path
-    if not wav_path:
-        return None
-    filename = os.path.basename(wav_path)
-    for root in _WAV_SEARCH_ROOTS:
-        for dirpath, _, files in os.walk(root):
-            if filename in files:
-                return os.path.join(dirpath, filename)
+    for filename in candidates:
+        for root in _WAV_SEARCH_ROOTS:
+            for dirpath, _, files in os.walk(root):
+                if filename in files:
+                    return os.path.join(dirpath, filename)
     return None
 
 @app.route("/alerts/<alert_id>/wav")
@@ -1245,9 +1257,9 @@ def alert_wav(alert_id):
         doc = alerts_col.find_one({"_id": ObjectId(alert_id)})
     except Exception:
         abort(400)
-    if not doc or not doc.get("wav_path"):
+    if not doc:
         abort(404)
-    resolved = _resolve_wav(doc["wav_path"])
+    resolved = _resolve_wav(doc.get("wav_path"), doc.get("alert_id"))
     if not resolved:
         abort(404)
     filename = os.path.basename(resolved)
