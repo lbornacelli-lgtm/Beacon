@@ -67,10 +67,13 @@ services:
     build: .
     container_name: weather_alerts
     restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       - mongodb
     environment:
       - MONGO_URI=mongodb://mongodb:27017
+      - LOG_FILE=/app/logs/email.log
     command: python alert_worker.py
 
   web_dashboard:

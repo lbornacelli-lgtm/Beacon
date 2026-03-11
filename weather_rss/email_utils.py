@@ -1,30 +1,66 @@
-import smtplib
-from email.message import EmailMessage
+import json
 import logging
 import os
+import smtplib
+from email.message import EmailMessage
 
-LOG_FILE = "/home/lh_admin/weather_rss/logs/email.log"
-logging.basicConfig(filename=LOG_FILE,
-                    level=logging.INFO,
-                    format='%(asctime)s %(levelname)s:%(message)s')
+LOG_FILE    = os.environ.get("LOG_FILE", "/home/lh_admin/weather_rss/logs/email.log")
+SMTP_CFG    = os.environ.get("SMTP_CFG", "/home/lh_admin/weather_rss/config/smtp_config.json")
 
-def send_success_email():
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+)
+
+
+def _load_cfg() -> dict:
     try:
-        EMAIL_USER = os.environ.get("EMAIL_USER")
-        EMAIL_PASS = os.environ.get("EMAIL_PASS")
+        with open(SMTP_CFG) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
 
-        msg = EmailMessage()
-        msg['Subject'] = "Weather RSS Success"
-        msg['From'] = EMAIL_USER
-        msg['To'] = "recipient@example.com"  # Replace with your email
-        msg.set_content("Weather RSS feed processed successfully.")
 
-        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+def send_email(subject: str, body: str, to: str = None):
+    """Send an email using settings from smtp_config.json."""
+    cfg = _load_cfg()
+
+    host     = cfg.get("smtp_host", "localhost")
+    port     = int(cfg.get("smtp_port", 25))
+    use_tls  = cfg.get("use_tls", False)
+    use_auth = cfg.get("use_auth", False)
+    user     = cfg.get("smtp_user") or os.environ.get("EMAIL_USER", "")
+    passwd   = cfg.get("smtp_pass") or os.environ.get("EMAIL_PASS", "")
+    mail_from = cfg.get("mail_from") or user
+    mail_to   = to or cfg.get("mail_to", "")
+
+    if not mail_to:
+        logging.warning("No recipient configured — email not sent.")
+        return
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"]    = mail_from
+    msg["To"]      = mail_to
+    msg.set_content(body)
+
+    try:
+        with smtplib.SMTP(host, port) as smtp:
             smtp.ehlo()
-            smtp.starttls()
-            smtp.login(EMAIL_USER, EMAIL_PASS)
+            if use_tls:
+                smtp.starttls()
+                smtp.ehlo()
+            if use_auth and user and passwd:
+                smtp.login(user, passwd)
             smtp.send_message(msg)
+        logging.info("Email sent: %s → %s", subject, mail_to)
+    except Exception as exc:
+        logging.error("Failed to send email '%s': %s", subject, exc)
+        raise
 
-        logging.info("Weather RSS email sent successfully.")
-    except Exception as e:
-        logging.error(f"Failed to send Weather RSS email: {e}")
+
+# Legacy wrapper kept for backwards compatibility
+def send_success_email():
+    send_email("Weather RSS Success", "Weather RSS feed processed successfully.")
