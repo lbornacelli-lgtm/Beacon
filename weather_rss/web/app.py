@@ -526,7 +526,9 @@ HTML_TEMPLATE = """
     <td>{{ a.sender }}</td>
     <td class="center">{{ a.sent }}</td>
     <td class="center">
-      {% if a.tts_generated %}
+      {% if a.tts_generated and a.alert_id %}
+        <a href="/alerts/{{ a.alert_id }}/wav" download class="badge badge-yes" style="text-decoration:none;">&#8681; WAV</a>
+      {% elif a.tts_generated %}
         <span class="badge badge-yes">&#10003; WAV</span>
       {% else %}
         <span class="badge badge-no">Pending</span>
@@ -955,6 +957,7 @@ def dashboard():
             "sent":          sent or "—",
             "tts_generated": a.get("tts_generated", False),
             "sev_class":     SEVERITY_CLASS.get(severity, ""),
+            "alert_id":      str(a["_id"]) if a.get("_id") and a.get("wav_path") else None,
         })
 
     # --- Airport METAR ---
@@ -1213,6 +1216,24 @@ def api_icecast():
             pass
         results.append(entry)
     return jsonify(results)
+
+# -------------------- ALERT WAV DOWNLOAD --------
+@app.route("/alerts/<alert_id>/wav")
+def alert_wav(alert_id):
+    from bson import ObjectId
+    from flask import send_file, abort
+    try:
+        doc = alerts_col.find_one({"_id": ObjectId(alert_id)})
+    except Exception:
+        abort(400)
+    if not doc or not doc.get("wav_path"):
+        abort(404)
+    wav_path = doc["wav_path"]
+    if not os.path.isfile(wav_path):
+        abort(404)
+    filename = os.path.basename(wav_path)
+    return send_file(wav_path, mimetype="audio/wav",
+                     as_attachment=True, download_name=filename)
 
 # -------------------- STREAM ALERT TEST ---------
 @app.route("/api/stream-alert/test", methods=["POST"])
