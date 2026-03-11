@@ -11,7 +11,7 @@ import threading
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
-MONGO_URI = "mongodb://localhost:27017/"
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 DB_NAME = "weather_rss"
 RSS_FEEDS = [
     {
@@ -29,7 +29,7 @@ RSS_FEEDS = [
 # Florida statewide alerts — replaces single lat/lon point
 NWS_ALERTS_URL = "https://api.weather.gov/alerts/active?area=FL"
 
-ALERT_INTERVAL = 30    # seconds — alerts can be issued any time
+ALERT_INTERVAL = 180   # seconds — poll every 3 minutes
 RSS_INTERVAL   = 300   # seconds — NHC feeds update infrequently
 
 LOG_FILE = os.environ.get("LOG_FILE", "/home/lh_admin/weather_rss/logs/service.log")
