@@ -255,6 +255,20 @@ HTML_TEMPLATE = """
   small { color: #888; }
   .no-data { text-align:center; color:#888; font-style:italic; }
 
+  /* ---- Icecast tab ---- */
+  .ice-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:18px; max-width:1100px; padding:4px 0; }
+  .ice-card { background:#fff; border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+  .ice-card-hdr { padding:10px 16px; font-size:1rem; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+  .ice-hdr-live { background:#1b5e20; color:#fff; }
+  .ice-hdr-off  { background:#555; color:#ccc; }
+  .ice-badge { font-size:0.72rem; font-weight:700; padding:2px 8px; border-radius:10px; }
+  .ice-badge-live { background:#a5d6a7; color:#1b5e20; }
+  .ice-badge-off  { background:#888; color:#fff; }
+  .ice-body { padding:12px 16px; font-size:0.85rem; line-height:2; color:#444; }
+  .ice-body strong { color:#0077aa; }
+  .ice-stat { display:flex; justify-content:space-between; border-bottom:1px solid #f0f0f0; padding:3px 0; }
+  .ice-stat:last-child { border-bottom:none; }
+
   /* ---- Weather tab ---- */
   .wx-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; max-width:1100px; padding:4px 0; }
   .wx-card { background:#fff; border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
@@ -293,6 +307,7 @@ HTML_TEMPLATE = """
 <nav class="tab-nav">
   <button class="active" onclick="showTab('config',this)">Config</button>
   <button onclick="showTab('weather',this);loadWeather()">Weather</button>
+  <button onclick="showTab('icecast',this);loadIcecast()">Icecast</button>
   <button onclick="showTab('data',this)">Alerts &amp; Data</button>
 </nav>
 
@@ -356,6 +371,12 @@ HTML_TEMPLATE = """
     </div>
     <p class="cfg-note">Settings are saved to config/smtp_config.json and used by all email alert notifications.</p>
   </div>
+</div>
+
+<!-- ===== ICECAST TAB ===== -->
+<div id="tab-icecast" class="tab-panel">
+  <div id="ice-load" style="text-align:center;padding:40px;color:#888;font-size:1rem;">Click the Icecast tab to load stream status&hellip;</div>
+  <div id="ice-grid" class="ice-grid"></div>
 </div>
 
 <!-- ===== WEATHER TAB ===== -->
@@ -627,6 +648,7 @@ loadSmtp();
     if ((btn.getAttribute('onclick') || '').includes("'" + saved + "'")) {
       showTab(saved, btn);
       if (saved === 'weather') loadWeather();
+      if (saved === 'icecast') loadIcecast();
       break;
     }
   }
@@ -684,6 +706,45 @@ function setSmtpStatus(msg, ok=true) {
   const el = document.getElementById('smtp-status');
   el.textContent = msg;
   el.style.color = ok ? '#2e7d32' : '#c0392b';
+}
+
+// ---- Icecast ----
+let _iceLoaded = false;
+function loadIcecast() {
+  if (_iceLoaded) return;
+  _iceLoaded = true;
+  document.getElementById('ice-load').textContent = 'Loading stream status\u2026';
+  fetch('/api/icecast')
+    .then(r => r.json())
+    .then(streams => {
+      const grid = document.getElementById('ice-grid');
+      document.getElementById('ice-load').style.display = 'none';
+      grid.innerHTML = streams.map(s => {
+        const live = s.live;
+        const hdrCls  = live ? 'ice-hdr-live' : 'ice-hdr-off';
+        const badgeCls = live ? 'ice-badge-live' : 'ice-badge-off';
+        const badgeTxt = live ? 'LIVE' : 'OFFLINE';
+        const rows = [
+          ['Mount',     s.mount],
+          ['Port',      s.port],
+          ['Listeners', live ? s.listeners : '—'],
+          ['Bitrate',   live && s.bitrate ? s.bitrate + ' kbps' : '—'],
+          ['Format',    live && s.format  ? s.format  : '—'],
+          ['Title',     live && s.title   ? s.title   : '—'],
+        ].map(([k,v]) => `<div class="ice-stat"><span>${k}</span><strong>${v}</strong></div>`).join('');
+        return `<div class="ice-card">
+          <div class="ice-card-hdr ${hdrCls}">
+            ${s.label}
+            <span class="ice-badge ${badgeCls}">${badgeTxt}</span>
+          </div>
+          <div class="ice-body">${rows}</div>
+        </div>`;
+      }).join('');
+    })
+    .catch(() => {
+      document.getElementById('ice-load').textContent = 'Could not load Icecast data.';
+      _iceLoaded = false;
+    });
 }
 
 // ---- Weather ----
@@ -1023,6 +1084,39 @@ def api_weather():
         result.append(city_data)
 
     return jsonify(result)
+
+# -------------------- ICECAST API ---------------
+@app.route("/api/icecast")
+def api_icecast():
+    import xml.etree.ElementTree as ET
+    results = []
+    for s in STREAMS:
+        entry = {
+            "id": s["id"], "label": s["label"],
+            "port": s["port"], "mount": s["mount"],
+            "live": False, "listeners": 0,
+            "bitrate": None, "format": None, "title": None,
+        }
+        try:
+            url = f"http://localhost:{s['port']}/admin/stats"
+            req = _ureq.Request(url)
+            import base64
+            creds = base64.b64encode(b"admin:1002LBorn1!").decode()
+            req.add_header("Authorization", f"Basic {creds}")
+            with _ureq.urlopen(req, timeout=3) as resp:
+                tree = ET.fromstring(resp.read())
+            for src in tree.findall(".//source"):
+                if src.get("mount") == s["mount"]:
+                    entry["live"]      = True
+                    entry["listeners"] = int(src.findtext("listeners") or 0)
+                    entry["bitrate"]   = src.findtext("bitrate")
+                    entry["format"]    = src.findtext("server_type")
+                    entry["title"]     = src.findtext("title") or src.findtext("server_name")
+                    break
+        except Exception:
+            pass
+        results.append(entry)
+    return jsonify(results)
 
 # -------------------- FEEDBACK ------------------
 @app.route("/feedback", methods=["POST"])
