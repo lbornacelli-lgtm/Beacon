@@ -368,6 +368,39 @@ HTML_TEMPLATE = """
   .wx-p-temp { font-size:1.15rem; font-weight:700; color:#222; }
   .wx-p-desc { font-size:0.7rem; color:#555; margin-top:3px; line-height:1.3; }
   .wx-p-rain { font-size:0.68rem; color:#1565c0; margin-top:3px; font-weight:600; }
+
+  /* ---- Playlist tab ---- */
+  .pl-now-playing {
+    background:#111; color:#fff; border-radius:8px; padding:16px 22px;
+    margin-bottom:20px; max-width:700px; display:flex; align-items:center; gap:18px;
+  }
+  .pl-now-icon { font-size:2rem; }
+  .pl-now-title { font-size:1.1rem; font-weight:700; color:#00cfff; }
+  .pl-now-meta  { font-size:0.82rem; color:#aaa; margin-top:4px; }
+  .pl-card { background:#fff; border:1px solid #ddd; border-radius:8px;
+             max-width:700px; margin-bottom:20px; overflow:hidden;
+             box-shadow:0 1px 4px rgba(0,0,0,.07); }
+  .pl-card-hdr { background:#0077aa; color:#fff; padding:10px 18px;
+                 display:flex; justify-content:space-between; align-items:center; }
+  .pl-card-hdr-title { font-size:1rem; font-weight:700; }
+  .pl-card-hdr-sub   { font-size:0.78rem; opacity:.8; }
+  .pl-slots { width:100%; border-collapse:collapse; font-size:0.88rem; }
+  .pl-slots th { background:#e8f4fb; color:#0077aa; padding:7px 14px;
+                 text-align:left; font-weight:700; font-size:0.8rem;
+                 text-transform:uppercase; letter-spacing:.04em; }
+  .pl-slots td { padding:8px 14px; border-bottom:1px solid #f0f0f0; }
+  .pl-slots tr:last-child td { border-bottom:none; }
+  .pl-slots tr:hover td { background:#f5faff; }
+  .pl-cat { display:inline-block; background:#e0f4ff; color:#0077aa;
+            border-radius:3px; padding:1px 7px; font-size:0.78rem;
+            font-family:monospace; }
+  .pl-switcher { display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap; }
+  .pl-select { border:1px solid #bbb; border-radius:4px; padding:6px 10px;
+               font-size:0.875rem; background:#fff; cursor:pointer; min-width:200px; }
+  .pl-btn-assign { padding:6px 16px; background:#0077aa; color:#fff; border:none;
+                   border-radius:4px; font-size:0.875rem; font-weight:700; cursor:pointer; }
+  .pl-btn-assign:hover { background:#005f8a; }
+  .pl-status { font-size:0.8rem; font-style:italic; color:#666; }
 </style>
 </head>
 <body>
@@ -385,6 +418,7 @@ HTML_TEMPLATE = """
 <nav class="tab-nav">
   <button class="active" onclick="showTab('config',this)">Config</button>
   <button onclick="showTab('weather',this);loadWeather()">Weather</button>
+  <button onclick="showTab('playlist',this);loadPlaylist()">Playlist</button>
   <button onclick="showTab('icecast',this);loadIcecast()">Icecast</button>
   <button onclick="showTab('data',this)">Alerts &amp; Data</button>
 </nav>
@@ -448,6 +482,21 @@ HTML_TEMPLATE = """
       <span id="smtp-status" class="smtp-status"></span>
     </div>
     <p class="cfg-note">Settings are saved to config/smtp_config.json and used by all email alert notifications.</p>
+  </div>
+</div>
+
+<!-- ===== PLAYLIST TAB ===== -->
+<div id="tab-playlist" class="tab-panel">
+  <div id="pl-load" style="text-align:center;padding:40px;color:#888;font-size:1rem;">Click the Playlist tab to load&hellip;</div>
+  <div id="pl-content" style="display:none;">
+    <div id="pl-now"></div>
+    <div class="pl-switcher">
+      <strong style="font-size:0.9rem;">Stream 8000 Playlist:</strong>
+      <select id="pl-select" class="pl-select"></select>
+      <button class="pl-btn-assign" onclick="assignPlaylist()">Assign</button>
+      <span id="pl-status" class="pl-status"></span>
+    </div>
+    <div id="pl-slots-wrap"></div>
   </div>
 </div>
 
@@ -732,6 +781,7 @@ loadSmtp();
     if ((btn.getAttribute('onclick') || '').includes("'" + saved + "'")) {
       showTab(saved, btn);
       if (saved === 'weather') loadWeather();
+      if (saved === 'playlist') loadPlaylist();
       if (saved === 'icecast') loadIcecast();
       break;
     }
@@ -790,6 +840,89 @@ function setSmtpStatus(msg, ok=true) {
   const el = document.getElementById('smtp-status');
   el.textContent = msg;
   el.style.color = ok ? '#2e7d32' : '#c0392b';
+}
+
+// ---- Playlist ----
+let _plLoaded = false;
+let _plData   = null;
+
+function loadPlaylist() {
+  if (_plLoaded) return;
+  _plLoaded = true;
+  document.getElementById('pl-load').textContent = 'Loading playlist\u2026';
+  fetch('/api/playlist')
+    .then(r => r.json())
+    .then(data => {
+      _plData = data;
+      document.getElementById('pl-load').style.display = 'none';
+      document.getElementById('pl-content').style.display = 'block';
+
+      // Now Playing
+      const np = data.now_playing;
+      document.getElementById('pl-now').innerHTML = np
+        ? `<div class="pl-now-playing">
+             <div class="pl-now-icon">&#9654;</div>
+             <div>
+               <div class="pl-now-title">${np.title}</div>
+               <div class="pl-now-meta">Category: ${np.category} &mdash; Started: ${np.started_at}</div>
+             </div>
+           </div>`
+        : `<div class="pl-now-playing"><div class="pl-now-icon">&#9646;&#9646;</div><div class="pl-now-meta">Nothing currently playing</div></div>`;
+
+      // Playlist switcher
+      const sel = document.getElementById('pl-select');
+      sel.innerHTML = data.available.map(p =>
+        `<option value="${p.file}" ${p.file === data.active ? 'selected' : ''}>${p.name} (${p.file})</option>`
+      ).join('');
+
+      renderSlots(data.active, data.available);
+    })
+    .catch(() => {
+      document.getElementById('pl-load').textContent = 'Could not load playlist data.';
+      _plLoaded = false;
+    });
+}
+
+function renderSlots(activeFile, available) {
+  const pl = available.find(p => p.file === activeFile);
+  if (!pl) return;
+  const rows = pl.slots.map((s, i) =>
+    `<tr>
+      <td class="center" style="color:#888;font-size:0.8rem;">${i + 1}</td>
+      <td>${s.label}</td>
+      <td><span class="pl-cat">${s.category}</span></td>
+      <td class="center">${s.top_of_hour ? '&#9679;' : ''}</td>
+    </tr>`
+  ).join('');
+  document.getElementById('pl-slots-wrap').innerHTML = `
+    <div class="pl-card">
+      <div class="pl-card-hdr">
+        <span class="pl-card-hdr-title">${pl.name}</span>
+        <span class="pl-card-hdr-sub">${pl.description}</span>
+      </div>
+      <table class="pl-slots">
+        <thead><tr><th>#</th><th>Label</th><th>Category</th><th>Top of Hour</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function assignPlaylist() {
+  const file = document.getElementById('pl-select').value;
+  const st = document.getElementById('pl-status');
+  st.textContent = 'Saving\u2026';
+  fetch('/api/playlist/assign', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({stream_id: 'stream_8000', file})
+  })
+  .then(r => r.json())
+  .then(d => {
+    st.textContent = d.message;
+    st.style.color = d.ok ? '#2e7d32' : '#c0392b';
+    if (d.ok && _plData) renderSlots(file, _plData.available);
+  })
+  .catch(() => { st.textContent = 'Request failed'; st.style.color = '#c0392b'; });
 }
 
 // ---- Stream alert test ----
@@ -1216,6 +1349,67 @@ def api_icecast():
             pass
         results.append(entry)
     return jsonify(results)
+
+# -------------------- PLAYLIST API --------------
+PLAYLISTS_DIR       = "/home/lh_admin/weather_station/playlists"
+STREAM_PLAYLISTS_FILE = "/home/lh_admin/weather_station/config/stream_playlists.json"
+NOW_PLAYING_FILE    = "/tmp/beacon_now_playing.json"
+
+def _load_stream_playlists():
+    try:
+        with open(STREAM_PLAYLISTS_FILE) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+def _save_stream_playlists(data):
+    with open(STREAM_PLAYLISTS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+@app.route("/api/playlist")
+def api_playlist():
+    sp = _load_stream_playlists()
+    active_file = sp.get("stream_8000", "normal.json")
+    available = []
+    for fname in sorted(os.listdir(PLAYLISTS_DIR)):
+        if not fname.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(PLAYLISTS_DIR, fname)) as f:
+                pl = json.load(f)
+            available.append({
+                "file":        fname,
+                "name":        pl.get("name", fname),
+                "description": pl.get("description", ""),
+                "slots":       pl.get("slots", []),
+            })
+        except (OSError, json.JSONDecodeError):
+            pass
+    now_playing = None
+    try:
+        with open(NOW_PLAYING_FILE) as f:
+            now_playing = json.load(f)
+    except (FileNotFoundError, ValueError):
+        pass
+    return jsonify({
+        "active":      active_file,
+        "available":   available,
+        "now_playing": now_playing,
+    })
+
+@app.route("/api/playlist/assign", methods=["POST"])
+def api_playlist_assign():
+    data = request.get_json(silent=True) or {}
+    stream_id = data.get("stream_id", "").strip()
+    file      = data.get("file", "").strip()
+    if not stream_id or not file:
+        return jsonify({"ok": False, "message": "Missing stream_id or file"}), 400
+    if not os.path.isfile(os.path.join(PLAYLISTS_DIR, file)):
+        return jsonify({"ok": False, "message": f"Playlist {file} not found"}), 404
+    sp = _load_stream_playlists()
+    sp[stream_id] = file
+    _save_stream_playlists(sp)
+    return jsonify({"ok": True, "message": f"Assigned {file} to {stream_id}"})
 
 # -------------------- ALERT WAV DOWNLOAD --------
 _ALL_FLORIDA_ZONE = "/home/lh_admin/weather_station/audio/zones/all_florida"
