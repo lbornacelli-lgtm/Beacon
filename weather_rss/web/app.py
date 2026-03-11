@@ -1218,6 +1218,25 @@ def api_icecast():
     return jsonify(results)
 
 # -------------------- ALERT WAV DOWNLOAD --------
+_WAV_SEARCH_ROOTS = [
+    "/home/lh_admin/weather_station/audio/alerts",
+    "/home/lh_admin/audio_playlist/alerts",
+    "/home/lh_admin/wav_output",
+]
+
+def _resolve_wav(wav_path: str):
+    """Return a real path for wav_path, searching fallback roots by filename."""
+    if wav_path and os.path.isfile(wav_path):
+        return wav_path
+    if not wav_path:
+        return None
+    filename = os.path.basename(wav_path)
+    for root in _WAV_SEARCH_ROOTS:
+        for dirpath, _, files in os.walk(root):
+            if filename in files:
+                return os.path.join(dirpath, filename)
+    return None
+
 @app.route("/alerts/<alert_id>/wav")
 def alert_wav(alert_id):
     from bson import ObjectId
@@ -1228,11 +1247,11 @@ def alert_wav(alert_id):
         abort(400)
     if not doc or not doc.get("wav_path"):
         abort(404)
-    wav_path = doc["wav_path"]
-    if not os.path.isfile(wav_path):
+    resolved = _resolve_wav(doc["wav_path"])
+    if not resolved:
         abort(404)
-    filename = os.path.basename(wav_path)
-    return send_file(wav_path, mimetype="audio/wav",
+    filename = os.path.basename(resolved)
+    return send_file(resolved, mimetype="audio/wav",
                      as_attachment=True, download_name=filename)
 
 # -------------------- STREAM ALERT TEST ---------
