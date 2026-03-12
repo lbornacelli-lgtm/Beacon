@@ -53,7 +53,7 @@ VOICE_MODEL = os.getenv(
 
 ZONES_ROOT = "/home/lh_admin/weather_station/audio/zones"
 INTERVAL   = 60   # seconds between polls
-MAX_TRAFFIC_AGE_DAYS = 3   # keep traffic WAVs for this many days
+MAX_WAV_AGE_DAYS = 3   # delete all alert and traffic WAVs older than this
 
 # NWS event type → alert subfolder (mirrors file_router.ALERT_FOLDER_MAP)
 ALERT_FOLDER_MAP = {
@@ -309,20 +309,24 @@ def _get_alert_folder(event: str, severity: str = "") -> str:
 def process_nws_alerts(voice: PiperVoice, db, zones: list):
     wavs_col   = db["zone_alert_wavs"]
     alerts_col = db["nws_alerts"]
+    cutoff     = datetime.now(timezone.utc) - timedelta(days=MAX_WAV_AGE_DAYS)
 
     # Current alert IDs in MongoDB
     current_ids = set(str(a["alert_id"]) for a in alerts_col.find({}, {"alert_id": 1}))
 
-    # Remove WAVs for expired alerts
+    # Remove WAVs for expired alerts OR those older than MAX_WAV_AGE_DAYS
     expired = wavs_col.find({
         "source_type": "nws_alert",
-        "source_id":   {"$nin": list(current_ids)},
+        "$or": [
+            {"source_id":    {"$nin": list(current_ids)}},
+            {"generated_at": {"$lt": cutoff}},
+        ],
     })
     for doc in expired:
         wav = doc.get("wav_path", "")
         if wav and os.path.exists(wav):
             os.remove(wav)
-            logger.info("Removed expired alert WAV: %s", wav)
+            logger.info("Removed expired/aged alert WAV: %s", wav)
         wavs_col.delete_one({"_id": doc["_id"]})
 
     # Process active alerts
@@ -343,19 +347,20 @@ def process_nws_alerts(voice: PiperVoice, db, zones: list):
         fname    = _safe_id(alert_id) + ".wav"
 
         for zone_id in target_zones:
-            # Check if already generated with same content in the correct folder
             existing = wavs_col.find_one({
                 "source_type": "nws_alert",
                 "source_id":   alert_id,
                 "zone":        zone_id,
             })
+            # Skip only if record matches, folder is correct, AND file exists on disk
             if (existing
                     and existing.get("fetched_at") == fetched_at
-                    and existing.get("alert_folder") == folder):
-                continue  # already current and in the right folder
+                    and existing.get("alert_folder") == folder
+                    and existing.get("wav_path")
+                    and os.path.exists(existing["wav_path"])):
+                continue
 
-            # If the alert was previously in a different folder (e.g. severity upgrade),
-            # remove the old WAV file before writing the new one.
+            # If the alert moved to a different folder (severity upgrade), remove old WAV
             if existing and existing.get("alert_folder") != folder:
                 old_wav = existing.get("wav_path", "")
                 if old_wav and os.path.exists(old_wav):
@@ -400,7 +405,7 @@ def _parse_last_updated(s: str):
 def process_traffic(voice: PiperVoice, db, zones: list):
     wavs_col    = db["zone_alert_wavs"]
     traffic_col = db["fl_traffic"]
-    cutoff      = datetime.now(timezone.utc) - timedelta(days=MAX_TRAFFIC_AGE_DAYS)
+    cutoff      = datetime.now(timezone.utc) - timedelta(days=MAX_WAV_AGE_DAYS)
 
     # Current incident IDs
     current_ids = set(str(t["incident_id"]) for t in traffic_col.find({}, {"incident_id": 1}))
