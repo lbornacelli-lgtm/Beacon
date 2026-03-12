@@ -215,6 +215,25 @@ def _build_nws_text(doc: dict) -> str:
     return " ".join(parts)
 
 
+def _ordinal(n: int) -> str:
+    """Return spoken ordinal: 1 → '1st', 12 → '12th', etc."""
+    if 11 <= (n % 100) <= 13:
+        return f"{n}th"
+    return f"{n}{['th','st','nd','rd','th'][min(n % 10, 4)]}"
+
+
+def _format_traffic_time(last_updated: str) -> str:
+    """Convert 'M/D/YY, H:MM AM' → 'March 12th at 10:47 AM', or '' on failure."""
+    try:
+        dt = datetime.strptime(last_updated.strip(), "%m/%d/%y, %I:%M %p")
+    except (ValueError, AttributeError):
+        return ""
+    month = dt.strftime("%B")
+    day   = _ordinal(dt.day)
+    time  = dt.strftime("%I:%M %p").lstrip("0")
+    return f"{month} {day} at {time}"
+
+
 def _build_traffic_text(doc: dict) -> str:
     county    = (doc.get("county") or "").strip()
     inc_type  = (doc.get("type") or "").strip()
@@ -243,6 +262,10 @@ def _build_traffic_text(doc: dict) -> str:
         parts.append("Road is fully closed.")
     elif lane_desc:
         parts.append(lane_desc + ".")
+
+    ts = _format_traffic_time(doc.get("last_updated", ""))
+    if ts:
+        parts.append(f"Reported {ts}.")
 
     parts.append("Drive safely.")
     return " ".join(parts)
