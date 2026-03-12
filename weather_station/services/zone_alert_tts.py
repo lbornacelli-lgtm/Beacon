@@ -35,7 +35,7 @@ import re
 import shutil
 import time
 import wave
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from pymongo import MongoClient, UpdateOne
 from piper import PiperVoice
@@ -53,6 +53,7 @@ VOICE_MODEL = os.getenv(
 
 ZONES_ROOT = "/home/lh_admin/weather_station/audio/zones"
 INTERVAL   = 60   # seconds between polls
+MAX_TRAFFIC_AGE_DAYS = 3   # keep traffic WAVs for this many days
 
 # NWS event type → alert subfolder (mirrors file_router.ALERT_FOLDER_MAP)
 ALERT_FOLDER_MAP = {
@@ -388,30 +389,47 @@ def process_nws_alerts(voice: PiperVoice, db, zones: list):
                 logger.error("Failed NWS WAV %s/%s/%s: %s", zone_id, folder, fname, exc)
 
 
+def _parse_last_updated(s: str):
+    """Parse fl_traffic last_updated string 'M/D/YY, H:MM AM' → UTC datetime, or None."""
+    try:
+        return datetime.strptime(s.strip(), "%m/%d/%y, %I:%M %p").replace(tzinfo=timezone.utc)
+    except (ValueError, AttributeError):
+        return None
+
+
 def process_traffic(voice: PiperVoice, db, zones: list):
     wavs_col    = db["zone_alert_wavs"]
     traffic_col = db["fl_traffic"]
+    cutoff      = datetime.now(timezone.utc) - timedelta(days=MAX_TRAFFIC_AGE_DAYS)
 
     # Current incident IDs
     current_ids = set(str(t["incident_id"]) for t in traffic_col.find({}, {"incident_id": 1}))
 
-    # Remove WAVs for resolved incidents
+    # Remove WAVs for resolved incidents OR those older than MAX_TRAFFIC_AGE_DAYS
     expired = wavs_col.find({
         "source_type": "traffic",
-        "source_id":   {"$nin": list(current_ids)},
+        "$or": [
+            {"source_id":    {"$nin": list(current_ids)}},
+            {"generated_at": {"$lt": cutoff}},
+        ],
     })
     for doc in expired:
         wav = doc.get("wav_path", "")
         if wav and os.path.exists(wav):
             os.remove(wav)
-            logger.info("Removed expired traffic WAV: %s", wav)
+            logger.info("Removed expired/aged traffic WAV: %s", wav)
         wavs_col.delete_one({"_id": doc["_id"]})
 
-    # Process active incidents
+    # Process active incidents from the last MAX_TRAFFIC_AGE_DAYS days only
     for inc in traffic_col.find({}):
         inc_id       = str(inc.get("incident_id", ""))
         last_updated = str(inc.get("last_updated", ""))
         if not inc_id:
+            continue
+
+        # Skip incidents older than the age window
+        ts = _parse_last_updated(last_updated)
+        if ts and ts < cutoff:
             continue
 
         target_zones = _zones_for_traffic(inc, zones)
@@ -427,7 +445,11 @@ def process_traffic(voice: PiperVoice, db, zones: list):
                 "source_id":   inc_id,
                 "zone":        zone_id,
             })
-            if existing and existing.get("last_updated") == last_updated:
+            # Skip only if record matches AND the WAV file actually exists on disk
+            if (existing
+                    and existing.get("last_updated") == last_updated
+                    and existing.get("wav_path")
+                    and os.path.exists(existing["wav_path"])):
                 continue
 
             wav_path = os.path.join(ZONES_ROOT, zone_id, "traffic", fname)
