@@ -200,7 +200,6 @@ HTML_TEMPLATE = """
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="60">
 <link rel="icon" type="image/png" href="/static/fpren.png">
 <title>FPREN Alerts Dashboard</title>
 <style>
@@ -417,9 +416,9 @@ HTML_TEMPLATE = """
 <!-- Tab navigation -->
 <nav class="tab-nav">
   <button class="active" onclick="showTab('config',this)">Config</button>
-  <button onclick="showTab('weather',this);loadWeather()">Weather</button>
-  <button onclick="showTab('playlist',this);loadPlaylist()">Playlist</button>
-  <button onclick="showTab('icecast',this);loadIcecast()">Icecast</button>
+  <button onclick="showTab('weather',this)">Weather</button>
+  <button onclick="showTab('playlist',this)">Playlist</button>
+  <button onclick="showTab('icecast',this)">Icecast</button>
   <button onclick="showTab('data',this)">Alerts &amp; Data</button>
 </nav>
 
@@ -518,183 +517,26 @@ HTML_TEMPLATE = """
 
 <!-- ===== DATA TAB ===== -->
 <div id="tab-data" class="tab-panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; padding:0 0 4px; flex-wrap:wrap; gap:8px;">
+    <small id="data-refreshed" style="color:#888;">Loading...</small>
+    <button class="feedback-btn" onclick="document.getElementById('feedbackDialog').showModal()">Feedback</button>
+  </div>
 
-<div style="display:flex; justify-content:flex-end; padding:0 0 4px;">
-  <button class="feedback-btn" onclick="document.getElementById('feedbackDialog').showModal()">Feedback</button>
-</div>
-<small>Auto-refreshes every 60 seconds &mdash; {{ now }}</small>
+  <dialog id="feedbackDialog">
+    <h3 style="margin-top:0">Send Feedback</h3>
+    <form method="post" action="/feedback">
+      <label>Name (optional)<input type="text" name="name" placeholder="Your name"></label>
+      <label>Message <span style="color:red">*</span><textarea name="message" placeholder="Share your feedback..." required></textarea></label>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" onclick="document.getElementById('feedbackDialog').close()">Cancel</button>
+        <button type="submit" class="btn-primary">Submit</button>
+      </div>
+    </form>
+  </dialog>
 
-{% if now_playing %}
-<p style="margin:8px 0; font-size:0.95rem;">
-  <strong>&#9654; Now Playing:</strong>
-  {{ now_playing.title }}
-  <span style="color:#666;">[{{ now_playing.category }}]</span>
-  &mdash; <small>started {{ now_playing.started_at }}</small>
-</p>
-{% endif %}
-
-{% if request.args.get('msg') %}
-<p style="color:green; font-weight:bold;">{{ request.args.get('msg') }}</p>
-{% endif %}
-
-<dialog id="feedbackDialog">
-  <h3 style="margin-top:0">Send Feedback</h3>
-  <form method="post" action="/feedback">
-    <label>Name (optional)
-      <input type="text" name="name" placeholder="Your name">
-    </label>
-    <label>Message <span style="color:red">*</span>
-      <textarea name="message" placeholder="Share your feedback..." required></textarea>
-    </label>
-    <div class="dialog-actions">
-      <button type="button" class="btn-secondary"
-              onclick="document.getElementById('feedbackDialog').close()">Cancel</button>
-      <button type="submit" class="btn-primary">Submit</button>
-    </div>
-  </form>
-</dialog>
-
-<!-- ===== NWS ALERTS ===== -->
-<h2>NWS Alerts <small>({{ alerts|length }} most recent)</small></h2>
-<table>
-  <tr>
-    <th>Event</th>
-    <th>Headline</th>
-    <th>Severity</th>
-    <th>Areas</th>
-    <th>Sender</th>
-    <th>Sent</th>
-    <th>WAV</th>
-  </tr>
-  {% for a in alerts %}
-  <tr class="{{ a.sev_class }}">
-    <td><strong>{{ a.event }}</strong></td>
-    <td>{{ a.headline }}</td>
-    <td class="center">{{ a.severity }}</td>
-    <td>{{ a.area_desc }}</td>
-    <td>{{ a.sender }}</td>
-    <td class="center">{{ a.sent }}</td>
-    <td class="center">
-      {% if a.tts_generated and a.alert_id %}
-        <a href="/alerts/{{ a.alert_id }}/wav" download class="badge badge-yes" style="text-decoration:none;">&#8681; WAV</a>
-      {% elif a.tts_generated %}
-        <span class="badge badge-yes">&#10003; WAV</span>
-      {% else %}
-        <span class="badge badge-no">Pending</span>
-      {% endif %}
-    </td>
-  </tr>
-  {% else %}
-  <tr><td colspan="7" class="no-data">No alerts in database</td></tr>
-  {% endfor %}
-</table>
-
-<!-- ===== AIRPORT WEATHER ===== -->
-<h2>Airport Weather <small>(METAR — {{ airports|length }} stations)</small></h2>
-<table>
-  <tr>
-    <th>ICAO</th>
-    <th>Airport</th>
-    <th>Cat</th>
-    <th>Temp °F</th>
-    <th>Temp °C</th>
-    <th>Dewp °F</th>
-    <th>Dewp °C</th>
-    <th>Wind Dir</th>
-    <th>Wind kt</th>
-    <th>Vis</th>
-    <th>Raw METAR</th>
-    <th>Obs Time (UTC)</th>
-  </tr>
-  {% for ap in airports %}
-  <tr>
-    <td><strong>{{ ap.icaoId }}</strong></td>
-    <td>{{ ap.name }}</td>
-    <td class="center {{ ap.flt_class }}">{{ ap.fltCat }}</td>
-    <td class="center">{{ ap.temp_f }}</td>
-    <td class="center">{{ ap.temp }}</td>
-    <td class="center">{{ ap.dewp_f }}</td>
-    <td class="center">{{ ap.dewp }}</td>
-    <td class="center">{{ ap.wdir }}</td>
-    <td class="center">{{ ap.wspd }}</td>
-    <td class="center">{{ ap.visib }}</td>
-    <td><small>{{ ap.rawOb }}</small></td>
-    <td class="center">{{ ap.obsTime }}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="12" class="no-data">No METAR data</td></tr>
-  {% endfor %}
-</table>
-
-<!-- ===== FL TRAFFIC ===== -->
-<h2>FL Traffic <small>({{ traffic|length }} active incidents)</small></h2>
-<table>
-  <tr>
-    <th>Type</th>
-    <th>Road</th>
-    <th>Location</th>
-    <th>County</th>
-    <th>Severity</th>
-    <th>Last Updated</th>
-  </tr>
-  {% for t in traffic %}
-  <tr>
-    <td>{{ t.type }}</td>
-    <td>{{ t.road }}</td>
-    <td>{{ t.location }}</td>
-    <td>{{ t.county }}</td>
-    <td class="center">{{ t.severity }}</td>
-    <td class="center">{{ t.last_updated }}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="6" class="no-data">No traffic incidents</td></tr>
-  {% endfor %}
-</table>
-
-<!-- ===== SCHOOL CLOSINGS ===== -->
-<h2>School Closings &amp; Delays <small>(Alachua County)</small></h2>
-<table>
-  <tr>
-    <th>Title</th>
-    <th>Type</th>
-    <th>Published</th>
-    <th>Fetched</th>
-  </tr>
-  {% for s in school %}
-  <tr class="sev-moderate">
-    <td>{{ s.title }}</td>
-    <td class="center">{{ s.closure_type }}</td>
-    <td class="center">{{ s.published_date }}</td>
-    <td class="center">{{ s.fetched_at }}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="4" class="no-data">No active school closings or delays</td></tr>
-  {% endfor %}
-</table>
-
-<!-- ===== RSS FEED STATUS ===== -->
-<h2>RSS Feed Status</h2>
-<table>
-  <tr>
-    <th>Feed Filename</th>
-    <th>Last Success</th>
-    <th>Age (min)</th>
-    <th>File Size (KB)</th>
-    <th>Status</th>
-  </tr>
-  {% for feed in feeds %}
-  <tr class="{{ feed.row_class }}">
-    <td>{{ feed.filename }}</td>
-    <td class="center">{{ feed.last_success or "—" }}</td>
-    <td class="center">{{ feed.age_min or "—" }}</td>
-    <td class="center">{{ feed.file_size_kb or "—" }}</td>
-    <td class="center">{{ feed.status }}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="5" class="no-data">No feed status data</td></tr>
-  {% endfor %}
-</table>
-
+  <div id="data-content">
+    <div style="text-align:center;padding:40px;color:#888;">Loading data...</div>
+  </div>
 </div><!-- end tab-data -->
 
 <div id="toast"></div>
@@ -702,12 +544,24 @@ HTML_TEMPLATE = """
 <script>
 const ZONES = {{ zones | tojson }};
 
+const _TAB_TTL = { weather: 600, playlist: 60, icecast: 30, data: 60 };
+const _tabLoaded = {};
+function _isStale(tab) {
+  const ttl = _TAB_TTL[tab] || 60;
+  return !_tabLoaded[tab] || (Date.now() - _tabLoaded[tab]) > ttl * 1000;
+}
+function _markLoaded(tab) { _tabLoaded[tab] = Date.now(); }
+
 function showTab(name, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
   localStorage.setItem('activeTab', name);
+  if (name === 'weather')  loadWeather();
+  if (name === 'playlist') loadPlaylist();
+  if (name === 'icecast')  loadIcecast();
+  if (name === 'data')     loadDataTab();
 }
 
 function toast(msg, ok=true) {
@@ -771,21 +625,27 @@ function saveZone(streamId) {
 loadConfig();
 loadSmtp();
 
-// Restore last active tab after page reload
+// Restore last active tab and start auto-refresh
 (function() {
-  const saved = localStorage.getItem('activeTab');
-  if (!saved || saved === 'config') return;
+  const saved = localStorage.getItem('activeTab') || 'data';
   const panel = document.getElementById('tab-' + saved);
-  if (!panel) return;
-  for (const btn of document.querySelectorAll('.tab-nav button')) {
-    if ((btn.getAttribute('onclick') || '').includes("'" + saved + "'")) {
-      showTab(saved, btn);
-      if (saved === 'weather') loadWeather();
-      if (saved === 'playlist') loadPlaylist();
-      if (saved === 'icecast') loadIcecast();
-      break;
+  if (panel) {
+    for (const btn of document.querySelectorAll('.tab-nav button')) {
+      if ((btn.getAttribute('onclick') || '').includes("'" + saved + "'")) {
+        showTab(saved, btn);
+        break;
+      }
     }
+  } else {
+    loadDataTab();
   }
+
+  // Auto-refresh intervals (in-place, no page reload)
+  setInterval(() => { if (_isStale('data'))     loadDataTab(); },   0);  // checked on interval
+  setInterval(loadDataTab,   60000);   // data tab: every 60s
+  setInterval(loadIcecast,   30000);   // icecast: every 30s
+  setInterval(loadPlaylist,  60000);   // playlist: every 60s
+  setInterval(loadWeather,  600000);   // weather: every 10 min
 })();
 
 // ---- SMTP ----
@@ -843,12 +703,11 @@ function setSmtpStatus(msg, ok=true) {
 }
 
 // ---- Playlist ----
-let _plLoaded = false;
 let _plData   = null;
 
 function loadPlaylist() {
-  if (_plLoaded) return;
-  _plLoaded = true;
+  if (!_isStale('playlist')) return;
+  _markLoaded('playlist');
   document.getElementById('pl-load').textContent = 'Loading playlist\u2026';
   fetch('/api/playlist')
     .then(r => r.json())
@@ -879,7 +738,7 @@ function loadPlaylist() {
     })
     .catch(() => {
       document.getElementById('pl-load').textContent = 'Could not load playlist data.';
-      _plLoaded = false;
+      _tabLoaded['playlist'] = 0;
     });
 }
 
@@ -940,10 +799,9 @@ function testStreamAlert() {
 }
 
 // ---- Icecast ----
-let _iceLoaded = false;
 function loadIcecast() {
-  if (_iceLoaded) return;
-  _iceLoaded = true;
+  if (!_isStale('icecast')) return;
+  _markLoaded('icecast');
   document.getElementById('ice-load').textContent = 'Loading stream status\u2026';
   fetch('/api/icecast')
     .then(r => r.json())
@@ -974,15 +832,14 @@ function loadIcecast() {
     })
     .catch(() => {
       document.getElementById('ice-load').textContent = 'Could not load Icecast data.';
-      _iceLoaded = false;
+      _tabLoaded['icecast'] = 0;
     });
 }
 
 // ---- Weather ----
-let _wxLoaded = false;
 function loadWeather() {
-  if (_wxLoaded) return;
-  _wxLoaded = true;
+  if (!_isStale('weather')) return;
+  _markLoaded('weather');
   document.getElementById('wx-load').textContent = 'Loading weather\u2026';
   fetch('/api/weather')
     .then(r => r.json())
@@ -1026,7 +883,111 @@ function loadWeather() {
     })
     .catch(() => {
       document.getElementById('wx-load').textContent = 'Could not load weather data.';
-      _wxLoaded = false;
+      _tabLoaded['weather'] = 0;
+    });
+}
+
+// ---- Data Tab ----
+function loadDataTab() {
+  if (!_isStale('data')) return;
+  _markLoaded('data');
+  fetch('/api/data-tab')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('data-refreshed').textContent = 'Updated ' + d.now;
+
+      let html = '';
+
+      // Now playing
+      if (d.now_playing) {
+        html += `<p style="margin:8px 0;font-size:0.95rem;">
+          <strong>&#9654; Now Playing:</strong> ${d.now_playing.title}
+          <span style="color:#666;">[${d.now_playing.category}]</span>
+          &mdash; <small>started ${d.now_playing.started_at}</small></p>`;
+      }
+
+      // NWS Alerts
+      html += `<h2>NWS Alerts <small>(${d.alerts.length} most recent)</small></h2>
+        <table><tr><th>Event</th><th>Headline</th><th>Severity</th><th>Areas</th><th>Sender</th><th>Sent</th><th>WAV</th></tr>`;
+      if (d.alerts.length) {
+        d.alerts.forEach(a => {
+          const wav = a.tts_generated && a.alert_id
+            ? `<a href="/alerts/${a.alert_id}/wav" download class="badge badge-yes" style="text-decoration:none;">&#8681; WAV</a>`
+            : a.tts_generated ? `<span class="badge badge-yes">&#10003; WAV</span>`
+            : `<span class="badge badge-no">Pending</span>`;
+          html += `<tr class="${a.sev_class}"><td><strong>${a.event}</strong></td><td>${a.headline}</td>
+            <td class="center">${a.severity}</td><td>${a.area_desc}</td><td>${a.sender}</td>
+            <td class="center">${a.sent}</td><td class="center">${wav}</td></tr>`;
+        });
+      } else {
+        html += `<tr><td colspan="7" class="no-data">No alerts in database</td></tr>`;
+      }
+      html += '</table>';
+
+      // Airport METAR
+      html += `<h2>Airport Weather <small>(METAR &mdash; ${d.airports.length} stations)</small></h2>
+        <table><tr><th>ICAO</th><th>Airport</th><th>Cat</th><th>Temp °F</th><th>Temp °C</th>
+        <th>Dewp °F</th><th>Dewp °C</th><th>Wind Dir</th><th>Wind kt</th><th>Vis</th><th>Raw METAR</th><th>Obs Time (UTC)</th></tr>`;
+      if (d.airports.length) {
+        d.airports.forEach(ap => {
+          html += `<tr><td><strong>${ap.icaoId}</strong></td><td>${ap.name}</td>
+            <td class="center ${ap.flt_class}">${ap.fltCat}</td>
+            <td class="center">${ap.temp_f}</td><td class="center">${ap.temp}</td>
+            <td class="center">${ap.dewp_f}</td><td class="center">${ap.dewp}</td>
+            <td class="center">${ap.wdir}</td><td class="center">${ap.wspd}</td>
+            <td class="center">${ap.visib}</td><td><small>${ap.rawOb}</small></td>
+            <td class="center">${ap.obsTime}</td></tr>`;
+        });
+      } else {
+        html += `<tr><td colspan="12" class="no-data">No METAR data</td></tr>`;
+      }
+      html += '</table>';
+
+      // FL Traffic
+      html += `<h2>FL Traffic <small>(${d.traffic.length} active incidents)</small></h2>
+        <table><tr><th>Type</th><th>Road</th><th>Location</th><th>County</th><th>Severity</th><th>Last Updated</th></tr>`;
+      if (d.traffic.length) {
+        d.traffic.forEach(t => {
+          html += `<tr><td>${t.type}</td><td>${t.road}</td><td>${t.location}</td>
+            <td>${t.county}</td><td class="center">${t.severity}</td><td class="center">${t.last_updated}</td></tr>`;
+        });
+      } else {
+        html += `<tr><td colspan="6" class="no-data">No traffic incidents</td></tr>`;
+      }
+      html += '</table>';
+
+      // School closings
+      html += `<h2>School Closings &amp; Delays <small>(Alachua County)</small></h2>
+        <table><tr><th>Title</th><th>Type</th><th>Published</th><th>Fetched</th></tr>`;
+      if (d.school.length) {
+        d.school.forEach(s => {
+          html += `<tr class="sev-moderate"><td>${s.title}</td><td class="center">${s.closure_type}</td>
+            <td class="center">${s.published_date}</td><td class="center">${s.fetched_at}</td></tr>`;
+        });
+      } else {
+        html += `<tr><td colspan="4" class="no-data">No active school closings or delays</td></tr>`;
+      }
+      html += '</table>';
+
+      // RSS Feed Status
+      html += `<h2>RSS Feed Status</h2>
+        <table><tr><th>Feed Filename</th><th>Last Success</th><th>Age (min)</th><th>File Size (KB)</th><th>Status</th></tr>`;
+      if (d.feeds.length) {
+        d.feeds.forEach(f => {
+          html += `<tr class="${f.row_class}"><td>${f.filename}</td><td class="center">${f.last_success||'—'}</td>
+            <td class="center">${f.age_min||'—'}</td><td class="center">${f.file_size_kb||'—'}</td>
+            <td class="center">${f.status}</td></tr>`;
+        });
+      } else {
+        html += `<tr><td colspan="5" class="no-data">No feed status data</td></tr>`;
+      }
+      html += '</table>';
+
+      document.getElementById('data-content').innerHTML = html;
+    })
+    .catch(() => {
+      document.getElementById('data-refreshed').textContent = 'Failed to load — retrying...';
+      _tabLoaded['data'] = 0;  // allow immediate retry
     });
 }
 </script>
@@ -1037,142 +998,7 @@ function loadWeather() {
 # -------------------- ROUTES ----------------------
 @app.route("/")
 def dashboard():
-    now = datetime.now(timezone.utc)
-
-    # --- RSS feed status ---
-    feeds = []
-    for feed in status_col.find():
-        last_success = feed.get("last_success")
-        age_min = None
-        row_class = "OK"
-
-        if last_success:
-            if isinstance(last_success, str):
-                last_success = datetime.fromisoformat(last_success)
-            if last_success.tzinfo is None:
-                last_success = last_success.replace(tzinfo=timezone.utc)
-            age_min = round((now - last_success).total_seconds() / 60, 1)
-
-        status = feed.get("status", "UNKNOWN")
-        if status == "OK" and age_min and age_min > STALE_THRESHOLD_MIN:
-            row_class = "STALE"
-        elif status == "ERROR":
-            row_class = "ERROR"
-
-        feeds.append({
-            "filename":     feed.get("filename", "—"),
-            "last_success": last_success.strftime("%Y-%m-%d %H:%M:%S") if last_success else None,
-            "age_min":      age_min,
-            "file_size_kb": feed.get("file_size_kb", "—"),
-            "status":       status,
-            "row_class":    row_class,
-        })
-
-    # --- NWS alerts ---
-    alerts = []
-    for a in alerts_col.find({}, sort=[("fetched_at", -1)], limit=ALERTS_LIMIT):
-        sent = a.get("sent", "")
-        if isinstance(sent, datetime):
-            sent = sent.strftime("%Y-%m-%d %H:%M")
-        elif isinstance(sent, str) and sent:
-            try:
-                sent = datetime.fromisoformat(sent).strftime("%Y-%m-%d %H:%M")
-            except ValueError:
-                pass
-
-        severity = a.get("severity", "")
-        alerts.append({
-            "event":         a.get("event", "—"),
-            "headline":      a.get("headline", "—"),
-            "severity":      severity,
-            "area_desc":     a.get("area_desc", "—"),
-            "sender":        a.get("sender", "—"),
-            "sent":          sent or "—",
-            "tts_generated": a.get("tts_generated", False),
-            "sev_class":     SEVERITY_CLASS.get(severity, ""),
-            "alert_id":      str(a["_id"]) if a.get("_id") and a.get("wav_path") else None,
-        })
-
-    # --- Airport METAR ---
-    airports = []
-    for ap in airport_metar_col.find({}, sort=[("icaoId", 1)]):
-        flt_cat = ap.get("fltCat", "")
-        obs = ap.get("obsTime", "")
-        # Trim to compact display: 2026-03-04T01:53:00+00:00 → 03-04 01:53Z
-        if isinstance(obs, str) and "T" in obs:
-            try:
-                dt = datetime.fromisoformat(obs)
-                obs = dt.strftime("%m-%d %H:%MZ")
-            except ValueError:
-                pass
-        def to_f(c):
-            try:
-                return round(float(c) * 9 / 5 + 32, 1)
-            except (TypeError, ValueError):
-                return ""
-
-        temp_c = ap.get("temp", "")
-        dewp_c = ap.get("dewp", "")
-        airports.append({
-            "icaoId":    ap.get("icaoId", ""),
-            "name":      ap.get("name", ""),
-            "fltCat":    flt_cat,
-            "flt_class": FLTCAT_CLASS.get(flt_cat, ""),
-            "temp":      temp_c,
-            "temp_f":    to_f(temp_c),
-            "dewp":      dewp_c,
-            "dewp_f":    to_f(dewp_c),
-            "wdir":      ap.get("wdir", ""),
-            "wspd":      ap.get("wspd", ""),
-            "visib":     ap.get("visib", ""),
-            "rawOb":     ap.get("rawOb", ""),
-            "obsTime":   obs,
-        })
-
-    # --- FL Traffic ---
-    traffic = []
-    for t in fl_traffic_col.find({}, sort=[("severity", 1)], limit=TRAFFIC_LIMIT):
-        traffic.append({
-            "type":         t.get("type", ""),
-            "road":         t.get("road", ""),
-            "location":     t.get("location", "") or "",
-            "county":       t.get("county", ""),
-            "severity":     t.get("severity", ""),
-            "last_updated": t.get("last_updated", ""),
-        })
-
-    # --- School closings ---
-    school = []
-    for s in school_col.find({}, sort=[("fetched_at", -1)]):
-        fetched = s.get("fetched_at", "")
-        if isinstance(fetched, datetime):
-            fetched = fetched.strftime("%Y-%m-%d %H:%M UTC")
-        school.append({
-            "title":          s.get("title", ""),
-            "closure_type":   s.get("closure_type", ""),
-            "published_date": s.get("published_date", ""),
-            "fetched_at":     fetched,
-        })
-
-    # --- Now Playing ---
-    now_playing = None
-    try:
-        with open("/tmp/beacon_now_playing.json") as f:
-            now_playing = json.load(f)
-    except (FileNotFoundError, ValueError):
-        pass
-
-    return render_template_string(
-        HTML_TEMPLATE,
-        feeds=feeds,
-        alerts=alerts,
-        airports=airports,
-        traffic=traffic,
-        school=school,
-        now=now.strftime("%Y-%m-%d %H:%M:%S UTC"),
-        now_playing=now_playing,
-        zones=AVAILABLE_ZONES,
-    )
+    return render_template_string(HTML_TEMPLATE, zones=AVAILABLE_ZONES)
 
 # -------------------- STREAM CONFIG API ------------------
 @app.route("/api/streams")
@@ -1474,6 +1300,139 @@ def api_stream_alert_test():
         ),
     )
     return jsonify({"ok": ok, "message": msg})
+
+# -------------------- DATA TAB API --------------
+@app.route("/api/data-tab")
+def api_data_tab():
+    now = datetime.now(timezone.utc)
+
+    # RSS feed status
+    feeds = []
+    for feed in status_col.find():
+        last_success = feed.get("last_success")
+        age_min = None
+        row_class = "OK"
+        if last_success:
+            if isinstance(last_success, str):
+                last_success = datetime.fromisoformat(last_success)
+            if last_success.tzinfo is None:
+                last_success = last_success.replace(tzinfo=timezone.utc)
+            age_min = round((now - last_success).total_seconds() / 60, 1)
+        status = feed.get("status", "UNKNOWN")
+        if status == "OK" and age_min and age_min > STALE_THRESHOLD_MIN:
+            row_class = "STALE"
+        elif status == "ERROR":
+            row_class = "ERROR"
+        feeds.append({
+            "filename":     feed.get("filename", "—"),
+            "last_success": last_success.strftime("%Y-%m-%d %H:%M:%S") if last_success else None,
+            "age_min":      age_min,
+            "file_size_kb": feed.get("file_size_kb", "—"),
+            "status":       status,
+            "row_class":    row_class,
+        })
+
+    # NWS alerts
+    alerts = []
+    for a in alerts_col.find({}, sort=[("fetched_at", -1)], limit=ALERTS_LIMIT):
+        sent = a.get("sent", "")
+        if isinstance(sent, datetime):
+            sent = sent.strftime("%Y-%m-%d %H:%M")
+        elif isinstance(sent, str) and sent:
+            try:
+                sent = datetime.fromisoformat(sent).strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                pass
+        severity = a.get("severity", "")
+        alert_id = str(a.get("alert_id", "")) if a.get("wav_path") else None
+        alerts.append({
+            "event":         a.get("event", "—"),
+            "headline":      a.get("headline", "—"),
+            "severity":      severity,
+            "area_desc":     a.get("area_desc", "—"),
+            "sender":        a.get("sender", "—"),
+            "sent":          sent or "—",
+            "tts_generated": a.get("tts_generated", False),
+            "sev_class":     SEVERITY_CLASS.get(severity, ""),
+            "alert_id":      alert_id,
+        })
+
+    # Airport METAR
+    airports = []
+    def to_f(c):
+        try:
+            return round(float(c) * 9 / 5 + 32, 1)
+        except (TypeError, ValueError):
+            return ""
+    for ap in airport_metar_col.find({}, sort=[("icaoId", 1)]):
+        flt_cat = ap.get("fltCat", "")
+        obs = ap.get("obsTime", "")
+        if isinstance(obs, str) and "T" in obs:
+            try:
+                dt = datetime.fromisoformat(obs)
+                obs = dt.strftime("%m-%d %H:%MZ")
+            except ValueError:
+                pass
+        temp_c = ap.get("temp", "")
+        dewp_c = ap.get("dewp", "")
+        airports.append({
+            "icaoId":    ap.get("icaoId", ""),
+            "name":      ap.get("name", ""),
+            "fltCat":    flt_cat,
+            "flt_class": FLTCAT_CLASS.get(flt_cat, ""),
+            "temp":      temp_c,
+            "temp_f":    to_f(temp_c),
+            "dewp":      dewp_c,
+            "dewp_f":    to_f(dewp_c),
+            "wdir":      ap.get("wdir", ""),
+            "wspd":      ap.get("wspd", ""),
+            "visib":     ap.get("visib", ""),
+            "rawOb":     ap.get("rawOb", ""),
+            "obsTime":   obs,
+        })
+
+    # FL Traffic
+    traffic = []
+    for t in fl_traffic_col.find({}, sort=[("severity", 1)], limit=TRAFFIC_LIMIT):
+        traffic.append({
+            "type":         t.get("type", ""),
+            "road":         t.get("road", ""),
+            "location":     t.get("location", "") or "",
+            "county":       t.get("county", ""),
+            "severity":     t.get("severity", ""),
+            "last_updated": t.get("last_updated", ""),
+        })
+
+    # School closings
+    school = []
+    for s in school_col.find({}, sort=[("fetched_at", -1)]):
+        fetched = s.get("fetched_at", "")
+        if isinstance(fetched, datetime):
+            fetched = fetched.strftime("%Y-%m-%d %H:%M UTC")
+        school.append({
+            "title":          s.get("title", ""),
+            "closure_type":   s.get("closure_type", ""),
+            "published_date": s.get("published_date", ""),
+            "fetched_at":     fetched,
+        })
+
+    # Now playing
+    now_playing = None
+    try:
+        with open("/tmp/beacon_now_playing.json") as f:
+            now_playing = json.load(f)
+    except (FileNotFoundError, ValueError):
+        pass
+
+    return jsonify({
+        "now":         now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "now_playing": now_playing,
+        "alerts":      alerts,
+        "airports":    airports,
+        "traffic":     traffic,
+        "school":      school,
+        "feeds":       feeds,
+    })
 
 # -------------------- FEEDBACK ------------------
 @app.route("/feedback", methods=["POST"])
