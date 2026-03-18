@@ -1,0 +1,15 @@
+[Unit]
+Description=Beacon Extended Data Fetcher (METAR, GA/NC Alerts, FL Traffic, School Closings)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/lh_admin/weather_rss
+ExecStart=/home/lh_admin/weather_rss/venv_rss/bin/python /home/lh_admin/weather_rss/extended_fetcher.py
+Restart=on-failure
+RestartSec=10
+Environment="LOG_FILE=/home/lh_admin/weather_rss/logs/extended_fetcher_svc.log"
+
+[Install]
+WantedBy=default.target

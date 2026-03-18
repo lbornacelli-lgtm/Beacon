@@ -1,0 +1,16 @@
+[Unit]
+Description=Beacon Web Dashboard — Flask web UI on port 5000
+After=network.target mongod.service
+Wants=mongod.service
+
+[Service]
+Type=simple
+User=ufuser
+WorkingDirectory=/home/ufuser/Downloads/Beacon-main/weather_rss/web
+ExecStart=/home/ufuser/Downloads/Beacon-main/venv/bin/python3 app.py
+Restart=on-failure
+RestartSec=10
+Environment=MONGO_URI=mongodb://localhost:27017
+
+[Install]
+WantedBy=multi-user.target

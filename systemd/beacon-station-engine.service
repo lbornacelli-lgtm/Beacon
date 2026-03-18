@@ -1,0 +1,16 @@
+[Unit]
+Description=Beacon Weather Station Engine — TTS + Icecast audio broadcast
+After=network.target mongod.service beacon-weather-service.service
+Wants=mongod.service
+
+[Service]
+Type=simple
+User=ufuser
+WorkingDirectory=/home/ufuser/Downloads/Beacon-main/weather_station
+ExecStart=/home/ufuser/Downloads/Beacon-main/venv/bin/python3 main.py
+Restart=on-failure
+RestartSec=15
+EnvironmentFile=/home/ufuser/Downloads/Beacon-main/weather_station/.env
+
+[Install]
+WantedBy=multi-user.target

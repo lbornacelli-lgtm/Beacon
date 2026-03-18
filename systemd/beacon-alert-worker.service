@@ -1,0 +1,17 @@
+[Unit]
+Description=Beacon Alert Worker — processes and routes weather alerts
+After=network.target mongod.service
+Wants=mongod.service
+
+[Service]
+Type=simple
+User=ufuser
+WorkingDirectory=/home/ufuser/Downloads/Beacon-main/weather_rss
+ExecStart=/home/ufuser/Downloads/Beacon-main/venv/bin/python3 alert_worker.py
+Restart=on-failure
+RestartSec=10
+Environment=MONGO_URI=mongodb://localhost:27017
+Environment=LOG_FILE=/home/ufuser/Downloads/Beacon-main/weather_rss/logs/alert_worker.log
+
+[Install]
+WantedBy=multi-user.target
