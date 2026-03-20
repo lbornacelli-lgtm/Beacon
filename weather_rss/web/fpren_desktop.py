@@ -308,20 +308,29 @@ class FPRENApp(tk.Tk):
         toolbar = tk.Frame(f, bg="#f8f9fa", pady=8, padx=15)
         toolbar.pack(fill="x")
 
-        tk.Label(toolbar, text="Active Playlist:",
+        tk.Label(toolbar, text="Stream:",
                  font=("Arial", 9, "bold"), bg="#f8f9fa").pack(side="left")
+
+        self._pl_stream_var = tk.StringVar()
+        self._pl_stream_select = ttk.Combobox(toolbar, textvariable=self._pl_stream_var,
+                                               state="readonly", width=22)
+        self._pl_stream_select.pack(side="left", padx=4)
+        self._pl_stream_select.bind("<<ComboboxSelected>>", self._on_stream_select)
+
+        tk.Label(toolbar, text="Playlist:",
+                 font=("Arial", 9, "bold"), bg="#f8f9fa").pack(side="left", padx=(8,0))
 
         self._pl_select_var = tk.StringVar()
         self._pl_select = ttk.Combobox(toolbar, textvariable=self._pl_select_var,
-                                        state="readonly", width=25)
-        self._pl_select.pack(side="left", padx=6)
+                                        state="readonly", width=20)
+        self._pl_select.pack(side="left", padx=4)
 
         tk.Button(toolbar, text="Assign",
                   command=self._pl_assign_selected,
                   bg="#0d6efd", fg="white", font=("Arial", 9),
                   relief="flat", padx=8).pack(side="left", padx=4)
 
-        self._mute_btn = tk.Button(toolbar, text="🔇 Mute All",
+        self._mute_btn = tk.Button(toolbar, text="Mute",
                                     command=self._toggle_mute,
                                     bg="#c0392b", fg="white", font=("Arial", 9),
                                     relief="flat", padx=8)
@@ -330,6 +339,12 @@ class FPRENApp(tk.Tk):
         self._pl_status = tk.StringVar(value="")
         tk.Label(toolbar, textvariable=self._pl_status,
                  font=("Arial", 9), fg="#198754", bg="#f8f9fa").pack(side="left", padx=10)
+
+        self._pl_stream_status_var = tk.StringVar(value="")
+        tk.Label(f, textvariable=self._pl_stream_status_var,
+                 font=("Arial", 9), fg="#555",
+                 bg="#f8f9fa", pady=3, padx=10,
+                 anchor="w").pack(fill="x", padx=15)
 
         # Now playing
         self._pl_now_var = tk.StringVar(value="")
@@ -346,31 +361,84 @@ class FPRENApp(tk.Tk):
         self._pl_current_file = "normal.json"
         self._pl_current_slots = []
         self._pl_muted = False
+        self._pl_current_stream = "stream_8000"
+        self._pl_streams = []
+
+    def _on_stream_select(self, event=None):
+        """Called when user changes stream selection."""
+        selected = self._pl_stream_var.get()
+        # Extract stream_id from display string e.g. "All Florida (:8000) [stream_8000]"
+        for s in self._pl_streams:
+            label = f"{s['label']} (:{s['port']})"
+            if label in selected or s['id'] in selected:
+                self._pl_current_stream = s["id"]
+                active = s["active"]
+                muted  = s["muted"]
+                # Update mute button
+                if muted:
+                    self._mute_btn.config(text="Unmute", bg="#198754")
+                else:
+                    self._mute_btn.config(text="Mute", bg="#c0392b")
+                self._pl_muted = muted
+                # Update stream status
+                status = "MUTED" if muted else "LIVE"
+                self._pl_stream_status_var.set(
+                    f"Stream: {s['label']} | Status: {status} | Active playlist: {active}")
+                # Update playlist selector
+                self._pl_select_var.set(active)
+                self._pl_current_file = active
+                available = self._pl_data.get("available", []) if self._pl_data else []
+                pl = next((p for p in available if p["file"] == active), None)
+                if pl:
+                    self._pl_current_slots = list(pl.get("slots", []))
+                    self._render_slot_editor()
+                break
 
     def _populate_playlist(self, data):
         self._pl_data = data
-        available = data.get("available", [])
-        active    = data.get("active", "normal.json")
-        now_pl    = data.get("now_playing")
+        available  = data.get("available", [])
+        streams    = data.get("streams", [])
+        now_pl     = data.get("now_playing")
+        self._pl_streams = streams
 
-        # Update mute status
-        try:
-            mute_status = api_get("/api/playlist/mute/status")
-            self._pl_muted = mute_status.get("muted", False)
-            if self._pl_muted:
-                self._mute_btn.config(text="🔊 Unmute All", bg="#198754")
+        # Populate stream selector
+        if streams:
+            stream_labels = [f"{s['label']} (:{s['port']})" for s in streams]
+            self._pl_stream_select["values"] = stream_labels
+            # Keep current selection or default to first
+            current_label = next(
+                (f"{s['label']} (:{s['port']})" for s in streams
+                 if s["id"] == self._pl_current_stream), stream_labels[0])
+            self._pl_stream_var.set(current_label)
+
+            # Get active stream info
+            active_stream = next((s for s in streams if s["id"] == self._pl_current_stream),
+                                  streams[0])
+            active   = active_stream["active"]
+            muted    = active_stream["muted"]
+            self._pl_muted = muted
+
+            # Update mute button
+            if muted:
+                self._mute_btn.config(text="Unmute", bg="#198754")
             else:
-                self._mute_btn.config(text="🔇 Mute All", bg="#c0392b")
-        except Exception:
-            pass
+                self._mute_btn.config(text="Mute", bg="#c0392b")
+
+            # Update stream status bar
+            status = "MUTED" if muted else "LIVE"
+            self._pl_stream_status_var.set(
+                f"Stream: {active_stream['label']} | Status: {status} | Active playlist: {active}")
+        else:
+            active = data.get("active", "normal.json")
 
         # Now playing
         if now_pl:
-            self._pl_now_var.set(f"▶ Now Playing: {now_pl.get('title','—')}  |  Category: {now_pl.get('category','')}")
+            self._pl_now_var.set(
+                f"Now Playing: {now_pl.get('title','—')}  |  Category: {now_pl.get('category','')}")
         else:
-            self._pl_now_var.set("⏸ Nothing currently playing")
+            self._pl_now_var.set("Nothing currently playing")
 
-        # Combobox
+        # Playlist combobox
         files = [p["file"] for p in available]
         self._pl_select["values"] = files
         self._pl_select_var.set(active)
@@ -619,26 +687,27 @@ class FPRENApp(tk.Tk):
         fname = self._pl_select_var.get()
         if not fname:
             return
+        stream_id = self._pl_current_stream
         def task():
             res = api_post("/api/playlist/assign",
-                           {"stream_id": "stream_8000", "file": fname})
-            self.after(0, lambda: [
-                self._pl_status.set(res.get("message", res.get("_error", ""))),
-            ])
+                           {"stream_id": stream_id, "file": fname})
+            self.after(0, lambda: self._pl_status.set(
+                res.get("message", res.get("_error", ""))))
         threading.Thread(target=task, daemon=True).start()
 
     def _toggle_mute(self):
         mute = not self._pl_muted
+        stream_id = self._pl_current_stream
         def task():
-            res = api_post("/api/playlist/mute", {"mute": mute})
+            res = api_post("/api/playlist/mute/toggle", {"stream_id": stream_id})
             def update():
                 self._pl_status.set(res.get("message", res.get("_error", "")))
                 if res.get("ok"):
-                    self._pl_muted = mute
-                    if mute:
-                        self._mute_btn.config(text="🔊 Unmute All", bg="#198754")
+                    self._pl_muted = res.get("muted", mute)
+                    if self._pl_muted:
+                        self._mute_btn.config(text="Unmute", bg="#198754")
                     else:
-                        self._mute_btn.config(text="🔇 Mute All", bg="#c0392b")
+                        self._mute_btn.config(text="Mute", bg="#c0392b")
             self.after(0, update)
         threading.Thread(target=task, daemon=True).start()
 

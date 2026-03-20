@@ -713,12 +713,15 @@ HTML_TEMPLATE = """
   <div id="pl-content" style="display:none;">
     <div id="pl-now"></div>
     <div class="pl-switcher" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-      <strong style="font-size:0.9rem;">Active Playlist:</strong>
+      <strong style="font-size:0.9rem;">Stream:</strong>
+      <select id="pl-stream-select" class="pl-select" onchange="onStreamSelect()" style="min-width:160px;"></select>
+      <strong style="font-size:0.9rem;">Playlist:</strong>
       <select id="pl-select" class="pl-select" onchange="onPlaylistSelect()"></select>
       <button class="pl-btn-assign" onclick="assignPlaylist()">Assign</button>
-      <button id="pl-mute-btn" class="pl-btn-assign" onclick="toggleMute()" style="background:#c0392b;">&#128263; Mute All</button>
+      <button id="pl-mute-btn" class="pl-btn-assign" onclick="toggleMute()" style="background:#c0392b;">&#128263; Mute</button>
       <span id="pl-status" class="pl-status"></span>
     </div>
+    <div id="pl-stream-status" style="font-size:0.85rem;padding:6px 0;color:#555;"></div>
     <div id="pl-slots-wrap"></div>
     <div class="pl-card" style="margin-top:10px;padding:12px 16px;">
       <strong style="font-size:0.9rem;">Add New Slot</strong>
@@ -967,13 +970,33 @@ function loadPlaylist() {
            </div>`
         : `<div class="pl-now-playing"><div class="pl-now-icon">&#9646;&#9646;</div><div class="pl-now-meta">Nothing currently playing</div></div>`;
 
-      // Playlist switcher
-      const sel = document.getElementById('pl-select');
-      sel.innerHTML = data.available.map(p =>
-        `<option value="${p.file}" ${p.file === data.active ? 'selected' : ''}>${p.name} (${p.file})</option>`
+      // Stream selector
+      const streamSel = document.getElementById('pl-stream-select');
+      const currentStream = streamSel.value || 'stream_8000';
+      streamSel.innerHTML = (data.streams || []).map(s =>
+        `<option value="${s.id}" ${s.id === currentStream ? 'selected' : ''}>${s.label} (:${s.port})${s.muted ? ' [MUTED]' : ''}</option>`
       ).join('');
 
-      renderSlots(data.active, data.available);
+      // Update stream status bar
+      const activeStream = (data.streams || []).find(s => s.id === currentStream) || {};
+      document.getElementById('pl-stream-status').innerHTML =
+        `<span style="color:${activeStream.muted ? '#c0392b' : '#198754'};">
+          ${activeStream.muted ? '&#128263; MUTED' : '&#128266; LIVE'}</span>
+         &nbsp;|&nbsp; Active playlist: <strong>${activeStream.active || '—'}</strong>`;
+
+      // Update mute button
+      const muteBtn = document.getElementById('pl-mute-btn');
+      if (activeStream.muted) { muteBtn.textContent = '&#128266; Unmute'; muteBtn.style.background = '#198754'; }
+      else                    { muteBtn.textContent = '&#128263; Mute';   muteBtn.style.background = '#c0392b'; }
+
+      // Playlist switcher
+      const sel = document.getElementById('pl-select');
+      const streamActive = activeStream.active || data.active;
+      sel.innerHTML = data.available.map(p =>
+        `<option value="${p.file}" ${p.file === streamActive ? 'selected' : ''}>${p.name} (${p.file})</option>`
+      ).join('');
+
+      renderSlots(streamActive, data.available);
     })
     .catch(() => {
       document.getElementById('pl-load').textContent = 'Could not load playlist data.';
@@ -1233,8 +1256,9 @@ function loadDataTab() {
         <table><tr><th>Event</th><th>Headline</th><th>Severity</th><th>Areas</th><th>Sender</th><th>Sent</th><th>WAV</th></tr>`;
       if (d.alerts.length) {
         d.alerts.forEach(a => {
-          const wav = a.tts_generated && a.alert_id
-            ? `<a href="/alerts/${a.alert_id}/wav" download class="badge badge-yes" style="text-decoration:none;">&#8681; WAV</a>`
+          const docId = a.doc_id || a.alert_id;
+          const wav = a.tts_generated && docId
+            ? `<a href="/alerts/wav/${encodeURIComponent(docId)}" target="_blank" class="badge badge-yes" style="text-decoration:none;">&#8681; WAV</a>`
             : a.tts_generated ? `<span class="badge badge-yes">&#10003; WAV</span>`
             : `<span class="badge badge-no">Pending</span>`;
           html += `<tr class="${a.sev_class}"><td><strong>${a.event}</strong></td><td>${a.headline}</td>
@@ -1704,14 +1728,13 @@ def _resolve_wav(wav_path: str, alert_id: str = None):
     return None
 
 @login_required
-@app.route("/alerts/<alert_id>/wav")
-def alert_wav(alert_id):
-    from bson import ObjectId
+@app.route("/alerts/wav/<path:doc_id>")
+def alert_wav(doc_id):
     from flask import send_file, abort
-    try:
-        doc = alerts_col.find_one({"_id": ObjectId(alert_id)})
-    except Exception:
-        abort(400)
+    # Look up by string _id or by alert_id URN field
+    doc = alerts_col.find_one({"_id": doc_id})
+    if not doc:
+        doc = alerts_col.find_one({"alert_id": doc_id})
     if not doc:
         abort(404)
     resolved = _resolve_wav(doc.get("wav_path"), doc.get("alert_id"))
@@ -1782,6 +1805,7 @@ def api_data_tab():
                 pass
         severity = a.get("severity", "")
         alert_id = str(a.get("alert_id", "")) if a.get("wav_path") else None
+        doc_id   = str(a.get("_id", ""))
         alerts.append({
             "event":         a.get("event", "—"),
             "headline":      a.get("headline", "—"),
@@ -1792,6 +1816,7 @@ def api_data_tab():
             "tts_generated": a.get("tts_generated", False),
             "sev_class":     SEVERITY_CLASS.get(severity, ""),
             "alert_id":      alert_id,
+            "doc_id":        doc_id,
         })
 
     # Airport METAR
