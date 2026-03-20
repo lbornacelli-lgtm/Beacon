@@ -41,6 +41,14 @@ start_service "obs_fetcher"        "weather_rss.py"
 start_service "ipaws_fetcher"      "ipaws_fetcher.py"
 start_service "extended_fetcher"   "extended_fetcher.py"
 start_service "alert_worker"       "alert_worker.py"
+
+# --- Weather Station Alert TTS Service ---
+echo "[..] Starting alert_service (TTS WAV generator)..."
+cd /home/ufuser/Fpren-main/weather_station
+nohup /home/ufuser/Fpren-main/venv/bin/python3 run_alert_service.py >> /home/ufuser/Fpren-main/weather_station/logs/alert_service.log 2>&1 &
+echo $! > /home/ufuser/Fpren-main/weather_rss/logs/alert_service.pid
+echo "[OK] alert_service started (PID $!)"
+cd /home/ufuser/Fpren-main/weather_rss
 start_service "web_dashboard"      "web/app.py"
 
 echo ""
