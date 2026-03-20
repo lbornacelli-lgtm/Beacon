@@ -12,7 +12,7 @@ from datetime import datetime
 import requests
 
 API = "http://localhost:5000"
-REFRESH_SEC = 5
+REFRESH_SEC = 60
 
 # Shared session for authenticated requests
 _session = requests.Session()
@@ -402,14 +402,14 @@ class FPRENApp(tk.Tk):
                  font=("Arial", 9), fg="#198754", bg="white").pack(side="right")
 
         # Table
-        cols = ("#", "Label", "Category", "Top of Hour", "Skip if Empty", "Actions")
+        cols = ("#", "Label", "Category", "Top of Hour", "Skip if Empty")
         tree_frame = tk.Frame(self._pl_editor_frame, bg="#f8f9fa")
         tree_frame.pack(fill="both", expand=True)
 
         self._slot_tree = ttk.Treeview(tree_frame, columns=cols,
                                         show="headings", selectmode="browse")
-        widths = {"#": 35, "Label": 160, "Category": 160,
-                  "Top of Hour": 90, "Skip if Empty": 100, "Actions": 120}
+        widths = {"#": 35, "Label": 180, "Category": 180,
+                  "Top of Hour": 100, "Skip if Empty": 110}
         for c in cols:
             self._slot_tree.heading(c, text=c)
             self._slot_tree.column(c, width=widths.get(c, 100), anchor="w")
@@ -419,6 +419,9 @@ class FPRENApp(tk.Tk):
         self._slot_tree.configure(yscrollcommand=vsb.set)
         self._slot_tree.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
+
+        # Double-click to edit a slot inline
+        self._slot_tree.bind("<Double-1>", self._pl_edit_slot_dialog)
 
         self._refresh_slot_tree()
 
@@ -487,8 +490,80 @@ class FPRENApp(tk.Tk):
                 s.get("category", ""),
                 "●" if s.get("top_of_hour") else "",
                 "●" if s.get("skip_if_empty") else "",
-                "Select to edit",
             ))
+
+    def _pl_edit_slot_dialog(self, event=None):
+        """Open a dialog to edit the selected slot."""
+        idx = self._pl_selected_idx()
+        if idx is None:
+            return
+        slot = self._pl_current_slots[idx]
+
+        win = tk.Toplevel(self)
+        win.title(f"Edit Slot {idx + 1}")
+        win.geometry("420x280")
+        win.configure(bg="white")
+        win.resizable(False, False)
+        win.grab_set()
+
+        tk.Label(win, text=f"Edit Slot {idx + 1}",
+                 font=("Arial", 12, "bold"), bg="white").pack(
+            anchor="w", padx=15, pady=(15, 0))
+
+        form = tk.Frame(win, bg="white", padx=15, pady=10)
+        form.pack(fill="both", expand=True)
+
+        # Label
+        tk.Label(form, text="Label:", font=("Arial", 9),
+                 bg="white", anchor="w").grid(row=0, column=0, sticky="e", pady=6, padx=(0,8))
+        label_var = tk.StringVar(value=slot.get("label", ""))
+        tk.Entry(form, textvariable=label_var, font=("Arial", 10),
+                 width=30, relief="solid", bd=1).grid(row=0, column=1, sticky="w")
+
+        # Category
+        tk.Label(form, text="Category:", font=("Arial", 9),
+                 bg="white", anchor="w").grid(row=1, column=0, sticky="e", pady=6, padx=(0,8))
+        cat_var = tk.StringVar(value=slot.get("category", ""))
+        cat_cb = ttk.Combobox(form, textvariable=cat_var, width=28,
+                               values=[
+                                   "top_of_hour","priority_1","educational","airport_weather",
+                                   "weather","sweepers","traffic","generated_wav_files",
+                                   "imaging","jingles","station_ids","other"
+                               ], state="readonly")
+        cat_cb.grid(row=1, column=1, sticky="w")
+
+        # Top of Hour
+        toh_var = tk.BooleanVar(value=bool(slot.get("top_of_hour")))
+        tk.Checkbutton(form, text="Top of Hour",
+                       variable=toh_var, bg="white",
+                       font=("Arial", 9)).grid(row=2, column=1, sticky="w", pady=4)
+
+        # Skip if Empty
+        skip_var = tk.BooleanVar(value=bool(slot.get("skip_if_empty")))
+        tk.Checkbutton(form, text="Skip if Empty",
+                       variable=skip_var, bg="white",
+                       font=("Arial", 9)).grid(row=3, column=1, sticky="w", pady=4)
+
+        # Buttons
+        btn_row = tk.Frame(win, bg="white")
+        btn_row.pack(fill="x", padx=15, pady=10)
+
+        def save():
+            self._pl_current_slots[idx] = {
+                "label":         label_var.get().strip(),
+                "category":      cat_var.get(),
+                "top_of_hour":   toh_var.get(),
+                "skip_if_empty": skip_var.get(),
+            }
+            self._refresh_slot_tree()
+            win.destroy()
+
+        tk.Button(btn_row, text="Cancel", command=win.destroy,
+                  bg="#6c757d", fg="white", font=("Arial", 9),
+                  relief="flat", padx=10).pack(side="right", padx=(6, 0))
+        tk.Button(btn_row, text="Save", command=save,
+                  bg="#0d6efd", fg="white", font=("Arial", 9),
+                  relief="flat", padx=10).pack(side="right")
 
     def _pl_selected_idx(self):
         sel = self._slot_tree.selection()
