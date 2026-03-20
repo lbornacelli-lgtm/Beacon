@@ -32,7 +32,7 @@ NWS_ALERTS_URL = "https://api.weather.gov/alerts/active?area=FL"
 ALERT_INTERVAL = 180   # seconds — poll every 3 minutes
 RSS_INTERVAL   = 300   # seconds — NHC feeds update infrequently
 
-LOG_FILE = os.environ.get("LOG_FILE", "/home/ufuser/Downloads/Beacon-main/weather_rss/logs/service.log")
+LOG_FILE = os.environ.get("LOG_FILE", "/home/ufuser/Fpren-main/weather_rss/logs/service.log")
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
 # -------------------------------

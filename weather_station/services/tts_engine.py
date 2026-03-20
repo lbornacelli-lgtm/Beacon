@@ -5,7 +5,7 @@ from piper import PiperVoice
 
 VOICE_MODEL = os.getenv(
     "PIPER_VOICE_MODEL",
-    "/home/ufuser/Downloads/Beacon-main/weather_station/voices/en_US-amy-medium.onnx",
+    "/home/ufuser/Fpren-main/weather_station/voices/en_US-amy-medium.onnx",
 )
 
 

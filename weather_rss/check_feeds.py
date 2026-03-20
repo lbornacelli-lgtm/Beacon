@@ -7,7 +7,7 @@ import subprocess
 from pymongo import MongoClient
 
 # ------------------ Configuration ------------------
-FEEDS_DIR = Path("/home/ufuser/Downloads/Beacon-main/feeds")
+FEEDS_DIR = Path("/home/ufuser/Fpren-main/feeds")
 FEEDS_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = FEEDS_DIR / "weather_rss.log"
 logging.basicConfig(

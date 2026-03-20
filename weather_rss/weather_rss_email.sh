@@ -4,9 +4,9 @@ UNIT_NAME="$1"
 HOSTNAME="$(hostname)"
 DATE="$(date)"
 
-LOG_FILE="/home/ufuser/Downloads/Beacon-main/weather_rss/weather_service.log"
+LOG_FILE="/home/ufuser/Fpren-main/weather_rss/weather_service.log"
 
-DOC_DIR="/home/ufuser/Downloads/Beacon-main/weather_rss/docs"
+DOC_DIR="/home/ufuser/Fpren-main/weather_rss/docs"
 PDF1="$DOC_DIR/tp.pdf"
 PDF2="$DOC_DIR/Workflow.pdf"
 PDF3="$DOC_DIR/schematic.pdf"

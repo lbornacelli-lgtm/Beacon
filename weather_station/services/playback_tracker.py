@@ -6,7 +6,7 @@ from pymongo import MongoClient
 
 logger = logging.getLogger("PlaybackTracker")
 
-ALERT_AUDIO_ROOT = "/home/ufuser/Downloads/Beacon-main/audio_playlist/alerts"
+ALERT_AUDIO_ROOT = "/home/ufuser/Fpren-main/audio_playlist/alerts"
 
 
 class PlaybackTracker:

@@ -1,5 +1,9 @@
-"""Tkinter desktop monitor for the MongoDB TTS collection."""
+"""Tkinter desktop monitor for the MongoDB TTS collection.
+Syncs with the web dashboard every 5 seconds via shared MongoDB collection.
+Supports ElevenLabs TTS if ELEVENLABS_API_KEY is set in environment.
+"""
 
+import os
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -9,14 +13,14 @@ import importer
 import tts
 from config import COLLECTION, DB_NAME, MONGO_URI, WAV_OUTPUT_DIR
 
-REFRESH_SEC = 10
+REFRESH_SEC = 5  # Sync with web dashboard every 5 seconds
 
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("MongoDB TTS Monitor")
-        self.geometry("1100x650")
+        self.title("FPREN - MongoDB TTS Monitor")
+        self.geometry("1200x700")
         self._build_ui()
         self._schedule_refresh()
 
@@ -24,10 +28,26 @@ class App(tk.Tk):
 
     def _build_ui(self):
         # Header
-        ttk.Label(self, text="MongoDB TTS Monitor", font=("Arial", 16, "bold")).pack(pady=8)
+        header = ttk.Frame(self)
+        header.pack(fill="x", padx=10, pady=8)
 
+        ttk.Label(header, text="FPREN - MongoDB TTS Monitor",
+                  font=("Arial", 16, "bold")).pack(side="left")
+
+        # TTS engine indicator
+        engine = tts.tts_engine_name()
+        engine_color = "#198754" if "ElevenLabs" in engine else "#6c757d"
+        tk.Label(header, text=f"TTS: {engine}", fg=engine_color,
+                 font=("Arial", 10, "bold")).pack(side="right", padx=10)
+
+        # Connection info
         info = f"DB: {MONGO_URI}  |  {DB_NAME}.{COLLECTION}  |  WAV → {WAV_OUTPUT_DIR}"
         ttk.Label(self, text=info, foreground="gray").pack()
+
+        # Sync indicator
+        self.sync_var = tk.StringVar(value="⟳ Syncing every 5s with web dashboard")
+        ttk.Label(self, textvariable=self.sync_var,
+                  foreground="#0d6efd").pack()
 
         # Toolbar
         bar = ttk.Frame(self)
@@ -36,12 +56,12 @@ class App(tk.Tk):
         ttk.Button(bar, text="Convert Selected",  command=self._convert_selected).pack(side="left", padx=4)
         ttk.Button(bar, text="Convert All",       command=self._convert_all).pack(side="left", padx=4)
         ttk.Button(bar, text="Delete Selected",   command=self._delete_selected).pack(side="left", padx=4)
-        ttk.Button(bar, text="Refresh",           command=self._refresh).pack(side="left", padx=4)
+        ttk.Button(bar, text="Refresh Now",       command=self._refresh).pack(side="left", padx=4)
 
         # Table
         cols = ("id", "type", "description", "imported_at", "wav")
         self.tree = ttk.Treeview(self, columns=cols, show="headings", selectmode="browse")
-        widths = {"id": 200, "type": 120, "description": 380, "imported_at": 160, "wav": 120}
+        widths = {"id": 200, "type": 120, "description": 400, "imported_at": 160, "wav": 120}
         headers = {"id": "ID", "type": "Type", "description": "Description",
                    "imported_at": "Imported At", "wav": "WAV File"}
         for c in cols:
@@ -61,6 +81,7 @@ class App(tk.Tk):
     # ------------------------------------------------------------------ Data
 
     def _refresh(self):
+        from datetime import datetime
         self.tree.delete(*self.tree.get_children())
         entries = db.all_entries()
         for e in entries:
@@ -73,7 +94,9 @@ class App(tk.Tk):
                 (e.get("_imported_at") or "")[:19],
                 wav,
             ))
-        self.status_var.set(f"{len(entries)} entries loaded.")
+        now = datetime.now().strftime("%H:%M:%S")
+        self.status_var.set(f"{len(entries)} entries — last synced at {now}")
+        self.sync_var.set(f"⟳ Last synced: {now} — refreshing every {REFRESH_SEC}s")
 
     def _schedule_refresh(self):
         self._refresh()
@@ -110,7 +133,7 @@ class App(tk.Tk):
         if not eid:
             messagebox.showinfo("No selection", "Select an entry first.")
             return
-        self.status_var.set("Converting…")
+        self.status_var.set(f"Converting with {tts.tts_engine_name()}…")
         self.update_idletasks()
 
         def task():
@@ -126,7 +149,7 @@ class App(tk.Tk):
         threading.Thread(target=task, daemon=True).start()
 
     def _convert_all(self):
-        self.status_var.set("Converting all…")
+        self.status_var.set(f"Converting all with {tts.tts_engine_name()}…")
         self.update_idletasks()
 
         def task():

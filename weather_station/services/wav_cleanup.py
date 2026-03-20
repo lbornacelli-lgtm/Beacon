@@ -7,8 +7,8 @@ from services.playback_tracker import PlaybackTracker
 
 logger = logging.getLogger("WavCleanup")
 
-ALERT_AUDIO_ROOT = "/home/ufuser/Downloads/Beacon-main/weather_station/audio/alerts"
-DELETION_LOG     = "/home/ufuser/Downloads/Beacon-main/weather_station/logs/wav_deletions.jsonl"
+ALERT_AUDIO_ROOT = "/home/ufuser/Fpren-main/weather_station/audio/alerts"
+DELETION_LOG     = "/home/ufuser/Fpren-main/weather_station/logs/wav_deletions.jsonl"
 MAX_AGE_DAYS     = 3
 
 

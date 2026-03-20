@@ -22,7 +22,7 @@ MongoDB collections:
   fl_traffic        — source FL511 traffic incident documents
 
 Run directly:
-    cd /home/ufuser/Downloads/Beacon-main/weather_station
+    cd /home/ufuser/Fpren-main/weather_station
     source venv/bin/activate
     python services/zone_alert_tts.py
 
@@ -48,10 +48,10 @@ DB_NAME    = "weather_rss"
 
 VOICE_MODEL = os.getenv(
     "PIPER_VOICE_MODEL",
-    "/home/ufuser/Downloads/Beacon-main/weather_station/voices/en_US-amy-medium.onnx",
+    "/home/ufuser/Fpren-main/weather_station/voices/en_US-amy-medium.onnx",
 )
 
-ZONES_ROOT = "/home/ufuser/Downloads/Beacon-main/weather_station/audio/zones"
+ZONES_ROOT = "/home/ufuser/Fpren-main/weather_station/audio/zones"
 INTERVAL   = 60   # seconds between polls
 MAX_WAV_AGE_DAYS = 3   # delete all alert and traffic WAVs older than this
 

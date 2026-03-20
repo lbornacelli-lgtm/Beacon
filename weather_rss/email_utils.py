@@ -4,8 +4,8 @@ import os
 import smtplib
 from email.message import EmailMessage
 
-LOG_FILE    = os.environ.get("LOG_FILE", "/home/ufuser/Downloads/Beacon-main/weather_rss/logs/email.log")
-SMTP_CFG    = os.environ.get("SMTP_CFG", "/home/ufuser/Downloads/Beacon-main/weather_rss/config/smtp_config.json")
+LOG_FILE    = os.environ.get("LOG_FILE", "/home/ufuser/Fpren-main/weather_rss/logs/email.log")
+SMTP_CFG    = os.environ.get("SMTP_CFG", "/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json")
 
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 logging.basicConfig(

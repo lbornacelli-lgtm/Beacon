@@ -1,3 +1,4 @@
+import re
 import json
 import os
 import time as _time
@@ -12,8 +13,8 @@ DB_NAME = "weather_rss"
 COLLECTION = "feed_status"
 
 # ---- Stream zone config (shared with weather_station broadcast engine) ----
-ZONE_OVERRIDES_FILE = "/home/ufuser/Downloads/Beacon-main/weather_station/config/stream_zone_overrides.json"
-SMTP_CFG_FILE       = "/home/ufuser/Downloads/Beacon-main/weather_rss/config/smtp_config.json"
+ZONE_OVERRIDES_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_zone_overrides.json"
+SMTP_CFG_FILE       = "/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json"
 
 AVAILABLE_ZONES = [
     "all_florida", "north_florida", "central_florida", "south_florida",
@@ -21,7 +22,7 @@ AVAILABLE_ZONES = [
 ]
 
 STREAMS = [
-    {"id": "stream_8000", "label": "All Florida",     "port": 8000, "mount": "/beacon",          "zone": "all_florida"},
+    {"id": "stream_8000", "label": "All Florida",     "port": 8000, "mount": "/fpren",          "zone": "all_florida"},
     {"id": "stream_8001", "label": "North Florida",   "port": 8001, "mount": "/north-florida",   "zone": "north_florida"},
     {"id": "stream_8002", "label": "Central Florida", "port": 8002, "mount": "/central-florida", "zone": "central_florida"},
     {"id": "stream_8003", "label": "South Florida",   "port": 8003, "mount": "/south-florida",   "zone": "south_florida"},
@@ -186,13 +187,213 @@ FLTCAT_CLASS = {
 # -------------------- APP -----------------------
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="/static")
+app.secret_key = os.environ.get("SECRET_KEY", "fpren-secret-key-change-in-production")
+
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
-status_col       = db[COLLECTION]
-alerts_col       = db["nws_alerts"]
+status_col        = db[COLLECTION]
+alerts_col        = db["nws_alerts"]
 airport_metar_col = db["airport_metar"]
-fl_traffic_col   = db["fl_traffic"]
-school_col       = db["school_closings"]
+fl_traffic_col    = db["fl_traffic"]
+school_col        = db["school_closings"]
+users_col         = db["users"]
+
+# -------------------- AUTH HELPERS ---------------
+import hashlib, secrets
+from functools import wraps
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    h = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}:{h}"
+
+def _check_password(password: str, stored: str) -> bool:
+    try:
+        salt, h = stored.split(":")
+        return hashlib.sha256((salt + password).encode()).hexdigest() == h
+    except Exception:
+        return False
+
+def _ensure_default_admin():
+    """Create default admin account if no users exist."""
+    if users_col.count_documents({}) == 0:
+        users_col.insert_one({
+            "username": "admin",
+            "password": _hash_password("fpren2024"),
+            "role":     "admin",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+_ensure_default_admin()
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        from flask import session
+        if not session.get("user"):
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        from flask import session
+        if not session.get("user"):
+            return redirect("/login")
+        if session.get("role") != "admin":
+            return jsonify({"ok": False, "message": "Admin access required"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FPREN Login</title>
+<link rel="icon" type="image/png" href="/static/fpren.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; font-family: Arial, sans-serif;
+         display: flex; align-items: center; justify-content: center;
+         min-height: 100vh; }
+  .login-box { background: white; border-radius: 8px; padding: 40px;
+               width: 380px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+  .logo { text-align: center; margin-bottom: 24px; }
+  .logo img { height: 70px; }
+  .logo h2 { color: #111; font-size: 1.3rem; margin-top: 10px; }
+  .logo p { color: #666; font-size: 0.85rem; }
+  label { display: block; font-size: 0.9rem; color: #333;
+          margin-bottom: 4px; margin-top: 16px; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid #ccc;
+          border-radius: 4px; font-size: 1rem; }
+  input:focus { outline: none; border-color: #0077aa; }
+  .btn { width: 100%; padding: 12px; background: #0077aa; color: white;
+         border: none; border-radius: 4px; font-size: 1rem;
+         cursor: pointer; margin-top: 24px; }
+  .btn:hover { background: #005f8a; }
+  .error { background: #f8d7da; color: #842029; padding: 10px 12px;
+           border-radius: 4px; font-size: 0.9rem; margin-top: 16px; }
+  .footer { text-align: center; color: #999; font-size: 0.75rem;
+            margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="logo">
+    <img src="/static/fpren.png" alt="FPREN">
+    <h2>FPREN Alerts Dashboard</h2>
+    <p>Weather • Traffic • Alerts • Icecast</p>
+  </div>
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="/login">
+    <label>Username</label>
+    <input type="text" name="username" autofocus required>
+    <label>Password</label>
+    <input type="password" name="password" required>
+    <button class="btn" type="submit">Sign In</button>
+  </form>
+  <div class="footer">Florida Public Radio Emergency Network</div>
+</div>
+</body>
+</html>
+"""
+
+ADMIN_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FPREN User Management</title>
+<link rel="icon" type="image/png" href="/static/fpren.png">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body { background: #f8f9fa; padding: 30px; font-family: Arial, sans-serif; }
+  .header { background: #111; color: white; padding: 16px 24px;
+            border-radius: 6px; margin-bottom: 24px;
+            display: flex; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <strong>FPREN User Management</strong>
+    <span style="color:#aaa; font-size:0.85rem; margin-left:12px;">Logged in as {{ session_user }} ({{ session_role }})</span>
+  </div>
+  <div>
+    <a href="/" class="btn btn-sm btn-outline-light me-2">← Dashboard</a>
+    <a href="/logout" class="btn btn-sm btn-danger">Logout</a>
+  </div>
+</div>
+
+{% if msg %}
+<div class="alert alert-info alert-dismissible fade show">{{ msg }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<!-- Add User -->
+<div class="card mb-4">
+  <div class="card-header fw-bold">Add New User</div>
+  <div class="card-body">
+    <form method="post" action="/admin/users/add" class="row g-3">
+      <div class="col-md-3">
+        <input type="text" name="username" class="form-control" placeholder="Username" required>
+      </div>
+      <div class="col-md-3">
+        <input type="password" name="password" class="form-control" placeholder="Password" required>
+      </div>
+      <div class="col-md-2">
+        <select name="role" class="form-select">
+          <option value="viewer">Viewer</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary" type="submit">Add User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- User List -->
+<div class="card">
+  <div class="card-header fw-bold">Users ({{ users|length }})</div>
+  <div class="card-body p-0">
+    <table class="table table-striped mb-0">
+      <thead class="table-dark">
+        <tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td><span class="badge {{ 'bg-danger' if u.role == 'admin' else 'bg-secondary' }}">{{ u.role }}</span></td>
+          <td>{{ u.created_at[:19] if u.created_at else '—' }}</td>
+          <td>
+            {% if u.username != session_user %}
+            <form method="post" action="/admin/users/delete" class="d-inline"
+                  onsubmit="return confirm('Delete {{ u.username }}?')">
+              <input type="hidden" name="username" value="{{ u.username }}">
+              <button class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+            {% else %}
+            <span class="text-muted small">current user</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+"""
 
 # -------------------- TEMPLATE ------------------
 HTML_TEMPLATE = """
@@ -211,6 +412,20 @@ HTML_TEMPLATE = """
     border-bottom:3px solid #0077aa;
   }
   .site-header img { height:60px; width:auto; }
+  .user-menu { display:flex; align-items:center; gap:10px; margin-left:auto; }
+  .user-badge { background:#1a3a4a; color:#adf; padding:4px 12px;
+                border-radius:12px; font-size:0.8rem; }
+  .role-badge { background:#0077aa; color:white; padding:3px 8px;
+                border-radius:10px; font-size:0.75rem; text-transform:uppercase; }
+  .role-badge.viewer { background:#555; }
+  .btn-logout { background:#c0392b; color:white; border:none; padding:6px 14px;
+                border-radius:4px; font-size:0.85rem; cursor:pointer;
+                text-decoration:none; }
+  .btn-logout:hover { background:#a93226; color:white; }
+  .btn-admin { background:#0077aa; color:white; border:none; padding:6px 14px;
+               border-radius:4px; font-size:0.85rem; cursor:pointer;
+               text-decoration:none; }
+  .btn-admin:hover { background:#005f8a; color:white; }
   .site-header-title { color:#fff; font-size:1.25rem; font-weight:700; letter-spacing:0.02em; }
   .site-header-sub   { color:#aaa; font-size:0.8rem; margin-top:2px; }
 
@@ -409,6 +624,14 @@ HTML_TEMPLATE = """
   <img src="/static/fpren.png" alt="FPREN Logo">
   <div>
     <div class="site-header-title">FPREN Alerts Dashboard</div>
+  <div class="user-menu">
+    <span class="user-badge">👤 {{ session_user }}</span>
+    <span class="role-badge {{ 'viewer' if session_role == 'viewer' else '' }}">{{ session_role }}</span>
+    {% if session_role == "admin" %}
+    <a href="/admin/users" class="btn-admin">Manage Users</a>
+    {% endif %}
+    <a href="/logout" class="btn-logout">Logout</a>
+  </div>
     <div class="site-header-sub">Weather &bull; Traffic &bull; Alerts &bull; Icecast</div>
   </div>
 </header>
@@ -489,13 +712,29 @@ HTML_TEMPLATE = """
   <div id="pl-load" style="text-align:center;padding:40px;color:#888;font-size:1rem;">Click the Playlist tab to load&hellip;</div>
   <div id="pl-content" style="display:none;">
     <div id="pl-now"></div>
-    <div class="pl-switcher">
-      <strong style="font-size:0.9rem;">Stream 8000 Playlist:</strong>
-      <select id="pl-select" class="pl-select"></select>
+    <div class="pl-switcher" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <strong style="font-size:0.9rem;">Active Playlist:</strong>
+      <select id="pl-select" class="pl-select" onchange="onPlaylistSelect()"></select>
       <button class="pl-btn-assign" onclick="assignPlaylist()">Assign</button>
+      <button id="pl-mute-btn" class="pl-btn-assign" onclick="toggleMute()" style="background:#c0392b;">&#128263; Mute All</button>
       <span id="pl-status" class="pl-status"></span>
     </div>
     <div id="pl-slots-wrap"></div>
+    <div class="pl-card" style="margin-top:10px;padding:12px 16px;">
+      <strong style="font-size:0.9rem;">Add New Slot</strong>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+        <input id="pl-new-label" placeholder="Label" style="padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:0.88rem;width:160px;">
+        <select id="pl-new-cat" style="padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:0.88rem;">
+          <option>top_of_hour</option><option>priority_1</option><option>educational</option>
+          <option>airport_weather</option><option>weather</option><option>sweepers</option>
+          <option>traffic</option><option>generated_wav_files</option>
+          <option>imaging</option><option>jingles</option><option>station_ids</option><option>other</option>
+        </select>
+        <label style="font-size:0.85rem;"><input type="checkbox" id="pl-new-toh"> Top of Hour</label>
+        <label style="font-size:0.85rem;"><input type="checkbox" id="pl-new-skip"> Skip if Empty</label>
+        <button class="pl-btn-assign" onclick="plAddSlot()">+ Add Slot</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -742,28 +981,111 @@ function loadPlaylist() {
     });
 }
 
+let _plCurrentFile = 'normal.json';
+let _plCurrentSlots = [];
+
+function onPlaylistSelect() {
+  const file = document.getElementById('pl-select').value;
+  _plCurrentFile = file;
+  const pl = (_plData && _plData.available || []).find(p => p.file === file);
+  if (pl) { _plCurrentSlots = JSON.parse(JSON.stringify(pl.slots || [])); }
+  renderSlots();
+}
+
 function renderSlots(activeFile, available) {
-  const pl = available.find(p => p.file === activeFile);
-  if (!pl) return;
-  const rows = pl.slots.map((s, i) =>
+  if (activeFile && available) {
+    _plCurrentFile = activeFile;
+    const pl = available.find(p => p.file === activeFile);
+    _plCurrentSlots = pl ? JSON.parse(JSON.stringify(pl.slots || [])) : [];
+  }
+  const rows = _plCurrentSlots.map((s, i) =>
     `<tr>
       <td class="center" style="color:#888;font-size:0.8rem;">${i + 1}</td>
       <td>${s.label}</td>
       <td><span class="pl-cat">${s.category}</span></td>
       <td class="center">${s.top_of_hour ? '&#9679;' : ''}</td>
+      <td class="center">${s.skip_if_empty ? '&#9679;' : ''}</td>
+      <td class="center" style="white-space:nowrap;">
+        <button onclick="plMove(${i},-1)" style="background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;padding:2px 7px;">&#9650;</button>
+        <button onclick="plMove(${i}, 1)" style="background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;padding:2px 7px;">&#9660;</button>
+        <button onclick="plRemove(${i})" style="background:#c0392b;color:white;border:none;border-radius:3px;cursor:pointer;padding:2px 8px;">&#10005;</button>
+      </td>
     </tr>`
   ).join('');
+  const pl = (_plData && _plData.available || []).find(p => p.file === _plCurrentFile) || {};
   document.getElementById('pl-slots-wrap').innerHTML = `
     <div class="pl-card">
-      <div class="pl-card-hdr">
-        <span class="pl-card-hdr-title">${pl.name}</span>
-        <span class="pl-card-hdr-sub">${pl.description}</span>
+      <div class="pl-card-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          <span class="pl-card-hdr-title">${pl.name || _plCurrentFile}</span>
+          <span class="pl-card-hdr-sub">${pl.description || ''}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="pl-save-status" style="font-size:0.85rem;color:#2e7d32;"></span>
+          <button class="pl-btn-assign" style="background:#0077aa;" onclick="plSaveSlots()">&#128190; Save Changes</button>
+        </div>
       </div>
       <table class="pl-slots">
-        <thead><tr><th>#</th><th>Label</th><th>Category</th><th>Top of Hour</th></tr></thead>
+        <thead><tr><th>#</th><th>Label</th><th>Category</th><th>Top of Hour</th><th>Skip if Empty</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+}
+
+function plMove(idx, dir) {
+  const ni = idx + dir;
+  if (ni < 0 || ni >= _plCurrentSlots.length) return;
+  [_plCurrentSlots[idx], _plCurrentSlots[ni]] = [_plCurrentSlots[ni], _plCurrentSlots[idx]];
+  renderSlots();
+}
+
+function plRemove(idx) {
+  if (!confirm('Remove slot "' + _plCurrentSlots[idx].label + '"?')) return;
+  _plCurrentSlots.splice(idx, 1);
+  renderSlots();
+}
+
+function plAddSlot() {
+  const label = document.getElementById('pl-new-label').value.trim();
+  if (!label) { alert('Please enter a label.'); return; }
+  _plCurrentSlots.push({
+    label,
+    category:      document.getElementById('pl-new-cat').value,
+    top_of_hour:   document.getElementById('pl-new-toh').checked,
+    skip_if_empty: document.getElementById('pl-new-skip').checked,
+  });
+  document.getElementById('pl-new-label').value = '';
+  document.getElementById('pl-new-toh').checked  = false;
+  document.getElementById('pl-new-skip').checked = false;
+  renderSlots();
+}
+
+function plSaveSlots() {
+  const st = document.getElementById('pl-save-status');
+  if (st) st.textContent = 'Saving...';
+  fetch('/api/playlist/' + _plCurrentFile + '/slots', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({slots: _plCurrentSlots})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (st) { st.textContent = d.message || (d.ok ? 'Saved!' : 'Error'); st.style.color = d.ok ? '#2e7d32' : '#c0392b'; }
+    if (d.ok) { _tabLoaded['playlist'] = 0; toast('Playlist saved!'); }
+  })
+  .catch(() => { if (st) { st.textContent = 'Save failed'; st.style.color = '#c0392b'; } });
+}
+
+function toggleMute() {
+  fetch('/api/playlist/mute/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+    .then(r => r.json())
+    .then(d => {
+      const btn = document.getElementById('pl-mute-btn');
+      if (d.muted) { btn.textContent = '&#128266; Unmute All'; btn.style.background = '#198754'; }
+      else         { btn.textContent = '&#128263; Mute All';   btn.style.background = '#c0392b'; }
+      toast(d.muted ? 'Muted' : 'Unmuted');
+      _tabLoaded['playlist'] = 0;
+    });
 }
 
 function assignPlaylist() {
@@ -995,16 +1317,86 @@ function loadDataTab() {
 </html>
 """
 
+# -------------------- AUTH ROUTES ----------------
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    from flask import session
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        user = users_col.find_one({"username": username})
+        if user and _check_password(password, user["password"]):
+            session["user"] = username
+            session["role"] = user.get("role", "viewer")
+            users_col.update_one({"username": username},
+                                  {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}})
+            return redirect("/")
+        return render_template_string(LOGIN_TEMPLATE, error="Invalid username or password")
+    return render_template_string(LOGIN_TEMPLATE, error=None)
+
+@app.route("/logout")
+def logout():
+    from flask import session
+    session.clear()
+    return redirect("/login")
+
+@app.route("/admin/users")
+@admin_required
+def admin_users():
+    from flask import session
+    users = list(users_col.find({}, {"password": 0}))
+    msg = request.args.get("msg")
+    return render_template_string(ADMIN_TEMPLATE,
+                                   users=users,
+                                   session_user=session.get("user"),
+                                   session_role=session.get("role"),
+                                   msg=msg)
+
+@app.route("/admin/users/add", methods=["POST"])
+@admin_required
+def admin_add_user():
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    role     = request.form.get("role", "viewer")
+    if not username or not password:
+        return redirect("/admin/users?msg=Username and password are required")
+    if users_col.find_one({"username": username}):
+        return redirect(f"/admin/users?msg=User already exists")
+    users_col.insert_one({
+        "username":   username,
+        "password":   _hash_password(password),
+        "role":       role,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return redirect(f"/admin/users?msg=User created successfully")
+
+@app.route("/admin/users/delete", methods=["POST"])
+@admin_required
+def admin_delete_user():
+    from flask import session
+    username = request.form.get("username", "").strip()
+    if username == session.get("user"):
+        return redirect("/admin/users?msg=Cannot delete your own account")
+    users_col.delete_one({"username": username})
+    return redirect(f"/admin/users?msg=User deleted")
+
 # -------------------- ROUTES ----------------------
 @app.route("/")
+@login_required
 def dashboard():
-    return render_template_string(HTML_TEMPLATE, zones=AVAILABLE_ZONES)
+    from flask import session
+    return render_template_string(HTML_TEMPLATE,
+                                   zones=AVAILABLE_ZONES,
+                                   session_user=session.get("user"),
+                                   session_role=session.get("role"))
 
 # -------------------- STREAM CONFIG API ------------------
+@login_required
 @app.route("/api/streams")
 def api_streams():
     return jsonify(_stream_list())
 
+@admin_required
 @app.route("/api/streams/<stream_id>/zone", methods=["POST"])
 def api_stream_zone(stream_id):
     data = request.get_json(silent=True) or {}
@@ -1019,10 +1411,12 @@ def api_stream_zone(stream_id):
     return jsonify({"ok": True, "message": f"Zone set to {zone}"})
 
 # -------------------- SMTP CONFIG API ------------------
+@login_required
 @app.route("/api/smtp", methods=["GET"])
 def api_smtp_get():
     return jsonify(_load_smtp_cfg())
 
+@admin_required
 @app.route("/api/smtp", methods=["POST"])
 def api_smtp_save():
     data = request.get_json(silent=True) or {}
@@ -1042,6 +1436,7 @@ def api_smtp_save():
     except Exception as exc:
         return jsonify({"ok": False, "message": str(exc)}), 500
 
+@admin_required
 @app.route("/api/smtp/test", methods=["POST"])
 def api_smtp_test():
     import smtplib, threading
@@ -1084,6 +1479,7 @@ def api_smtp_test():
         return jsonify({"ok": False, "message": f"SMTP error: {exc}"}), 500
 
 # -------------------- WEATHER API ---------------
+@login_required
 @app.route("/api/weather")
 def api_weather():
     now_ts = _time.time()
@@ -1144,6 +1540,7 @@ def api_weather():
     return jsonify(result)
 
 # -------------------- ICECAST API ---------------
+@login_required
 @app.route("/api/icecast")
 def api_icecast():
     import xml.etree.ElementTree as ET
@@ -1177,9 +1574,9 @@ def api_icecast():
     return jsonify(results)
 
 # -------------------- PLAYLIST API --------------
-PLAYLISTS_DIR       = "/home/ufuser/Downloads/Beacon-main/weather_station/playlists"
-STREAM_PLAYLISTS_FILE = "/home/ufuser/Downloads/Beacon-main/weather_station/config/stream_playlists.json"
-NOW_PLAYING_FILE    = "/tmp/beacon_now_playing.json"
+PLAYLISTS_DIR       = "/home/ufuser/Fpren-main/weather_station/playlists"
+STREAM_PLAYLISTS_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_playlists.json"
+NOW_PLAYING_FILE    = "/tmp/fpren_now_playing.json"
 
 def _load_stream_playlists():
     try:
@@ -1192,6 +1589,7 @@ def _save_stream_playlists(data):
     with open(STREAM_PLAYLISTS_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+@login_required
 @app.route("/api/playlist")
 def api_playlist():
     sp = _load_stream_playlists()
@@ -1223,6 +1621,7 @@ def api_playlist():
         "now_playing": now_playing,
     })
 
+@admin_required
 @app.route("/api/playlist/assign", methods=["POST"])
 def api_playlist_assign():
     data = request.get_json(silent=True) or {}
@@ -1237,13 +1636,48 @@ def api_playlist_assign():
     _save_stream_playlists(sp)
     return jsonify({"ok": True, "message": f"Assigned {file} to {stream_id}"})
 
+@app.route("/api/playlist/mute/status")
+def api_playlist_mute_status():
+    sp = _load_stream_playlists()
+    active = sp.get("stream_8000", "normal.json")
+    muted = active == "mute.json"
+    return jsonify({"muted": muted, "active": active})
+
+@app.route("/api/playlist/mute/toggle", methods=["POST"])
+def api_playlist_mute_toggle():
+    sp = _load_stream_playlists()
+    current = sp.get("stream_8000", "normal.json")
+    new_file = "normal.json" if current == "mute.json" else "mute.json"
+    sp["stream_8000"] = new_file
+    _save_stream_playlists(sp)
+    return jsonify({"ok": True, "muted": new_file == "mute.json", "active": new_file})
+
+
+@app.route("/api/playlist/<path:filename>/slots", methods=["POST"])
+def api_playlist_save_slots(filename):
+    if not re.match(r'^[\w\-]+\.json$', filename):
+        return jsonify({"ok": False, "message": "Invalid filename"}), 400
+    data = request.get_json(silent=True) or {}
+    slots = data.get("slots")
+    if not isinstance(slots, list):
+        return jsonify({"ok": False, "message": "slots must be a list"}), 400
+    path = os.path.join(PLAYLISTS_DIR, filename)
+    if not os.path.isfile(path):
+        return jsonify({"ok": False, "message": f"{filename} not found"}), 404
+    with open(path, "r") as fh:
+        pl = json.load(fh)
+    pl["slots"] = slots
+    with open(path, "w") as fh:
+        json.dump(pl, fh, indent=2)
+    return jsonify({"ok": True, "message": f"Saved {len(slots)} slots to {filename}"})
+
 # -------------------- ALERT WAV DOWNLOAD --------
-_ALL_FLORIDA_ZONE = "/home/ufuser/Downloads/Beacon-main/weather_station/audio/zones/all_florida"
+_ALL_FLORIDA_ZONE = "/home/ufuser/Fpren-main/weather_station/audio/zones/all_florida"
 _WAV_SEARCH_ROOTS = [
     _ALL_FLORIDA_ZONE,
-    "/home/ufuser/Downloads/Beacon-main/audio_playlist/alerts",
-    "/home/ufuser/Downloads/Beacon-main/weather_station/audio/alerts",
-    "/home/ufuser/Downloads/Beacon-main/wav_output",
+    "/home/ufuser/Fpren-main/audio_playlist/alerts",
+    "/home/ufuser/Fpren-main/weather_station/audio/alerts",
+    "/home/ufuser/Fpren-main/wav_output",
 ]
 
 def _alert_id_to_filename(alert_id: str) -> str:
@@ -1269,6 +1703,7 @@ def _resolve_wav(wav_path: str, alert_id: str = None):
                     return os.path.join(dirpath, filename)
     return None
 
+@login_required
 @app.route("/alerts/<alert_id>/wav")
 def alert_wav(alert_id):
     from bson import ObjectId
@@ -1287,6 +1722,7 @@ def alert_wav(alert_id):
                      as_attachment=True, download_name=filename)
 
 # -------------------- STREAM ALERT TEST ---------
+@admin_required
 @app.route("/api/stream-alert/test", methods=["POST"])
 def api_stream_alert_test():
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -1302,6 +1738,7 @@ def api_stream_alert_test():
     return jsonify({"ok": ok, "message": msg})
 
 # -------------------- DATA TAB API --------------
+@login_required
 @app.route("/api/data-tab")
 def api_data_tab():
     now = datetime.now(timezone.utc)
@@ -1419,7 +1856,7 @@ def api_data_tab():
     # Now playing
     now_playing = None
     try:
-        with open("/tmp/beacon_now_playing.json") as f:
+        with open("/tmp/fpren_now_playing.json") as f:
             now_playing = json.load(f)
     except (FileNotFoundError, ValueError):
         pass
@@ -1435,6 +1872,7 @@ def api_data_tab():
     })
 
 # -------------------- FEEDBACK ------------------
+@login_required
 @app.route("/feedback", methods=["POST"])
 def submit_feedback():
     name    = request.form.get("name", "").strip()

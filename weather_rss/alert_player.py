@@ -7,8 +7,8 @@ import simpleaudio as sa
 from pymongo import MongoClient
 from datetime import datetime, timezone
 
-ALERT_DIR = "/home/ufuser/Downloads/Beacon-main/weather_rss/audio/alerts"
-NORMAL_PLAYLIST_DIR = "/home/ufuser/Downloads/Beacon-main/weather_rss/audio/playlist"
+ALERT_DIR = "/home/ufuser/Fpren-main/weather_rss/audio/alerts"
+NORMAL_PLAYLIST_DIR = "/home/ufuser/Fpren-main/weather_rss/audio/playlist"
 
 client = MongoClient("mongodb://localhost:27017/")
 db = client["weather"]

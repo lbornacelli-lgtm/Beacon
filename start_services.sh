@@ -31,7 +31,7 @@ start_service() {
     local script="$2"
     local logfile="$LOG_DIR/${name}.log"
     echo "[..] Starting $name..."
-    nohup /home/ufuser/Downloads/Beacon-main/venv/bin/python3 "$script" > "$logfile" 2>&1 &
+    nohup /home/ufuser/Fpren-main/venv/bin/python3 "$script" > "$logfile" 2>&1 &
     echo $! > "$LOG_DIR/${name}.pid"
     echo "[OK] $name started (PID $!), logging to $logfile"
 }

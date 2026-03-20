@@ -9,7 +9,7 @@ Runs continuously:
   - Logs all deletions to weather_station/logs/wav_deletions.jsonl
 
 Usage:
-    cd /home/ufuser/Downloads/Beacon-main/weather_station
+    cd /home/ufuser/Fpren-main/weather_station
     source venv/bin/activate
     python run_alert_service.py
 """
@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 LOG_FILE = os.environ.get(
     "ALERT_SERVICE_LOG",
-    "/home/ufuser/Downloads/Beacon-main/weather_station/logs/alert_service.log",
+    "/home/ufuser/Fpren-main/weather_station/logs/alert_service.log",
 )
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 

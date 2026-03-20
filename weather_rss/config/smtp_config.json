@@ -1,0 +1,10 @@
+{
+  "smtp_host": "smtp.ufl.edu",
+  "smtp_port": 25,
+  "use_tls": false,
+  "use_auth": false,
+  "smtp_user": "",
+  "smtp_pass": "",
+  "mail_from": "lawrence.bornace@ufl.edu",
+  "mail_to": ""
+}
