@@ -91,3 +91,21 @@ COMPLETE*.txt
 weather_station/audio/generated_wav_files
 weather_station/voices/*.onnx
 weather_station/voices/*.onnx.json
+# Environment files
+weather_station/.env
+*.env
+
+# Audio files (too large for git)
+weather_station/audio/**/*.wav
+weather_station/audio/**/*.mp3
+wav_output/
+weather_station/audio/zones/
+
+# Logs
+weather_rss/logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
