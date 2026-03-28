@@ -1,55 +1,91 @@
-# Virtual Environment
-venv/
-.venv/
-env/
-ENV/
-
-# Python cache
+# -----------------------------------------------
+# Python
+# -----------------------------------------------
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
-*.pyc
-
-# Environment variables / secrets
-.env
-.env.*
-*.env
-config_local.yaml
-
-# Logs
-*.log
-logs/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE / Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Distribution / packaging
-dist/
-build/
 *.egg-info/
-*.egg
+venv/
+venv_rss/
+chatgpt_env/
 
-# Pytest / testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Jupyter notebooks checkpoints
-.ipynb_checkpoints/
-
-# Data / output files
-*.csv
-*.sqlite
-*.db
-*.deb
+# -----------------------------------------------
+# Logs & runtime output
+# -----------------------------------------------
+*.log
+*.out
+*.save
+*.watchdog
 wav_output/
-weather_station/audio/
+weather_data/
+audio_playlist/
+
+# -----------------------------------------------
+# Credentials & personal config
+# -----------------------------------------------
+.ssh/
+.gnupg/
+.gitconfig
+.bash_history*
+.sudo_as_admin_successful
+dead.letter
+.env
+
+# -----------------------------------------------
+# System / desktop
+# -----------------------------------------------
+.cache/
+.config/
+.local/
+.docker/
+.vnc/
+.dmrc
+.idlerc/
+.mongodb/
+.Xauthority
+.xsession-errors*
+.wget-hsts
+.lesshst
+.python_history
+.profile
+.bashrc
+.bash_logout
+.claude.json
+.claude/
+snap/
+Desktop/
+Downloads/
+
+# -----------------------------------------------
+# Packages & installers
+# -----------------------------------------------
+*.deb
+*.deb.*
+
+# -----------------------------------------------
+# Weather RSS runtime dirs
+# -----------------------------------------------
+weather_rss/logs/
+weather_rss/run/
+weather_rss/feeds/
+weather_rss/venv_rss/
+weather_rss/weather_web/
+
+# -----------------------------------------------
+# Data & generated feeds
+# -----------------------------------------------
+feeds/
+sample_feed.json
+
+# -----------------------------------------------
+# System config (not project files)
+# -----------------------------------------------
+etc/
+
+# -----------------------------------------------
+# Notes / scratch files
+# -----------------------------------------------
+"COMPLETE weather_station Structure.txt"
+COMPLETE*.txt
 weather_station/voices/

@@ -3,7 +3,7 @@ import logging
 from email_utils import send_success_email
 import feedparser
 
-LOG_FILE = "/home/ufuser/Fpren-main/weather_rss/logs/weather.log"
+LOG_FILE = "/home/lh_admin/weather_rss/logs/weather.log"
 logging.basicConfig(filename=LOG_FILE,
                     level=logging.INFO,
                     format='%(asctime)s %(levelname)s:%(message)s')

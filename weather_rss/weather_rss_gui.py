@@ -28,27 +28,27 @@ REFRESH_INTERVAL = 5  # seconds
 # -------------------------------
 ICECAST_HOST       = "localhost"
 ICECAST_PORT       = 8000
-ICECAST_MOUNT      = "/fpren"
+ICECAST_MOUNT      = "/beacon"
 ICECAST_ADMIN_USER = "admin"
 ICECAST_ADMIN_PASS = "1002LBorn1!"
 
 # -------------------------------
 # SERIAL ALERT CONFIG
 # -------------------------------
-SERIAL_CFG_FILE = "/home/ufuser/Fpren-main/weather_station/config/serial_config.json"
-SMTP_CFG_FILE   = "/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json"
+SERIAL_CFG_FILE = "/home/lh_admin/weather_station/config/serial_config.json"
+SMTP_CFG_FILE   = "/home/lh_admin/weather_rss/config/smtp_config.json"
 
 # -------------------------------
 # PLAYLIST CONFIG
 # -------------------------------
-PLAYLISTS_DIR         = "/home/ufuser/Fpren-main/weather_station/playlists"
-STREAM_PLAYLISTS_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_playlists.json"
-PLAYLIST_STATE_FILE   = "/tmp/fpren_playlist_state.json"
+PLAYLISTS_DIR         = "/home/lh_admin/weather_station/playlists"
+STREAM_PLAYLISTS_FILE = "/home/lh_admin/weather_station/config/stream_playlists.json"
+PLAYLIST_STATE_FILE   = "/tmp/beacon_playlist_state.json"
 
 # -------------------------------
 # STREAM ZONE CONFIG
 # -------------------------------
-ZONE_OVERRIDES_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_zone_overrides.json"
+ZONE_OVERRIDES_FILE = "/home/lh_admin/weather_station/config/stream_zone_overrides.json"
 
 AVAILABLE_ZONES = [
     "all_florida", "north_florida", "central_florida", "south_florida",
@@ -56,7 +56,7 @@ AVAILABLE_ZONES = [
 ]
 
 STREAMS = [
-    {"id": "stream_8000", "label": "All Florida",     "port": 8000, "mount": "/fpren",          "default_zone": "all_florida"},
+    {"id": "stream_8000", "label": "All Florida",     "port": 8000, "mount": "/beacon",          "default_zone": "all_florida"},
     {"id": "stream_8001", "label": "North Florida",   "port": 8001, "mount": "/north-florida",   "default_zone": "north_florida"},
     {"id": "stream_8002", "label": "Central Florida", "port": 8002, "mount": "/central-florida", "default_zone": "central_florida"},
     {"id": "stream_8003", "label": "South Florida",   "port": 8003, "mount": "/south-florida",   "default_zone": "south_florida"},
@@ -99,7 +99,7 @@ class SystemdMonitor(tk.Tk):
         self.refresh_status()
         self.auto_refresh()
 
-    LOGO_PATH = "/home/ufuser/Fpren-main/weather_rss/web/static/fpren.png"
+    LOGO_PATH = "/home/lh_admin/weather_rss/web/static/fpren.png"
 
     def create_widgets(self):
         # Header bar with logo + title
@@ -1112,7 +1112,7 @@ class SystemdMonitor(tk.Tk):
 
         # Now Playing — read from station engine's JSON file
         try:
-            with open("/tmp/fpren_now_playing.json") as f:
+            with open("/tmp/beacon_now_playing.json") as f:
                 np = json.load(f)
             title    = np.get("title", "—")
             category = np.get("category", "")
@@ -1125,7 +1125,7 @@ class SystemdMonitor(tk.Tk):
 
     def _restart_stream(self):
         if not messagebox.askyesno("Restart Stream",
-                                   "Kill the Icecast source on /fpren?\nThis will briefly disconnect listeners."):
+                                   "Kill the Icecast source on /beacon?\nThis will briefly disconnect listeners."):
             return
         url = (
             f"http://{ICECAST_HOST}:{ICECAST_PORT}"

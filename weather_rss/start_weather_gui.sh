@@ -1,8 +1,8 @@
 #!/bin/bash
-LOGFILE=/home/ufuser/Fpren-main/weather_rss/logs/gui.log
+LOGFILE=/home/lh_admin/weather_rss/logs/gui.log
 echo "Starting Weather RSS GUI at $(date)" >> "$LOGFILE"
 
 export DISPLAY=:0
-export XAUTHORITY=/home/ufuser/Fpren-main/.Xauthority
+export XAUTHORITY=/home/lh_admin/.Xauthority
 
-/home/ufuser/Fpren-main/weather_rss/venv/bin/python /home/ufuser/Fpren-main/weather_rss/weather_rss_gui.py >> "$LOGFILE" 2>&1
+/home/lh_admin/weather_rss/venv/bin/python /home/lh_admin/weather_rss/weather_rss_gui.py >> "$LOGFILE" 2>&1

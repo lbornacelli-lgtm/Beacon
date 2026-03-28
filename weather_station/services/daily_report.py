@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger("DailyReport")
 
-ALERT_AUDIO_ROOT = "/home/ufuser/Fpren-main/audio_playlist/alerts"
+ALERT_AUDIO_ROOT = "/home/lh_admin/audio_playlist/alerts"
 RECIPIENT        = "lbornacelli@gmail.com"
-TIMESTAMP_FILE   = "/home/ufuser/Fpren-main/weather_station/logs/last_daily_report.txt"
+TIMESTAMP_FILE   = "/home/lh_admin/weather_station/logs/last_daily_report.txt"
 
 
 def _load_last_run() -> datetime:
@@ -80,7 +80,7 @@ def _build_email_body(new_wavs: list[dict], since: datetime) -> str:
     lines += [
         "---",
         "Beacon Weather Station | Gainesville, FL",
-        f"Log: /home/ufuser/Fpren-main/weather_station/logs/alert_service.log",
+        f"Log: /home/lh_admin/weather_station/logs/alert_service.log",
     ]
     return "\n".join(lines)
 

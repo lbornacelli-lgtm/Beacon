@@ -1,8 +1,6 @@
 import os
 import logging
 import random
-from datetime import datetime
-
 
 # Maps NWS event type strings (lowercase) to audio_playlist/alerts/ subfolder names.
 # Priority-1 events get their own folder for immediate interrupt handling.
@@ -57,10 +55,10 @@ ALERT_FOLDER_MAP = {
 }
 
 # Root of the broadcast-facing audio library
-ALERT_AUDIO_ROOT = "/home/ufuser/Fpren-main/weather_station/audio/alerts"
+ALERT_AUDIO_ROOT = "/home/lh_admin/weather_station/audio/alerts"
 
 # Shared audio playlist library (all non-alert content)
-PLAYLIST_ROOT = "/home/ufuser/Fpren-main/audio_playlist"
+PLAYLIST_ROOT = "/home/lh_admin/audio_playlist"
 
 # Subfolders checked in priority order for playback
 ALERT_PRIORITY_ORDER = [
@@ -69,7 +67,7 @@ ALERT_PRIORITY_ORDER = [
 ]
 
 # Zone audio root and shared top-of-hour
-ZONES_ROOT = "/home/ufuser/Fpren-main/weather_station/audio/zones"
+ZONES_ROOT = "/home/lh_admin/weather_station/audio/zones"
 SHARED_TOP_OF_HOUR = os.path.join(ZONES_ROOT, "_shared", "top_of_hour")
 
 
@@ -129,29 +127,6 @@ class FileRouter:
         os.makedirs(path, exist_ok=True)
         self.logger.debug(f"Routing '{event_type}' → {path}")
         return path
-    def get_daypart_folder(self) -> str:
-        """
-        Return the Radio Weather subfolder that matches the current time of day.
-        Maps to the daypart folders on //ad.ufl.edu/cjc/WX/Radio Weather/
-        """
-        hour = datetime.now().hour
-        base = self.audio_dirs["generated_wav_files"]
-        if 0 <= hour < 5:
-            subfolder = "1 Overnights 12 am to 5 am"
-        elif 5 <= hour < 9:
-            subfolder = "2 Mornings 5 am to 9 am"
-        elif 9 <= hour < 12:
-            subfolder = "3 Middays 9 am to Noon"
-        elif 12 <= hour < 16:
-            subfolder = "4 Afternoons Noon to 4 pm"
-        elif 16 <= hour < 19:
-            subfolder = "5 Evenings 4 pm to 7 pm"
-        else:
-            subfolder = "6 Nights 7 pm to Midnight"
-        path = os.path.join(base, subfolder)
-        self.logger.info(f"Daypart folder selected: {path}")
-        return path
-
 
     def get_next_alert_file(self) -> str | None:
         """
@@ -247,10 +222,19 @@ class FileRouter:
     _RECURSIVE_CATEGORIES = {"imaging", "pl_imaging", "weather"}
 
     def get_next_file(self, category="educational"):
-        if category == "generated_wav_files":
-            folder = self.get_daypart_folder()
+        folder = self.audio_dirs.get(category)
+        if not folder or not os.path.isdir(folder):
+            self.logger.warning(f"No folder for category '{category}'")
+            return None
+
+        if category in self._RECURSIVE_CATEGORIES:
+            files = _collect_wavs(folder)
         else:
-            folder = self.audio_dirs.get(category)
+            files = [
+                os.path.join(folder, f)
+                for f in os.listdir(folder)
+                if f.lower().endswith(".wav") and "_processed" not in f
+            ]
 
         if not files:
             self.logger.warning(f"No WAV files in '{folder}'")
