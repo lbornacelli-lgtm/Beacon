@@ -3,5 +3,6 @@
   "stream_8001": "normal.json",
   "stream_8002": "normal.json",
   "stream_8003": "normal.json",
-  "stream_8004": "normal.json"
+  "stream_8004": "normal.json",
+  "stream_8000_muted": false
 }

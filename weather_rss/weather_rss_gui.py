@@ -35,20 +35,20 @@ ICECAST_ADMIN_PASS = "hackme"
 # -------------------------------
 # SERIAL ALERT CONFIG
 # -------------------------------
-SERIAL_CFG_FILE = "/home/lh_admin/weather_station/config/serial_config.json"
-SMTP_CFG_FILE   = "/home/lh_admin/weather_rss/config/smtp_config.json"
+SERIAL_CFG_FILE = "/home/ufuser/Fpren-main/weather_station/config/serial_config.json"
+SMTP_CFG_FILE   = "/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json"
 
 # -------------------------------
 # PLAYLIST CONFIG
 # -------------------------------
-PLAYLISTS_DIR         = "/home/lh_admin/weather_station/playlists"
-STREAM_PLAYLISTS_FILE = "/home/lh_admin/weather_station/config/stream_playlists.json"
+PLAYLISTS_DIR         = "/home/ufuser/Fpren-main/weather_station/playlists"
+STREAM_PLAYLISTS_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_playlists.json"
 PLAYLIST_STATE_FILE   = "/tmp/beacon_playlist_state.json"
 
 # -------------------------------
 # STREAM ZONE CONFIG
 # -------------------------------
-ZONE_OVERRIDES_FILE = "/home/lh_admin/weather_station/config/stream_zone_overrides.json"
+ZONE_OVERRIDES_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_zone_overrides.json"
 
 AVAILABLE_ZONES = [
     "all_florida", "north_florida", "central_florida", "south_florida",
@@ -99,7 +99,7 @@ class SystemdMonitor(tk.Tk):
         self.refresh_status()
         self.auto_refresh()
 
-    LOGO_PATH = "/home/lh_admin/weather_rss/web/static/fpren.png"
+    LOGO_PATH = "/home/ufuser/Fpren-main/weather_rss/web/static/fpren.png"
 
     def create_widgets(self):
         # Header bar with logo + title

@@ -12,8 +12,8 @@ DB_NAME = "weather_rss"
 COLLECTION = "feed_status"
 
 # ---- Stream zone config (shared with weather_station broadcast engine) ----
-ZONE_OVERRIDES_FILE = "/home/lh_admin/weather_station/config/stream_zone_overrides.json"
-SMTP_CFG_FILE       = "/home/lh_admin/weather_rss/config/smtp_config.json"
+ZONE_OVERRIDES_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_zone_overrides.json"
+SMTP_CFG_FILE       = "/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json"
 
 AVAILABLE_ZONES = [
     "all_florida", "north_florida", "central_florida", "south_florida",
@@ -1177,8 +1177,8 @@ def api_icecast():
     return jsonify(results)
 
 # -------------------- PLAYLIST API --------------
-PLAYLISTS_DIR       = "/home/lh_admin/weather_station/playlists"
-STREAM_PLAYLISTS_FILE = "/home/lh_admin/weather_station/config/stream_playlists.json"
+PLAYLISTS_DIR       = "/home/ufuser/Fpren-main/weather_station/playlists"
+STREAM_PLAYLISTS_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_playlists.json"
 NOW_PLAYING_FILE    = "/tmp/beacon_now_playing.json"
 
 def _load_stream_playlists():
@@ -1191,6 +1191,10 @@ def _load_stream_playlists():
 def _save_stream_playlists(data):
     with open(STREAM_PLAYLISTS_FILE, "w") as f:
         json.dump(data, f, indent=2)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    return "", 200
 
 @app.route("/api/playlist")
 def api_playlist():
@@ -1217,11 +1221,53 @@ def api_playlist():
             now_playing = json.load(f)
     except (FileNotFoundError, ValueError):
         pass
+    streams_out = []
+    for s in STREAMS:
+        streams_out.append({
+            "id":    s["id"],
+            "label": s["label"],
+            "port":  s["port"],
+            "active": sp.get(s["id"], "normal.json"),
+            "muted":  bool(sp.get(f"{s['id']}_muted", False)),
+        })
     return jsonify({
         "active":      active_file,
         "available":   available,
         "now_playing": now_playing,
+        "streams":     streams_out,
     })
+
+@app.route("/api/playlist/mute/toggle", methods=["POST"])
+def api_playlist_mute_toggle():
+    data = request.get_json(silent=True) or {}
+    stream_id = data.get("stream_id", "").strip()
+    if not stream_id:
+        return jsonify({"ok": False, "message": "Missing stream_id"}), 400
+    sp = _load_stream_playlists()
+    muted = not bool(sp.get(f"{stream_id}_muted", False))
+    sp[f"{stream_id}_muted"] = muted
+    _save_stream_playlists(sp)
+    return jsonify({"ok": True, "muted": muted,
+                    "message": "Muted" if muted else "Unmuted"})
+
+@app.route("/api/playlist/<path:filename>/slots", methods=["POST"])
+def api_playlist_slots(filename):
+    data = request.get_json(silent=True) or {}
+    slots = data.get("slots")
+    if slots is None:
+        return jsonify({"ok": False, "message": "Missing slots"}), 400
+    filepath = os.path.join(PLAYLISTS_DIR, filename)
+    if not os.path.isfile(filepath):
+        return jsonify({"ok": False, "message": f"Playlist {filename} not found"}), 404
+    try:
+        with open(filepath) as f:
+            pl = json.load(f)
+        pl["slots"] = slots
+        with open(filepath, "w") as f:
+            json.dump(pl, f, indent=2)
+        return jsonify({"ok": True, "message": f"Saved {len(slots)} slots to {filename}"})
+    except Exception as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 500
 
 @app.route("/api/playlist/assign", methods=["POST"])
 def api_playlist_assign():
@@ -1238,12 +1284,12 @@ def api_playlist_assign():
     return jsonify({"ok": True, "message": f"Assigned {file} to {stream_id}"})
 
 # -------------------- ALERT WAV DOWNLOAD --------
-_ALL_FLORIDA_ZONE = "/home/lh_admin/weather_station/audio/zones/all_florida"
+_ALL_FLORIDA_ZONE = "/home/ufuser/Fpren-main/weather_station/audio/zones/all_florida"
 _WAV_SEARCH_ROOTS = [
     _ALL_FLORIDA_ZONE,
-    "/home/lh_admin/audio_playlist/alerts",
-    "/home/lh_admin/weather_station/audio/alerts",
-    "/home/lh_admin/wav_output",
+    "/home/ufuser/Fpren-main/audio_playlist/alerts",
+    "/home/ufuser/Fpren-main/weather_station/audio/alerts",
+    "/home/ufuser/Fpren-main/wav_output",
 ]
 
 def _alert_id_to_filename(alert_id: str) -> str:
