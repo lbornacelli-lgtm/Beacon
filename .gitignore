@@ -89,3 +89,9 @@ etc/
 "COMPLETE weather_station Structure.txt"
 COMPLETE*.txt
 weather_station/voices/
+# Generated audio files
+weather_station/audio/zones/
+weather_station/audio/airport_weather/
+logs/
+*.mp3
+*.tmp.mp3
