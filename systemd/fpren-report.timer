@@ -1,0 +1,9 @@
+[Unit]
+Description=FPREN Daily Alert Report — 6:00 AM every day
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

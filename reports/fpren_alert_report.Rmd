@@ -1,0 +1,367 @@
+---
+title: "FPREN Weather Alert Report"
+subtitle: "Florida Public Radio Emergency Network — `r params$zone_label`"
+date: "Generated `r format(Sys.time(), '%B %d, %Y at %I:%M %p')`"
+geometry: "margin=1in"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    fig_caption: true
+    latex_engine: xelatex
+    keep_tex: false
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{xcolor}
+  - \definecolor{fprenblue}{RGB}{0, 70, 127}
+  - \usepackage{fancyhdr}
+  - \pagestyle{fancy}
+  - \fancyhead[L]{\textcolor{fprenblue}{\textbf{FPREN}}}
+  - \fancyhead[R]{\textcolor{gray}{Emergency Alert Report}}
+  - \renewcommand{\headrulewidth}{0.4pt}
+params:
+  days_back: 7
+  zone_label: "All Florida"
+  mongo_uri: "mongodb://localhost:27017/"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width  = 7,
+  fig.height = 4,
+  fig.align  = "center"
+)
+
+library(mongolite)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(gridExtra)
+library(lubridate)
+library(knitr)
+library(kableExtra)
+library(zoo)
+
+# ── Pull data from MongoDB ───────────────────────────────────────────────────
+get_col <- function(collection) {
+  tryCatch(
+    mongo(collection = collection, db = "weather_rss", url = params$mongo_uri),
+    error = function(e) NULL
+  )
+}
+
+cutoff <- Sys.time() - days(params$days_back)
+cutoff_iso <- format(cutoff, "%Y-%m-%dT%H:%M:%SZ")
+
+col <- get_col("nws_alerts")
+alerts_raw <- if (!is.null(col)) {
+  tryCatch({
+    df <- col$find(
+      query  = paste0('{"fetched_at": {"$gte": {"$date": "', cutoff_iso, '"}}}'),
+      fields = '{"alert_id":1,"event":1,"headline":1,"severity":1,
+                 "area_desc":1,"source":1,"sent":1,"fetched_at":1,
+                 "tts_generated":1,"alachua_county":1,"_id":0}'
+    )
+    col$disconnect()
+    df
+  }, error = function(e) { col$disconnect(); data.frame() })
+} else data.frame()
+
+# Normalise timestamps
+if (nrow(alerts_raw) > 0 && "fetched_at" %in% names(alerts_raw)) {
+  alerts_raw$fetched_at <- as.POSIXct(alerts_raw$fetched_at, tz = "UTC")
+  alerts_raw$date       <- as.Date(alerts_raw$fetched_at, tz = "America/New_York")
+  alerts_raw$hour       <- hour(with_tz(alerts_raw$fetched_at, "America/New_York"))
+  alerts_raw$weekday    <- weekdays(alerts_raw$date)
+  alerts_raw$severity   <- factor(
+    alerts_raw$severity,
+    levels = c("Extreme","Severe","Moderate","Minor","Unknown"),
+    exclude = NULL
+  )
+}
+
+n_total    <- nrow(alerts_raw)
+n_extreme  <- sum(alerts_raw$severity %in% c("Extreme","Severe"), na.rm = TRUE)
+n_tts      <- sum(alerts_raw$tts_generated == TRUE, na.rm = TRUE)
+n_alachua  <- sum(alerts_raw$alachua_county == TRUE, na.rm = TRUE)
+
+period_label <- paste0(
+  format(cutoff, "%b %d"), " – ", format(Sys.time(), "%b %d, %Y")
+)
+
+sev_colors <- c(
+  Extreme  = "#c0392b",
+  Severe   = "#e67e22",
+  Moderate = "#f1c40f",
+  Minor    = "#2ecc71",
+  Unknown  = "#95a5a6"
+)
+```
+
+\newpage
+
+# Executive Summary
+
+**Report Period:** `r period_label` (`r params$days_back` days)
+**Coverage Zone:** `r params$zone_label`
+**Data Source:** NOAA/NWS via FPREN MongoDB
+
+---
+
+```{r summary-boxes, results='asis'}
+cat(paste0(
+  "| Metric | Value |\n",
+  "|--------|-------|\n",
+  "| Total Alerts | **", n_total, "** |\n",
+  "| Extreme / Severe | **", n_extreme, "** |\n",
+  "| Audio (TTS) Generated | **", n_tts, "** |\n",
+  "| Alachua County | **", n_alachua, "** |\n",
+  "| Avg Alerts / Day | **", round(n_total / max(params$days_back, 1), 1), "** |\n"
+))
+```
+
+```{r no-data-check, results='asis'}
+if (n_total == 0) {
+  cat("\n> **No alerts were recorded during this period.**\n")
+  knitr::knit_exit()
+}
+```
+
+\newpage
+
+# Alert Volume Over Time
+
+```{r daily-volume, fig.cap="Daily alert count for the reporting period."}
+daily <- alerts_raw %>%
+  count(date, severity) %>%
+  complete(date = seq(min(date), max(date), by = "day"),
+           severity, fill = list(n = 0))
+
+ggplot(daily, aes(x = date, y = n, fill = severity)) +
+  geom_col(position = "stack", width = 0.8) +
+  scale_fill_manual(values = sev_colors, na.value = "#95a5a6",
+                    name = "Severity") +
+  scale_x_date(date_labels = "%b %d", date_breaks = "1 day") +
+  scale_y_continuous(breaks = scales::pretty_breaks()) +
+  labs(x = NULL, y = "Alert Count",
+       title = "Daily Alert Volume by Severity") +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x  = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    legend.position  = "right"
+  )
+```
+
+```{r hourly-heatmap, fig.cap="Alert activity by hour of day (Eastern Time)."}
+if (nrow(alerts_raw) > 0 && "hour" %in% names(alerts_raw)) {
+  hourly <- alerts_raw %>% count(hour) %>%
+    complete(hour = 0:23, fill = list(n = 0))
+
+  ggplot(hourly, aes(x = hour, y = n)) +
+    geom_col(fill = "#2980b9", width = 0.85) +
+    scale_x_continuous(breaks = seq(0, 23, 3),
+                       labels = sprintf("%02d:00", seq(0, 23, 3))) +
+    scale_y_continuous(breaks = scales::pretty_breaks()) +
+    labs(x = "Hour (ET)", y = "Alert Count",
+         title = "Alerts by Hour of Day") +
+    theme_minimal(base_size = 11) +
+    theme(panel.grid.minor = element_blank())
+}
+```
+
+\newpage
+
+# Severity Distribution
+
+```{r severity-charts, fig.width=7, fig.height=3.5, fig.cap="Alert severity breakdown."}
+sev_counts <- alerts_raw %>%
+  count(severity, .drop = FALSE) %>%
+  filter(n > 0) %>%
+  arrange(desc(n))
+
+p1 <- ggplot(sev_counts, aes(x = reorder(severity, n), y = n, fill = severity)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_fill_manual(values = sev_colors, na.value = "#95a5a6") +
+  coord_flip() +
+  labs(x = NULL, y = "Count", title = "By Severity") +
+  theme_minimal(base_size = 10) +
+  theme(panel.grid.minor = element_blank())
+
+p2 <- ggplot(sev_counts, aes(x = "", y = n, fill = severity)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar("y") +
+  scale_fill_manual(values = sev_colors, na.value = "#95a5a6", name = NULL) +
+  geom_text(aes(label = paste0(round(n/sum(n)*100), "%")),
+            position = position_stack(vjust = 0.5), size = 3, color = "white") +
+  labs(title = "Share") +
+  theme_void(base_size = 10) +
+  theme(legend.position = "right")
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+\newpage
+
+# Top Alert Types
+
+```{r event-types, fig.cap="Most frequent NWS alert event types."}
+top_events <- alerts_raw %>%
+  count(event, sort = TRUE) %>%
+  slice_head(n = 15)
+
+ggplot(top_events, aes(x = reorder(event, n), y = n)) +
+  geom_col(fill = "#2980b9") +
+  geom_text(aes(label = n), hjust = -0.2, size = 3) +
+  coord_flip() +
+  labs(x = NULL, y = "Count", title = "Top 15 Alert Event Types") +
+  theme_minimal(base_size = 10) +
+  theme(panel.grid.minor = element_blank())
+```
+
+```{r event-table}
+top_events %>%
+  rename(`Event Type` = event, Count = n) %>%
+  mutate(`% of Total` = paste0(round(Count / n_total * 100, 1), "%")) %>%
+  kable(booktabs = TRUE, align = c("l","r","r"),
+        caption = "Alert frequency by event type") %>%
+  kable_styling(latex_options = c("striped","hold_position"), font_size = 9)
+```
+
+\newpage
+
+# Statistical Analysis
+
+## Alert Arrival Rate (Poisson Model)
+
+```{r poisson}
+daily_counts <- alerts_raw %>%
+  count(date) %>%
+  complete(date = seq(min(date), max(date), by = "day"), fill = list(n = 0))
+
+lambda_hat  <- mean(daily_counts$n)
+variance    <- var(daily_counts$n)
+dispersion  <- variance / lambda_hat
+
+cat(paste0(
+  "**Mean daily alert rate (λ):** ", round(lambda_hat, 2), " alerts/day\n\n",
+  "**Variance:** ", round(variance, 2), "\n\n",
+  "**Dispersion index (var/mean):** ", round(dispersion, 2),
+  if (dispersion > 1.5) " — *overdispersed (bursty pattern)*"
+  else if (dispersion < 0.5) " — *underdispersed (regular pattern)*"
+  else " — *consistent with Poisson process*",
+  "\n\n",
+  "**95% CI for daily rate:** [",
+  round(qpois(0.025, lambda_hat), 0), ", ",
+  round(qpois(0.975, lambda_hat), 0), "] alerts/day\n"
+))
+```
+
+## Severity Trend Over Time
+
+```{r severity-trend, fig.cap="Rolling 3-day average of high-severity (Extreme + Severe) alerts."}
+if (params$days_back >= 5) {
+  trend <- alerts_raw %>%
+    mutate(high_sev = severity %in% c("Extreme","Severe")) %>%
+    count(date, high_sev) %>%
+    filter(high_sev) %>%
+    complete(date = seq(min(alerts_raw$date), max(alerts_raw$date), by = "day"),
+             fill = list(n = 0, high_sev = TRUE)) %>%
+    arrange(date) %>%
+    mutate(rolling_avg = zoo::rollmean(n, k = min(3, n()), fill = NA, align = "right"))
+
+  ggplot(trend, aes(x = date)) +
+    geom_col(aes(y = n), fill = "#e74c3c", alpha = 0.4, width = 0.8) +
+    geom_line(aes(y = rolling_avg), color = "#c0392b", linewidth = 1,
+              na.rm = TRUE) +
+    scale_x_date(date_labels = "%b %d", date_breaks = "1 day") +
+    scale_y_continuous(breaks = scales::pretty_breaks()) +
+    labs(x = NULL, y = "Count",
+         title = "Extreme/Severe Alerts - Daily Count + 3-Day Rolling Average",
+         caption = "Red bars = daily count; line = 3-day rolling mean") +
+    theme_minimal(base_size = 10) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          panel.grid.minor = element_blank())
+} else {
+  cat("_Trend analysis requires at least 5 days of data._")
+}
+```
+
+## Day-of-Week Pattern
+
+```{r dow, fig.cap="Alert frequency by day of week."}
+dow_order <- c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+dow_counts <- alerts_raw %>%
+  mutate(weekday = factor(weekday, levels = dow_order)) %>%
+  count(weekday, .drop = FALSE)
+
+ggplot(dow_counts, aes(x = weekday, y = n, fill = n)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = n), vjust = -0.4, size = 3.5) +
+  scale_fill_gradient(low = "#aed6f1", high = "#1a5276") +
+  labs(x = NULL, y = "Alert Count", title = "Alerts by Day of Week") +
+  theme_minimal(base_size = 10) +
+  theme(panel.grid.minor = element_blank())
+```
+
+\newpage
+
+# Top Affected Areas
+
+```{r top-areas}
+area_counts <- alerts_raw %>%
+  tidyr::separate_rows(area_desc, sep = ";\\s*") %>%
+  mutate(area_desc = trimws(area_desc)) %>%
+  filter(nchar(area_desc) > 2) %>%
+  count(area_desc, sort = TRUE) %>%
+  slice_head(n = 20)
+
+area_counts %>%
+  rename(Area = area_desc, `Alert Count` = n) %>%
+  kable(booktabs = TRUE, longtable = TRUE, align = c("l","r"),
+        caption = "Top 20 most-alerted geographic areas") %>%
+  kable_styling(latex_options = c("striped","hold_position","repeat_header"),
+                font_size = 9)
+```
+
+\newpage
+
+# Audio Generation Summary
+
+```{r tts-summary}
+tts_rate <- if (n_total > 0) round(n_tts / n_total * 100, 1) else 0
+
+cat(paste0(
+  "**Alerts with TTS audio generated:** ", n_tts, " of ", n_total,
+  " (", tts_rate, "%)\n\n"
+))
+
+if ("tts_generated" %in% names(alerts_raw)) {
+  tts_by_sev <- alerts_raw %>%
+    group_by(severity) %>%
+    summarise(
+      Total     = n(),
+      TTS_Done  = sum(tts_generated == TRUE, na.rm = TRUE),
+      Rate_Pct  = paste0(round(TTS_Done / Total * 100, 1), "%"),
+      .groups   = "drop"
+    ) %>%
+    arrange(desc(Total))
+
+  tts_by_sev %>%
+    rename(Severity = severity, `TTS Done` = TTS_Done, `Rate` = Rate_Pct) %>%
+    kable(booktabs = TRUE, align = c("l","r","r","r"),
+          caption = "TTS generation rate by severity") %>%
+    kable_styling(latex_options = c("striped","hold_position"), font_size = 9)
+}
+```
+
+---
+
+*Report generated by FPREN R reporting system. Data sourced from NOAA/NWS via MongoDB.*
+*RStudio Server: `r Sys.info()[["nodename"]]` | R `r R.version.string`*

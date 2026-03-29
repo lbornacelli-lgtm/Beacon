@@ -1,0 +1,12 @@
+[Unit]
+Description=FPREN Daily Alert Report — render PDF and email
+After=network.target mongod.service
+
+[Service]
+Type=oneshot
+User=ufuser
+WorkingDirectory=/home/ufuser/Fpren-main/reports
+ExecStart=/usr/bin/Rscript /home/ufuser/Fpren-main/reports/generate_and_email.R 1 "Daily Summary"
+StandardOutput=append:/home/ufuser/Fpren-main/logs/fpren_report.log
+StandardError=append:/home/ufuser/Fpren-main/logs/fpren_report.log
+Environment=MONGO_URI=mongodb://localhost:27017/

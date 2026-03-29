@@ -4,6 +4,7 @@ library(mongolite)
 library(DT)
 library(dplyr)
 library(lubridate)
+library(rmarkdown)
 
 # ── MongoDB connections ───────────────────────────────────────────────────────
 MONGO_URI <- Sys.getenv("MONGO_URI", "mongodb://localhost:27017/")
@@ -28,7 +29,8 @@ ui <- dashboardPage(
       menuItem("Alachua County",  tabName = "alachua",   icon = icon("map-marker-alt")),
       menuItem("Airport Delays",  tabName = "airports",  icon = icon("plane")),
       menuItem("Station Health",  tabName = "health",    icon = icon("heartbeat")),
-      menuItem("Feed Status",     tabName = "feeds",     icon = icon("rss"))
+      menuItem("Feed Status",     tabName = "feeds",     icon = icon("rss")),
+      menuItem("Reports",         tabName = "reports",   icon = icon("file-pdf"))
     )
   ),
 
@@ -141,6 +143,43 @@ ui <- dashboardPage(
         fluidRow(
           box(title = "Feed Health Status", width = 12, status = "primary",
               solidHeader = TRUE, DTOutput("tbl_feeds"))
+        )
+      ),
+
+      # ── Reports ─────────────────────────────────────────────────────────────
+      tabItem(tabName = "reports",
+        fluidRow(
+          box(title = "Generate PDF Report", width = 6, status = "primary",
+              solidHeader = TRUE,
+              selectInput("rpt_days", "Report Period",
+                choices = c("1 day" = 1, "7 days" = 7, "14 days" = 14, "30 days" = 30),
+                selected = 7),
+              selectInput("rpt_zone", "Zone",
+                choices = c("All Florida", "North Florida", "Alachua County"),
+                selected = "All Florida"),
+              checkboxInput("rpt_email", "Email report after generating", value = TRUE),
+              br(),
+              actionButton("btn_gen_report", "Generate PDF Report",
+                           class = "btn-primary btn-lg", icon = icon("file-pdf")),
+              br(), br(),
+              verbatimTextOutput("rpt_status")
+          ),
+          box(title = "Recent Reports", width = 6, status = "info",
+              solidHeader = TRUE,
+              DTOutput("tbl_reports"),
+              br(),
+              uiOutput("rpt_download_links")
+          )
+        ),
+        fluidRow(
+          box(title = "Scheduled Reports", width = 12, status = "success",
+              solidHeader = TRUE,
+              p(icon("clock"), strong(" Daily report runs automatically at 6:00 AM ET")),
+              p("Reports are saved to: ",
+                code("/home/ufuser/Fpren-main/reports/output/")),
+              p("To run manually from the server:"),
+              code("Rscript /home/ufuser/Fpren-main/reports/generate_and_email.R 7")
+          )
         )
       )
     )
@@ -404,6 +443,67 @@ server <- function(input, output, session) {
     output$txt_last_refresh <- renderText({
       format(Sys.time(), "%Y-%m-%d %H:%M:%S UTC")
     })
+  })
+
+  # ── Reports tab ─────────────────────────────────────────────────────────────
+  rpt_status_msg <- reactiveVal("")
+  rpt_output_dir <- "/home/ufuser/Fpren-main/reports/output"
+
+  output$rpt_status <- renderText({ rpt_status_msg() })
+
+  output$tbl_reports <- renderDT({
+    input$btn_gen_report  # re-render after generation
+    files <- list.files(rpt_output_dir, pattern = "\\.pdf$",
+                        full.names = FALSE)
+    if (length(files) == 0)
+      return(datatable(data.frame(Message = "No reports generated yet")))
+    df <- data.frame(
+      File     = sort(files, decreasing = TRUE),
+      stringsAsFactors = FALSE
+    )
+    datatable(df, options = list(pageLength = 10), rownames = FALSE,
+              selection = "none")
+  })
+
+  observeEvent(input$btn_gen_report, {
+    rpt_status_msg("Generating report — this may take 30–60 seconds...")
+    days  <- as.integer(input$rpt_days)
+    zone  <- input$rpt_zone
+    email <- input$rpt_email
+
+    withCallingHandlers(
+      tryCatch({
+        output_dir  <- rpt_output_dir
+        dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+        timestamp   <- format(Sys.time(), "%Y%m%d_%H%M")
+        output_file <- file.path(output_dir,
+                                  paste0("fpren_alert_report_", timestamp, ".pdf"))
+        rmarkdown::render(
+          input       = "/home/ufuser/Fpren-main/reports/fpren_alert_report.Rmd",
+          output_file = output_file,
+          params      = list(days_back  = days,
+                             zone_label = zone,
+                             mongo_uri  = MONGO_URI),
+          quiet = TRUE
+        )
+        msg <- paste0("Report saved: ", basename(output_file))
+        if (email) {
+          ret <- system2(
+            "/usr/bin/Rscript",
+            args = c("/home/ufuser/Fpren-main/reports/generate_and_email.R",
+                     as.character(days), shQuote(zone)),
+            stdout = TRUE, stderr = TRUE
+          )
+          if (any(grepl("Email sent", ret)))
+            msg <- paste0(msg, "\nEmail sent to lawrence.bornace@ufl.edu")
+          else
+            msg <- paste0(msg, "\nEmail failed — check logs.")
+        }
+        rpt_status_msg(msg)
+      }, error = function(e) {
+        rpt_status_msg(paste0("ERROR: ", conditionMessage(e)))
+      })
+    )
   })
 }
 
