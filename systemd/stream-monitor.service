@@ -1,0 +1,16 @@
+[Unit]
+Description=FPREN Stream Monitor — watches Icecast port 8000
+After=network.target icecast2.service
+Wants=icecast2.service
+
+[Service]
+Type=simple
+User=ufuser
+ExecStart=/usr/bin/python3 /home/ufuser/Fpren-main/scripts/stream_monitor.py
+Restart=on-failure
+RestartSec=15
+StandardOutput=append:/home/ufuser/Fpren-main/logs/stream_monitor.log
+StandardError=append:/home/ufuser/Fpren-main/logs/stream_monitor.log
+
+[Install]
+WantedBy=multi-user.target

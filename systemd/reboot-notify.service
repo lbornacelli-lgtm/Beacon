@@ -1,0 +1,15 @@
+[Unit]
+Description=FPREN Reboot Notification — send alert on server startup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ufuser
+ExecStart=/usr/bin/python3 /home/ufuser/Fpren-main/scripts/stream_notify.py reboot
+RemainAfterExit=yes
+StandardOutput=append:/home/ufuser/Fpren-main/logs/stream_notifications.log
+StandardError=append:/home/ufuser/Fpren-main/logs/stream_notifications.log
+
+[Install]
+WantedBy=multi-user.target

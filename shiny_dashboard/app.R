@@ -5,6 +5,54 @@ library(DT)
 library(dplyr)
 library(lubridate)
 library(rmarkdown)
+library(httr)
+library(jsonlite)
+
+`%||%` <- function(a, b) if (!is.null(a) && nchar(a) > 0) a else b
+
+STREAM_NOTIFY_CONFIG <- "/home/ufuser/Fpren-main/stream_notify_config.json"
+STREAM_STATE_FILE    <- "/home/ufuser/Fpren-main/logs/stream_state.txt"
+STREAM_NOTIFY_LOG    <- "/home/ufuser/Fpren-main/logs/stream_notifications.log"
+
+read_notify_config <- function() {
+  if (file.exists(STREAM_NOTIFY_CONFIG)) {
+    tryCatch(fromJSON(STREAM_NOTIFY_CONFIG), error = function(e) list())
+  } else {
+    list(notify_methods = "email", email = "", phone = "",
+         twilio_sid = "", twilio_token = "", twilio_from = "",
+         notify_on_offline = TRUE, notify_on_reboot = TRUE)
+  }
+}
+
+save_notify_config <- function(cfg) {
+  tryCatch(
+    write(toJSON(cfg, auto_unbox = TRUE, pretty = TRUE), STREAM_NOTIFY_CONFIG),
+    error = function(e) NULL
+  )
+}
+
+check_stream_port <- function(host = "127.0.0.1", port = 8000, timeout = 3) {
+  tryCatch({
+    con <- socketConnection(host = host, port = port, open = "r+",
+                            blocking = TRUE, timeout = timeout)
+    close(con)
+    TRUE
+  }, error = function(e) FALSE)
+}
+
+read_stream_state <- function() {
+  if (file.exists(STREAM_STATE_FILE))
+    trimws(readLines(STREAM_STATE_FILE, warn = FALSE)[1])
+  else
+    "unknown"
+}
+
+read_notify_log <- function(n = 20) {
+  if (!file.exists(STREAM_NOTIFY_LOG)) return(data.frame(Message = "No notifications yet"))
+  lines <- tryCatch(tail(readLines(STREAM_NOTIFY_LOG, warn = FALSE), n), error = function(e) character(0))
+  if (length(lines) == 0) return(data.frame(Message = "No notifications yet"))
+  data.frame(Log = rev(lines), stringsAsFactors = FALSE)
+}
 
 # ── MongoDB connections ───────────────────────────────────────────────────────
 MONGO_URI <- Sys.getenv("MONGO_URI", "mongodb://localhost:27017/")
@@ -30,7 +78,9 @@ ui <- dashboardPage(
       menuItem("Airport Delays",  tabName = "airports",  icon = icon("plane")),
       menuItem("Station Health",  tabName = "health",    icon = icon("heartbeat")),
       menuItem("Feed Status",     tabName = "feeds",     icon = icon("rss")),
-      menuItem("Reports",         tabName = "reports",   icon = icon("file-pdf"))
+      menuItem("Reports",         tabName = "reports",       icon = icon("file-pdf")),
+      menuItem("Stream Alerts",   tabName = "stream_alerts", icon = icon("bell")),
+      menuItem("Config",          tabName = "config",        icon = icon("cog"))
     )
   ),
 
@@ -143,6 +193,97 @@ ui <- dashboardPage(
         fluidRow(
           box(title = "Feed Health Status", width = 12, status = "primary",
               solidHeader = TRUE, DTOutput("tbl_feeds"))
+        )
+      ),
+
+      # ── Stream Alerts ───────────────────────────────────────────────────────
+      tabItem(tabName = "stream_alerts",
+        fluidRow(
+          valueBoxOutput("box_stream_status", width = 4),
+          valueBoxOutput("box_stream_last_check", width = 4),
+          valueBoxOutput("box_stream_state_file", width = 4)
+        ),
+        fluidRow(
+          box(title = "Notification Settings", width = 6, status = "warning",
+              solidHeader = TRUE,
+              checkboxGroupInput("stream_notify_methods", "Alert me via:",
+                choices  = c("Email" = "email", "SMS Text" = "sms", "Phone Call" = "phone"),
+                selected = "email",
+                inline   = TRUE),
+              conditionalPanel("input.stream_notify_methods.indexOf('email') >= 0",
+                textInput("stream_email", "Email Address", value = "")
+              ),
+              conditionalPanel(
+                "input.stream_notify_methods.indexOf('sms') >= 0 || input.stream_notify_methods.indexOf('phone') >= 0",
+                textInput("stream_phone", "Phone Number (E.164, e.g. +13525551234)", value = ""),
+                textInput("stream_twilio_sid",   "Twilio Account SID", value = ""),
+                passwordInput("stream_twilio_token", "Twilio Auth Token", value = ""),
+                textInput("stream_twilio_from",  "Twilio From Number (E.164)", value = "")
+              ),
+              hr(),
+              checkboxInput("stream_notify_offline", "Notify when stream goes offline", value = TRUE),
+              checkboxInput("stream_notify_reboot",  "Notify on server reboot",         value = TRUE),
+              br(),
+              fluidRow(
+                column(6, actionButton("btn_save_stream_cfg", "Save Settings",
+                                       class = "btn-primary", icon = icon("save"))),
+                column(6, actionButton("btn_test_notify",     "Send Test Notification",
+                                       class = "btn-default", icon = icon("paper-plane")))
+              ),
+              br(),
+              verbatimTextOutput("stream_cfg_status")
+          ),
+          box(title = "Recent Notifications", width = 6, status = "info",
+              solidHeader = TRUE,
+              actionButton("btn_refresh_notify_log", "Refresh", class = "btn-xs btn-default"),
+              br(), br(),
+              DTOutput("tbl_notify_log"))
+        )
+      ),
+
+      # ── Config ──────────────────────────────────────────────────────────────
+      tabItem(tabName = "config",
+        fluidRow(
+          box(title = "SMTP / Email Settings", width = 6, status = "primary",
+              solidHeader = TRUE,
+              textInput("cfg_smtp_host",  "SMTP Host",     value = ""),
+              numericInput("cfg_smtp_port", "SMTP Port",   value = 25, min = 1, max = 65535),
+              textInput("cfg_smtp_user",  "SMTP Username", value = ""),
+              passwordInput("cfg_smtp_pass", "SMTP Password", value = ""),
+              textInput("cfg_mail_from",  "Mail From Address", value = ""),
+              checkboxInput("cfg_use_tls",  "Use STARTTLS",  value = FALSE),
+              checkboxInput("cfg_use_auth", "Use SMTP Auth", value = FALSE),
+              br(),
+              actionButton("btn_save_smtp", "Save SMTP Settings",
+                           class = "btn-primary", icon = icon("save")),
+              actionButton("btn_test_smtp", "Send Test Email",
+                           class = "btn-default", icon = icon("paper-plane")),
+              br(), br(),
+              verbatimTextOutput("cfg_smtp_status")
+          ),
+          box(title = "Dashboard Settings", width = 6, status = "info",
+              solidHeader = TRUE,
+              checkboxInput("cfg_auto_refresh",  "Enable auto-refresh", value = TRUE),
+              sliderInput("cfg_refresh_interval", "Refresh interval (seconds)",
+                          min = 10, max = 300, value = 60, step = 10),
+              hr(),
+              h5(icon("info-circle"), " Service Status"),
+              tags$table(class = "table table-condensed",
+                tags$tbody(
+                  tags$tr(tags$td("Icecast (port 8000)"),
+                          tags$td(uiOutput("cfg_svc_icecast"))),
+                  tags$tr(tags$td("Shiny Server (port 3838)"),
+                          tags$td(uiOutput("cfg_svc_shiny"))),
+                  tags$tr(tags$td("Flask Dashboard (port 5000)"),
+                          tags$td(uiOutput("cfg_svc_flask"))),
+                  tags$tr(tags$td("Stream Monitor service"),
+                          tags$td(uiOutput("cfg_svc_monitor")))
+                )
+              ),
+              br(),
+              actionButton("btn_cfg_refresh_status", "Refresh Status",
+                           class = "btn-xs btn-default", icon = icon("sync"))
+          )
         )
       ),
 
@@ -435,6 +576,172 @@ server <- function(input, output, session) {
       formatStyle("status",
         color      = styleEqual(c("OK","ERROR"), c("green","red")),
         fontWeight = styleEqual("ERROR", "bold"))
+  })
+
+  # ── Stream Alerts tab ───────────────────────────────────────────────────────
+
+  stream_cfg_rv  <- reactiveVal(read_notify_config())
+  stream_status_msg <- reactiveVal("")
+
+  # Populate UI fields from config on load
+  observe({
+    cfg <- stream_cfg_rv()
+    updateCheckboxGroupInput(session, "stream_notify_methods",
+      selected = if (is.null(cfg$notify_methods)) "email" else cfg$notify_methods)
+    updateTextInput(session, "stream_email",        value = cfg$email %||% "")
+    updateTextInput(session, "stream_phone",        value = cfg$phone %||% "")
+    updateTextInput(session, "stream_twilio_sid",   value = cfg$twilio_sid %||% "")
+    updateTextInput(session, "stream_twilio_token", value = cfg$twilio_token %||% "")
+    updateTextInput(session, "stream_twilio_from",  value = cfg$twilio_from %||% "")
+    updateCheckboxInput(session, "stream_notify_offline", value = isTRUE(cfg$notify_on_offline))
+    updateCheckboxInput(session, "stream_notify_reboot",  value = isTRUE(cfg$notify_on_reboot))
+  })
+
+  output$box_stream_status <- renderValueBox({
+    if (input$auto_refresh) timer()
+    is_up <- check_stream_port()
+    valueBox(
+      if (is_up) "ONLINE" else "OFFLINE",
+      "Icecast Stream (port 8000)",
+      icon  = icon(if (is_up) "broadcast-tower" else "exclamation-circle"),
+      color = if (is_up) "green" else "red"
+    )
+  })
+
+  output$box_stream_last_check <- renderValueBox({
+    if (input$auto_refresh) timer()
+    valueBox(format(Sys.time(), "%H:%M:%S"), "Last Checked",
+             icon = icon("clock"), color = "blue")
+  })
+
+  output$box_stream_state_file <- renderValueBox({
+    if (input$auto_refresh) timer()
+    state <- read_stream_state()
+    valueBox(toupper(state), "Recorded State",
+             icon = icon("database"), color = "purple")
+  })
+
+  observeEvent(input$btn_save_stream_cfg, {
+    cfg <- list(
+      notify_methods    = input$stream_notify_methods,
+      email             = trimws(input$stream_email),
+      phone             = trimws(input$stream_phone),
+      twilio_sid        = trimws(input$stream_twilio_sid),
+      twilio_token      = trimws(input$stream_twilio_token),
+      twilio_from       = trimws(input$stream_twilio_from),
+      notify_on_offline = isTRUE(input$stream_notify_offline),
+      notify_on_reboot  = isTRUE(input$stream_notify_reboot)
+    )
+    save_notify_config(cfg)
+    stream_cfg_rv(cfg)
+    stream_status_msg(paste0("Settings saved at ", format(Sys.time(), "%H:%M:%S")))
+  })
+
+  observeEvent(input$btn_test_notify, {
+    stream_status_msg("Sending test notification...")
+    result <- tryCatch({
+      system2("/usr/bin/python3",
+              args = c("/home/ufuser/Fpren-main/scripts/stream_notify.py", "offline"),
+              stdout = TRUE, stderr = TRUE, wait = TRUE)
+      "Test notification sent — check your email/SMS/phone."
+    }, error = function(e) paste0("Error: ", conditionMessage(e)))
+    stream_status_msg(result)
+  })
+
+  output$stream_cfg_status <- renderText({ stream_status_msg() })
+
+  output$tbl_notify_log <- renderDT({
+    input$btn_refresh_notify_log
+    if (input$auto_refresh) timer()
+    datatable(read_notify_log(), options = list(pageLength = 10, dom = "tp"),
+              rownames = FALSE, colnames = "Notification Log")
+  })
+
+  # ── Config tab ──────────────────────────────────────────────────────────────
+
+  SMTP_CONFIG_PATH <- "/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json"
+
+  read_smtp_config <- function() {
+    if (file.exists(SMTP_CONFIG_PATH))
+      tryCatch(fromJSON(SMTP_CONFIG_PATH), error = function(e) list())
+    else list()
+  }
+
+  cfg_smtp_status_msg <- reactiveVal("")
+
+  # Populate SMTP fields on load
+  observe({
+    sc <- read_smtp_config()
+    if (length(sc) == 0) return()
+    updateTextInput(session,    "cfg_smtp_host",  value = sc$smtp_host  %||% "")
+    updateNumericInput(session, "cfg_smtp_port",  value = as.integer(sc$smtp_port %||% 25))
+    updateTextInput(session,    "cfg_smtp_user",  value = sc$smtp_user  %||% "")
+    updateTextInput(session,    "cfg_smtp_pass",  value = sc$smtp_pass  %||% "")
+    updateTextInput(session,    "cfg_mail_from",  value = sc$mail_from  %||% "")
+    updateCheckboxInput(session,"cfg_use_tls",    value = isTRUE(sc$use_tls))
+    updateCheckboxInput(session,"cfg_use_auth",   value = isTRUE(sc$use_auth))
+  })
+
+  observeEvent(input$btn_save_smtp, {
+    sc <- list(
+      smtp_host = trimws(input$cfg_smtp_host),
+      smtp_port = input$cfg_smtp_port,
+      smtp_user = trimws(input$cfg_smtp_user),
+      smtp_pass = trimws(input$cfg_smtp_pass),
+      mail_from = trimws(input$cfg_mail_from),
+      use_tls   = isTRUE(input$cfg_use_tls),
+      use_auth  = isTRUE(input$cfg_use_auth)
+    )
+    tryCatch({
+      dir.create(dirname(SMTP_CONFIG_PATH), recursive = TRUE, showWarnings = FALSE)
+      write(toJSON(sc, auto_unbox = TRUE, pretty = TRUE), SMTP_CONFIG_PATH)
+      cfg_smtp_status_msg(paste0("SMTP settings saved at ", format(Sys.time(), "%H:%M:%S")))
+    }, error = function(e) cfg_smtp_status_msg(paste0("Save error: ", conditionMessage(e))))
+  })
+
+  observeEvent(input$btn_test_smtp, {
+    cfg_smtp_status_msg("Sending test email...")
+    result <- tryCatch({
+      system2("/usr/bin/python3",
+              args = c("/home/ufuser/Fpren-main/scripts/stream_notify.py", "reboot"),
+              stdout = TRUE, stderr = TRUE, wait = TRUE)
+      "Test email sent via notify script."
+    }, error = function(e) paste0("Error: ", conditionMessage(e)))
+    cfg_smtp_status_msg(result)
+  })
+
+  output$cfg_smtp_status <- renderText({ cfg_smtp_status_msg() })
+
+  svc_status_badge <- function(up) {
+    if (up)
+      tags$span(class = "label label-success", "UP")
+    else
+      tags$span(class = "label label-danger", "DOWN")
+  }
+
+  check_svc_status <- reactive({
+    input$btn_cfg_refresh_status
+    if (input$auto_refresh) timer()
+    list(
+      icecast = check_stream_port("127.0.0.1", 8000),
+      shiny   = check_stream_port("127.0.0.1", 3838),
+      flask   = check_stream_port("127.0.0.1", 5000),
+      monitor = tryCatch({
+        length(system2("systemctl", args = c("is-active", "--quiet", "stream-monitor"),
+                       stdout = TRUE, stderr = TRUE, wait = TRUE)) == 0
+      }, error = function(e) FALSE)
+    )
+  })
+
+  output$cfg_svc_icecast <- renderUI({ svc_status_badge(check_svc_status()$icecast) })
+  output$cfg_svc_shiny   <- renderUI({ svc_status_badge(check_svc_status()$shiny)   })
+  output$cfg_svc_flask   <- renderUI({ svc_status_badge(check_svc_status()$flask)   })
+  output$cfg_svc_monitor <- renderUI({
+    up <- tryCatch({
+      system2("systemctl", args = c("is-active", "--quiet", "stream-monitor"),
+              stdout = FALSE, stderr = FALSE, wait = TRUE) == 0
+    }, error = function(e) FALSE)
+    svc_status_badge(up)
   })
 
   # ── Auto-refresh ────────────────────────────────────────────────────────────

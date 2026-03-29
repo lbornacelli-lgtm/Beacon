@@ -95,3 +95,6 @@ weather_station/audio/airport_weather/
 logs/
 *.mp3
 *.tmp.mp3
+
+# Generated reports
+reports/output/

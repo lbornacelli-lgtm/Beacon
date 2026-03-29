@@ -1,0 +1,10 @@
+{
+  "notify_methods": ["email"],
+  "email": "lawrence.bornace@ufl.edu",
+  "phone": "",
+  "twilio_sid": "",
+  "twilio_token": "",
+  "twilio_from": "",
+  "notify_on_offline": true,
+  "notify_on_reboot": true
+}
