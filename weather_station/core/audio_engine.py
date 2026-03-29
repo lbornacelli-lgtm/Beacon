@@ -1,5 +1,6 @@
 import logging
 import os
+import tempfile
 from services.file_router import FileRouter
 from processing.audio_chain import apply_audio_chain
 from core.tts_engine import TTSEngine
@@ -21,29 +22,30 @@ class AudioEngine:
 
         self.logger.info("AudioEngine initialized")
 
+    @staticmethod
+    def _processed_path(source: str) -> str:
+        """Return a /tmp path for the processed WAV output of any source file."""
+        stem = os.path.splitext(os.path.basename(source))[0]
+        return os.path.join(tempfile.gettempdir(), f"{stem}_processed.wav")
+
     def play_next(self, category="educational"):
         next_file = self.file_router.get_next_file(category)
         if next_file:
-            output_file = next_file.replace(".wav", "_processed.wav")
+            output_file = self._processed_path(next_file)
             apply_audio_chain(next_file, output_file)
-
-            # Send processed audio to FM
             self.fm_transmitter.play_wav(output_file)
-            self.logger.info(f"Processed and broadcasted: {output_file}")
+            self.logger.info(f"Broadcasted [{category}]: {next_file}")
 
     def play_alert(self, wav_path: str):
-        """Apply audio chain, broadcast the alert, then delete the file so it isn't replayed."""
-        output_file = wav_path.replace(".wav", "_processed.wav")
+        """Apply audio chain and broadcast the alert. Source file is NOT deleted
+        so zone_alert_tts can keep re-serving it while the alert remains active."""
+        output_file = self._processed_path(wav_path)
         try:
             apply_audio_chain(wav_path, output_file)
             self.fm_transmitter.play_wav(output_file)
             self.logger.info(f"Alert broadcast: {wav_path}")
-        finally:
-            for f in (wav_path, output_file):
-                try:
-                    os.remove(f)
-                except OSError:
-                    pass
+        except Exception as e:
+            self.logger.error(f"Alert broadcast failed: {e}")
 
     def play_tts(self, text):
         tts_file = "/tmp/tts_output.wav"
