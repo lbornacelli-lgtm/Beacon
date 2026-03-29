@@ -25,6 +25,7 @@ MongoDB collections:
   airport_metar     — ASOS station observations
 """
 
+import csv
 import json
 import logging
 import os
@@ -40,12 +41,16 @@ from weather_station.core.tts_service import TTSService
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-MONGO_URI        = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
-DB_NAME          = "weather_rss"
-ZONES_ROOT       = os.getenv("ZONES_ROOT", "/home/ufuser/Fpren-main/weather_station/audio/zones")
-INTERVAL         = int(os.getenv("ZONE_ALERT_INTERVAL", 60))
-MAX_AGE_DAYS     = int(os.getenv("MAX_WAV_AGE_DAYS", 3))
-PROGRESS_FILE    = "/tmp/fpren_transcode_progress.json"
+MONGO_URI              = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+DB_NAME                = "weather_rss"
+ZONES_ROOT             = os.getenv("ZONES_ROOT", "/home/ufuser/Fpren-main/weather_station/audio/zones")
+INTERVAL               = int(os.getenv("ZONE_ALERT_INTERVAL", 60))
+MAX_AGE_DAYS           = int(os.getenv("MAX_WAV_AGE_DAYS", 3))
+PROGRESS_FILE          = "/tmp/fpren_transcode_progress.json"
+TRAFFIC_MAX_AGE_HOURS  = int(os.getenv("TRAFFIC_MAX_AGE_HOURS", "12"))
+TRAFFIC_SEVERITIES     = {s.lower() for s in os.getenv("TRAFFIC_SEVERITIES", "major,intermediate").split(",")}
+TRAFFIC_LOG_FILE       = os.getenv("TRAFFIC_LOG_FILE",
+                             "/home/ufuser/Fpren-main/reports/traffic_log.csv")
 
 # ── Alert folder map ──────────────────────────────────────────────────────────
 
@@ -484,30 +489,72 @@ def process_nws_alerts(db, zones: list, tts: TTSService, progress: dict = None):
                     _write_progress(progress)
 
 
+_TRAFFIC_LOG_FIELDS = [
+    "logged_at", "incident_id", "type", "event_subtype", "severity",
+    "county", "dot_district", "road", "direction", "location",
+    "lane_description", "is_full_closure", "description",
+    "start_time", "end_time", "last_updated", "fetched_at",
+]
+
+def _append_traffic_log(incidents: list):
+    """Append new traffic incidents to the CSV log file."""
+    if not incidents:
+        return
+    os.makedirs(os.path.dirname(os.path.abspath(TRAFFIC_LOG_FILE)), exist_ok=True)
+    write_header = not os.path.exists(TRAFFIC_LOG_FILE)
+    try:
+        with open(TRAFFIC_LOG_FILE, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=_TRAFFIC_LOG_FIELDS,
+                                    extrasaction="ignore")
+            if write_header:
+                writer.writeheader()
+            for inc in incidents:
+                row = {k: inc.get(k, "") for k in _TRAFFIC_LOG_FIELDS}
+                row["logged_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                if hasattr(row.get("fetched_at"), "strftime"):
+                    row["fetched_at"] = row["fetched_at"].strftime("%Y-%m-%d %H:%M:%S UTC")
+                writer.writerow(row)
+        logger.info("Traffic log: appended %d rows → %s", len(incidents), TRAFFIC_LOG_FILE)
+    except Exception as exc:
+        logger.error("Could not write traffic log: %s", exc)
+
+
 def process_traffic(db, zones: list, tts: TTSService, progress: dict = None):
     wavs_col    = db["zone_alert_wavs"]
     traffic_col = db["fl_traffic"]
-    cutoff      = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
+    age_cutoff  = datetime.now(timezone.utc) - timedelta(hours=TRAFFIC_MAX_AGE_HOURS)
+    wav_cutoff  = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
     current_ids = {str(t["incident_id"]) for t in traffic_col.find({}, {"incident_id": 1})}
 
+    # Clean up audio for incidents that are gone or too old
     for doc in wavs_col.find({"source_type": {"$in": ["traffic", "traffic_p1"]}, "$or": [
         {"source_id": {"$nin": list(current_ids)}},
-        {"generated_at": {"$lt": cutoff}},
+        {"generated_at": {"$lt": wav_cutoff}},
     ]}):
         path = doc.get("wav_path", "")
         if path and os.path.exists(path):
             os.remove(path)
         wavs_col.delete_one({"_id": doc["_id"]})
 
+    new_for_log = []
+
     for inc in traffic_col.find({}):
         inc_id       = str(inc.get("incident_id", ""))
         last_updated = str(inc.get("last_updated", ""))
+        severity     = (inc.get("severity") or "").strip()
         if not inc_id:
             continue
 
+        # Skip incidents outside our age + severity filter
         ts = _parse_last_updated(last_updated)
-        if ts and ts < cutoff:
+        if not ts or ts < age_cutoff:
             continue
+        if severity.lower() not in TRAFFIC_SEVERITIES:
+            continue
+
+        # Log to CSV if not previously recorded
+        if not wavs_col.find_one({"source_type": "traffic", "source_id": inc_id}):
+            new_for_log.append(inc)
 
         target_zones = _zones_for_traffic(inc, zones)
         if not target_zones:
@@ -583,6 +630,9 @@ def process_traffic(db, zones: list, tts: TTSService, progress: dict = None):
                 if zp is not None:
                     zp["traffic"]["failed"] += 1
                     _write_progress(progress)
+
+    _append_traffic_log(new_for_log)
+
 
 def process_airport_weather(db, zones: list, tts: TTSService, progress: dict = None):
     """Transcode current METAR observations to MP3 per zone."""

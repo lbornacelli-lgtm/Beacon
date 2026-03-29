@@ -98,3 +98,4 @@ logs/
 
 # Generated reports
 reports/output/
+reports/traffic_log.csv
