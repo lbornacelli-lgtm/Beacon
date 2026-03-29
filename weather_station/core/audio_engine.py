@@ -2,7 +2,7 @@ import logging
 import os
 from services.file_router import FileRouter
 from processing.audio_chain import apply_audio_chain
-from services.tts_engine import TTSEngine
+from core.tts_engine import TTSEngine
 from services.fm_transmitter import FMTransmitter
 from services.icecast_streamer import IcecastStreamer
 

@@ -7,7 +7,7 @@ All actual TTS logic lives in tts_service.py.
 """
 
 import logging
-from weather_station.core.tts_service import TTSService
+from core.tts_service import TTSService
 
 logger = logging.getLogger(__name__)
 
