@@ -586,6 +586,7 @@ HTML_TEMPLATE = """
         <button class="btn-smtp-test" onclick="tcRefreshStatus()" style="padding:7px 12px;">&#x21BA;</button>
       </div>
       <div id="tc-counts" style="margin-top:8px;font-size:0.82rem;color:#555;"></div>
+      <div id="tc-progress" style="margin-top:10px;display:none;"></div>
     </div>
 
     <!-- Audio library -->
@@ -1137,21 +1138,67 @@ function tcRefreshStatus() {
       const st  = document.getElementById('tc-status');
       if (d.running) {
         btn.disabled = true;
-        st.textContent = 'Transcoding in progress\u2026';
+        const phaseLabel = d.progress ? {nws:'NWS alerts',traffic:'traffic',complete:'finishing'}[d.progress.phase] || d.progress.phase : '';
+        st.textContent = phaseLabel ? `Processing ${phaseLabel}\u2026` : 'Transcoding in progress\u2026';
         st.style.color = '#0077aa';
-        if (!_tcPollTimer) _tcPollTimer = setInterval(tcRefreshStatus, 4000);
+        if (!_tcPollTimer) _tcPollTimer = setInterval(tcRefreshStatus, 2000);
       } else {
         btn.disabled = false;
-        st.textContent = d.missing_alerts === 0 && d.missing_traffic === 0 ? 'All alerts have audio' : '';
+        st.textContent = d.missing_alerts === 0 && d.missing_traffic === 0 ? 'All alerts have audio \u2713' : '';
         st.style.color = '#2e7d32';
         if (_tcPollTimer) { clearInterval(_tcPollTimer); _tcPollTimer = null; }
       }
+      _tcRenderProgress(d.progress, d.running);
     });
+}
+
+function _tcRenderProgress(p, running) {
+  const el = document.getElementById('tc-progress');
+  if (!p || !p.zones || Object.keys(p.zones).length === 0) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const phaseMap = {nws: '\uD83D\uDD04 Processing NWS Alerts\u2026', traffic: '\uD83D\uDD04 Processing Traffic\u2026', complete: '\u2705 Complete'};
+  const phaseLabel = phaseMap[p.phase] || p.phase || '';
+  const startStr = p.started_at ? p.started_at.replace('T',' ').slice(0,19) + ' UTC' : '';
+  const endStr   = p.completed_at ? ' \u00B7 Done: ' + p.completed_at.replace('T',' ').slice(0,19) + ' UTC' : '';
+  let rows = '';
+  for (const [zone, data] of Object.entries(p.zones)) {
+    const nws = data.nws     || {done:0, skipped:0, failed:0};
+    const tr  = data.traffic || {done:0, skipped:0, failed:0};
+    const failNws = nws.failed > 0 ? ` <span style="color:#c62828">\u2717${nws.failed}</span>` : '';
+    const failTr  = tr.failed  > 0 ? ` <span style="color:#c62828">\u2717${tr.failed}</span>`  : '';
+    rows += `<tr style="border-top:1px solid #eee;">
+      <td style="padding:4px 10px;font-weight:600;">${zone.replace(/_/g,' ')}</td>
+      <td style="padding:4px 10px;text-align:center;">
+        <span style="color:#2e7d32;font-weight:600;">${nws.done}</span> new
+        <span style="color:#888;margin-left:6px;">+${nws.skipped} skip</span>${failNws}
+      </td>
+      <td style="padding:4px 10px;text-align:center;">
+        <span style="color:#2e7d32;font-weight:600;">${tr.done}</span> new
+        <span style="color:#888;margin-left:6px;">+${tr.skipped} skip</span>${failTr}
+      </td>
+    </tr>`;
+  }
+  el.innerHTML = `
+    <div style="font-size:0.8rem;color:#555;margin-bottom:6px;">
+      ${phaseLabel}&nbsp;&nbsp;<span style="color:#999;">Started: ${startStr}${endStr}</span>
+    </div>
+    <table style="font-size:0.8rem;border-collapse:collapse;width:100%;max-width:640px;background:#fafafa;border:1px solid #e0e0e0;border-radius:4px;">
+      <thead><tr style="background:#f0f4f8;color:#444;">
+        <th style="padding:5px 10px;text-align:left;">Zone</th>
+        <th style="padding:5px 10px;text-align:center;">NWS Alerts</th>
+        <th style="padding:5px 10px;text-align:center;">Traffic</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 function tcRunNow() {
   document.getElementById('tc-btn').disabled = true;
   document.getElementById('tc-status').textContent = 'Starting\u2026';
+  document.getElementById('tc-progress').style.display = 'none';
   fetch('/api/transcode/run', {method: 'POST'})
     .then(r => r.json())
     .then(d => {
@@ -1159,7 +1206,7 @@ function tcRunNow() {
       document.getElementById('tc-status').style.color = d.ok ? '#0077aa' : '#c62828';
       if (d.ok) {
         if (_tcPollTimer) clearInterval(_tcPollTimer);
-        _tcPollTimer = setInterval(tcRefreshStatus, 4000);
+        _tcPollTimer = setInterval(tcRefreshStatus, 2000);
       } else {
         document.getElementById('tc-btn').disabled = false;
       }
@@ -1901,7 +1948,7 @@ _transcode_running = {"pid": None}
 
 @app.route("/api/transcode/status")
 def api_transcode_status():
-    import subprocess
+    import subprocess, json as _json
     total   = alerts_col.count_documents({})
     traffic = fl_traffic_col.count_documents({})
     existing_ids = set(zone_wavs_col.distinct("source_id"))
@@ -1918,12 +1965,20 @@ def api_transcode_status():
                                      capture_output=True).returncode == 0
         except Exception:
             pass
+    # Read per-zone progress written by zone_alert_tts run_once
+    progress = None
+    try:
+        with open("/tmp/fpren_transcode_progress.json") as _f:
+            progress = _json.load(_f)
+    except Exception:
+        pass
     return jsonify({
         "total_alerts":      total,
         "total_traffic":     traffic,
         "missing_alerts":    missing_alerts,
         "missing_traffic":   missing_traffic,
         "running":           running,
+        "progress":          progress,
     })
 
 @app.route("/api/transcode/run", methods=["POST"])

@@ -1043,9 +1043,127 @@ class FPRENApp(tk.Tk):
             row_colors=feed_colors
         )
 
+        # Transcode panel
+        self._build_transcode_card(self._data_inner)
+
         # Alert Audio Library
         self._build_audio_library_card(self._data_inner)
 
+    # ------------------------------------------------------------------ Transcode
+    def _build_transcode_card(self, parent):
+        card = tk.LabelFrame(parent, text="  \U0001f3a4 Alert Transcoding  ",
+                              font=("Arial", 10, "bold"),
+                              bg="white", relief="solid", bd=1)
+        card.pack(fill="x", padx=20, pady=(10, 0))
+
+        ctrl = tk.Frame(card, bg="white")
+        ctrl.pack(fill="x", padx=6, pady=(6, 4))
+
+        self._tc_status_var = tk.StringVar(value="")
+        tk.Label(ctrl, textvariable=self._tc_status_var,
+                 font=("Arial", 9), bg="white", fg="#0077aa").pack(side="left")
+
+        tk.Button(ctrl, text="\u21BA Refresh", font=("Arial", 9),
+                  command=self._tc_refresh).pack(side="right", padx=(4, 0))
+        self._tc_run_btn = tk.Button(ctrl, text="\u25B6 Transcode Now",
+                                     font=("Arial", 9), bg="#1565c0", fg="white",
+                                     activebackground="#0d47a1", activeforeground="white",
+                                     command=self._tc_run_now)
+        self._tc_run_btn.pack(side="right", padx=(0, 6))
+
+        self._tc_counts_var = tk.StringVar(value="")
+        tk.Label(card, textvariable=self._tc_counts_var,
+                 font=("Arial", 8), bg="white", fg="#555").pack(anchor="w", padx=8, pady=(0, 4))
+
+        # Per-zone progress table
+        prog_frame = tk.Frame(card, bg="white")
+        prog_frame.pack(fill="x", padx=8, pady=(0, 6))
+        cols = ("Zone", "NWS (new / skip / fail)", "Traffic (new / skip / fail)")
+        self._tc_tree = ttk.Treeview(prog_frame, columns=cols, show="headings", height=4)
+        for col, w in zip(cols, [120, 180, 180]):
+            self._tc_tree.heading(col, text=col)
+            self._tc_tree.column(col, width=w, anchor="w")
+        self._tc_tree.pack(fill="x")
+        self._tc_poll_id = None
+
+        self._tc_refresh()
+
+    def _tc_refresh(self):
+        def task():
+            try:
+                d = api_get("/api/transcode/status")
+                self.after(0, lambda: self._tc_apply(d))
+            except Exception:
+                pass
+        threading.Thread(target=task, daemon=True).start()
+
+    def _tc_apply(self, d):
+        if not d:
+            return
+        missing_a = d.get("missing_alerts", 0)
+        missing_t = d.get("missing_traffic", 0)
+        self._tc_counts_var.set(
+            f"Alerts: {d.get('total_alerts',0)} total  |  Missing audio: {missing_a}"
+            f"   Traffic: {d.get('total_traffic',0)} total  |  Missing audio: {missing_t}"
+        )
+        running = d.get("running", False)
+        p       = d.get("progress") or {}
+        phase   = p.get("phase", "")
+        if running:
+            phase_label = {"nws": "Processing NWS alerts\u2026",
+                           "traffic": "Processing traffic\u2026"}.get(phase, "Transcoding\u2026")
+            self._tc_status_var.set(phase_label)
+            self._tc_run_btn.config(state="disabled")
+            if self._tc_poll_id is None:
+                self._tc_poll_id = self.after(2000, self._tc_poll)
+        else:
+            done_label = "\u2713 All alerts have audio" if missing_a == 0 and missing_t == 0 else ""
+            if phase == "complete":
+                done_label = "\u2705 Transcoding complete"
+            self._tc_status_var.set(done_label)
+            self._tc_run_btn.config(state="normal")
+            if self._tc_poll_id is not None:
+                self.after_cancel(self._tc_poll_id)
+                self._tc_poll_id = None
+
+        # Populate progress table
+        self._tc_tree.delete(*self._tc_tree.get_children())
+        for zone_id, zdata in p.get("zones", {}).items():
+            nws = zdata.get("nws", {})
+            tr  = zdata.get("traffic", {})
+            self._tc_tree.insert("", "end", values=(
+                zone_id.replace("_", " "),
+                f"{nws.get('done',0)} / {nws.get('skipped',0)} / {nws.get('failed',0)}",
+                f"{tr.get('done',0)} / {tr.get('skipped',0)} / {tr.get('failed',0)}",
+            ))
+
+    def _tc_poll(self):
+        self._tc_poll_id = None
+        self._tc_refresh()
+
+    def _tc_run_now(self):
+        self._tc_run_btn.config(state="disabled")
+        self._tc_status_var.set("Starting\u2026")
+        self._tc_tree.delete(*self._tc_tree.get_children())
+        def task():
+            try:
+                d = api_post("/api/transcode/run")
+                msg = d.get("message", "")
+                ok  = d.get("ok", False)
+                def update():
+                    self._tc_status_var.set(msg)
+                    if ok:
+                        if self._tc_poll_id is None:
+                            self._tc_poll_id = self.after(2000, self._tc_poll)
+                    else:
+                        self._tc_run_btn.config(state="normal")
+                self.after(0, update)
+            except Exception as e:
+                self.after(0, lambda: self._tc_status_var.set(f"Error: {e}"))
+                self.after(0, lambda: self._tc_run_btn.config(state="normal"))
+        threading.Thread(target=task, daemon=True).start()
+
+    # ------------------------------------------------------------------ Audio Library
     def _build_audio_library_card(self, parent):
         card = tk.LabelFrame(parent, text="  Alert Audio Library  ",
                               font=("Arial", 10, "bold"),

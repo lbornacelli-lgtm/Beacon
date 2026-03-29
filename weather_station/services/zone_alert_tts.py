@@ -22,6 +22,7 @@ MongoDB collections:
   fl_traffic        — source FL511 traffic incident documents
 """
 
+import json
 import logging
 import os
 import re
@@ -41,6 +42,7 @@ DB_NAME          = "weather_rss"
 ZONES_ROOT       = os.getenv("ZONES_ROOT", "/home/ufuser/Fpren-main/weather_station/audio/zones")
 INTERVAL         = int(os.getenv("ZONE_ALERT_INTERVAL", 60))
 MAX_AGE_DAYS     = int(os.getenv("MAX_WAV_AGE_DAYS", 3))
+PROGRESS_FILE    = "/tmp/fpren_transcode_progress.json"
 
 # ── Alert folder map ──────────────────────────────────────────────────────────
 
@@ -165,6 +167,26 @@ def _mp3_path(base_path: str) -> str:
     """Ensure path uses .mp3 extension."""
     return os.path.splitext(base_path)[0] + ".mp3"
 
+
+def _write_progress(state: dict):
+    """Atomically write transcode progress to PROGRESS_FILE."""
+    tmp = PROGRESS_FILE + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, PROGRESS_FILE)
+    except Exception as exc:
+        logger.warning("Could not write progress file: %s", exc)
+
+
+def _zone_progress(progress: dict, zone_id: str) -> dict:
+    """Return (and initialise if missing) the per-zone progress sub-dict."""
+    return progress["zones"].setdefault(
+        zone_id,
+        {"nws":     {"done": 0, "skipped": 0, "failed": 0},
+         "traffic": {"done": 0, "skipped": 0, "failed": 0}},
+    )
+
 # ── Text builders ─────────────────────────────────────────────────────────────
 
 def _build_nws_text(doc: dict) -> str:
@@ -246,7 +268,7 @@ def _copy_to_priority1(src: str, zone_id: str, fname: str):
 
 # ── Processing ────────────────────────────────────────────────────────────────
 
-def process_nws_alerts(db, zones: list, tts: TTSService):
+def process_nws_alerts(db, zones: list, tts: TTSService, progress: dict = None):
     wavs_col    = db["zone_alert_wavs"]
     alerts_col  = db["nws_alerts"]
     cutoff      = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
@@ -278,6 +300,7 @@ def process_nws_alerts(db, zones: list, tts: TTSService):
         fname    = _safe_id(alert_id) + ".mp3"
 
         for zone_id in target_zones:
+            zp = _zone_progress(progress, zone_id) if progress is not None else None
             existing = wavs_col.find_one({
                 "source_type": "nws_alert",
                 "source_id":   alert_id,
@@ -290,6 +313,8 @@ def process_nws_alerts(db, zones: list, tts: TTSService):
                     and existing.get("alert_folder") == folder
                     and existing.get("wav_path")
                     and os.path.exists(existing["wav_path"])):
+                if zp is not None:
+                    zp["nws"]["skipped"] += 1
                 continue
 
             if existing and existing.get("alert_folder") != folder:
@@ -320,11 +345,17 @@ def process_nws_alerts(db, zones: list, tts: TTSService):
                     upsert=True,
                 )
                 logger.info("NWS MP3 [%s/%s] %s", zone_id, folder, fname)
+                if zp is not None:
+                    zp["nws"]["done"] += 1
+                    _write_progress(progress)
             except Exception as e:
                 logger.error("Failed NWS MP3 %s/%s/%s: %s", zone_id, folder, fname, e)
+                if zp is not None:
+                    zp["nws"]["failed"] += 1
+                    _write_progress(progress)
 
 
-def process_traffic(db, zones: list, tts: TTSService):
+def process_traffic(db, zones: list, tts: TTSService, progress: dict = None):
     wavs_col    = db["zone_alert_wavs"]
     traffic_col = db["fl_traffic"]
     cutoff      = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
@@ -358,6 +389,7 @@ def process_traffic(db, zones: list, tts: TTSService):
         severity = (inc.get("severity") or "").strip()
 
         for zone_id in target_zones:
+            zp = _zone_progress(progress, zone_id) if progress is not None else None
             existing = wavs_col.find_one({
                 "source_type": "traffic",
                 "source_id":   inc_id,
@@ -369,6 +401,8 @@ def process_traffic(db, zones: list, tts: TTSService):
                     and existing.get("last_updated") == last_updated
                     and existing.get("wav_path")
                     and os.path.exists(existing["wav_path"])):
+                if zp is not None:
+                    zp["traffic"]["skipped"] += 1
                 continue
 
             try:
@@ -391,6 +425,9 @@ def process_traffic(db, zones: list, tts: TTSService):
                     upsert=True,
                 )
                 logger.info("Traffic MP3 [%s/traffic] %s", zone_id, fname)
+                if zp is not None:
+                    zp["traffic"]["done"] += 1
+                    _write_progress(progress)
                 if severity.lower() in TRAFFIC_PRIORITY_SEVERITIES:
                     _copy_to_priority1(audio_path, zone_id, fname)
                     p1_path = _mp3_path(os.path.join(ZONES_ROOT, zone_id, "priority_1", fname))
@@ -414,6 +451,9 @@ def process_traffic(db, zones: list, tts: TTSService):
                     logger.info("Priority-1 record tracked [%s/priority_1] %s", zone_id, fname)
             except Exception as e:
                 logger.error("Failed traffic MP3 %s/traffic/%s: %s", zone_id, fname, e)
+                if zp is not None:
+                    zp["traffic"]["failed"] += 1
+                    _write_progress(progress)
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
@@ -454,8 +494,7 @@ def main():
 
 
 def run_once():
-    """Process all pending alerts and traffic once, then exit."""
-    import sys
+    """Process all pending alerts and traffic once, writing per-zone progress."""
     tts    = TTSService()
     client = MongoClient(MONGO_URI)
     db     = client[DB_NAME]
@@ -464,8 +503,26 @@ def run_once():
     )
     zones = _load_zones(db)
     logger.info("run_once — %d zones loaded", len(zones))
-    process_nws_alerts(db, zones, tts)
-    process_traffic(db, zones, tts)
+
+    progress = {
+        "run_id":     datetime.now(timezone.utc).isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "phase":      "nws",
+        "zones":      {},
+    }
+    _write_progress(progress)
+
+    process_nws_alerts(db, zones, tts, progress=progress)
+
+    progress["phase"] = "traffic"
+    _write_progress(progress)
+
+    process_traffic(db, zones, tts, progress=progress)
+
+    progress["phase"] = "complete"
+    progress["completed_at"] = datetime.now(timezone.utc).isoformat()
+    _write_progress(progress)
+
     client.close()
     logger.info("run_once complete.")
 
