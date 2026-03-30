@@ -1,44 +1,68 @@
+#!/usr/bin/env python3
+# weather_station/core/tts_service.py
+"""
+tts_service.py
+--------------
+Primary TTS engine using Piper (local, free, no rate limits).
+ElevenLabs remains available via elevenlabs_tts.py for high-severity alerts.
+"""
+
 import logging
 import os
 import subprocess
 import tempfile
-import time
-from gtts import gTTS
 
-GTTS_LANG    = os.getenv("GTTS_LANG",    "en")
-GTTS_TLD     = os.getenv("GTTS_TLD",     "com")
-AUDIO_DEVICE = os.getenv("AUDIO_DEVICE", "plughw:0,3")
-GTTS_DELAY   = float(os.getenv("GTTS_DELAY", "1.5"))  # seconds between requests
-GTTS_429_DELAYS = [30, 60, 120]  # backoff delays (seconds) on rate-limit responses
 logger = logging.getLogger(__name__)
 
+PIPER_BIN   = os.getenv("PIPER_BIN", "/home/ufuser/Fpren-main/venv/bin/piper")
+VOICE_MODEL = os.getenv("PIPER_VOICE_MODEL",
+              "/home/ufuser/Fpren-main/weather_station/voices/en_US-amy-medium.onnx")
+AUDIO_DEVICE = os.getenv("AUDIO_DEVICE", "plughw:0,3")
+
+
 class TTSService:
-    def __init__(self, lang=GTTS_LANG, tld=GTTS_TLD):
-        self.lang = lang
-        self.tld  = tld
-        logger.info("TTSService initialized (engine: gTTS, delay=%.1fs)", GTTS_DELAY)
+    def __init__(self, voice_model=None):
+        self.voice_model = voice_model or VOICE_MODEL
+        logger.info("TTSService initialized (engine: Piper, model: %s)",
+                    os.path.basename(self.voice_model))
 
-    def _synthesise(self, text, output_path):
+    def _synthesise(self, text: str, output_path: str):
+        """Run Piper to generate WAV, then convert to MP3."""
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        tmp = output_path + ".tmp.mp3"
-        for attempt, backoff in enumerate([0] + GTTS_429_DELAYS):
-            if backoff:
-                logger.warning("gTTS rate-limited (429) — waiting %ds before retry %d/%d",
-                               backoff, attempt, len(GTTS_429_DELAYS))
-                time.sleep(backoff)
-            try:
-                gTTS(text=text, lang=self.lang, tld=self.tld).save(tmp)
-                os.replace(tmp, output_path)
-                time.sleep(GTTS_DELAY)
-                return
-            except Exception as exc:
-                if os.path.exists(tmp):
-                    os.unlink(tmp)
-                if "429" not in str(exc) or attempt == len(GTTS_429_DELAYS):
-                    raise
-                # 429 — fall through to next iteration for backoff retry
+        tmp_wav = output_path + ".tmp.wav"
+        tmp_mp3 = output_path + ".tmp.mp3"
+        try:
+            # Piper: stdin → WAV
+            result = subprocess.run(
+                [PIPER_BIN, "--model", self.voice_model,
+                 "--output_file", tmp_wav],
+                input=text.encode("utf-8"),
+                capture_output=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Piper failed: {result.stderr.decode()}")
 
-    def say(self, text, output_file=None):
+            # Convert WAV → MP3 via ffmpeg
+            conv = subprocess.run(
+                ["ffmpeg", "-y", "-i", tmp_wav, "-q:a", "4", tmp_mp3],
+                capture_output=True, timeout=30,
+            )
+            if conv.returncode != 0:
+                # ffmpeg not available — keep as WAV, rename to output
+                os.replace(tmp_wav, output_path.replace(".mp3", ".wav"))
+                return
+
+            os.replace(tmp_mp3, output_path)
+        finally:
+            for f in (tmp_wav, tmp_mp3):
+                if os.path.exists(f):
+                    try:
+                        os.unlink(f)
+                    except OSError:
+                        pass
+
+    def say(self, text: str, output_file: str = None) -> str | None:
         if not text or not text.strip():
             logger.warning("TTSService.say() called with empty text.")
             return None
@@ -48,12 +72,20 @@ class TTSService:
                 logger.info("TTS saved: %s", output_file)
                 return output_file
             else:
-                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                     tmp_path = f.name
                 try:
-                    self._synthesise(text, tmp_path)
-                    subprocess.run(["aplay", "-D", AUDIO_DEVICE, tmp_path],
-                                   check=True, timeout=30)
+                    result = subprocess.run(
+                        [PIPER_BIN, "--model", self.voice_model,
+                         "--output_file", tmp_path],
+                        input=text.encode("utf-8"),
+                        capture_output=True, timeout=30,
+                    )
+                    if result.returncode == 0:
+                        subprocess.run(
+                            ["aplay", "-D", AUDIO_DEVICE, tmp_path],
+                            check=True, timeout=30,
+                        )
                 finally:
                     if os.path.exists(tmp_path):
                         os.unlink(tmp_path)
