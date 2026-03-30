@@ -5,7 +5,7 @@ zone_alert_tts.py
 -----------------
 Monitors MongoDB for NWS alerts, FL511 traffic incidents, and airport METAR
 observations, routes them to the appropriate zone audio folders, and synthesises
-MP3s via TTSService (gTTS).
+MP3s via TTSService (Piper).
 
 Zone routing:
   all_florida   — catch_all=True  → every item
@@ -474,7 +474,7 @@ def process_nws_alerts(db, zones: list, tts: TTSService, progress: dict = None):
                         "area_desc":    alert.get("area_desc", ""),
                         "fetched_at":   fetched_at,
                         "generated_at": datetime.now(timezone.utc),
-                        "tts_engine":   "gTTS",
+                        "tts_engine":   "Piper",
                     }},
                     upsert=True,
                 )
@@ -596,7 +596,7 @@ def process_traffic(db, zones: list, tts: TTSService, progress: dict = None):
                         "severity":     severity,
                         "last_updated": last_updated,
                         "generated_at": datetime.now(timezone.utc),
-                        "tts_engine":   "gTTS",
+                        "tts_engine":   "Piper",
                     }},
                     upsert=True,
                 )
@@ -620,7 +620,7 @@ def process_traffic(db, zones: list, tts: TTSService, progress: dict = None):
                             "severity":     severity,
                             "last_updated": last_updated,
                             "generated_at": datetime.now(timezone.utc),
-                            "tts_engine":   "gTTS",
+                            "tts_engine":   "Piper",
                         }},
                         upsert=True,
                     )
@@ -684,7 +684,7 @@ def process_airport_weather(db, zones: list, tts: TTSService, progress: dict = N
                         "obs_time":     obs_time,
                         "flt_cat":      doc.get("fltCat", ""),
                         "generated_at": datetime.now(timezone.utc),
-                        "tts_engine":   "gTTS",
+                        "tts_engine":   "Piper",
                     }},
                     upsert=True,
                 )
@@ -721,7 +721,7 @@ def main():
         [("source_type", 1), ("source_id", 1), ("zone", 1)], unique=True
     )
 
-    logger.info("zone_alert_tts started — engine: gTTS")
+    logger.info("zone_alert_tts started — engine: Piper")
     logger.info("Output root: %s  |  Interval: %ds", ZONES_ROOT, INTERVAL)
 
     while running:
