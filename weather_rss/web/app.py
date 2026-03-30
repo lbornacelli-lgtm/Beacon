@@ -433,16 +433,18 @@ HTML_TEMPLATE = """
 
 <!-- Tab navigation -->
 <nav class="tab-nav">
-  <button class="active" onclick="showTab('config',this)">Config</button>
-  <button onclick="showTab('weather',this)">Weather</button>
+  <button class="active" onclick="showTab('weather',this)">Weather</button>
   <button onclick="showTab('playlist',this)">Playlist</button>
   <button onclick="showTab('icecast',this)">Icecast</button>
   <button onclick="showTab('data',this)">Alerts &amp; Data</button>
+  <button onclick="showTab('airports',this)">&#9992; Airports</button>
   <button onclick="showTab('reports',this)">&#128196; Reports</button>
+  <button onclick="showTab('zones',this)">&#128205; Zones</button>
+  <button onclick="showTab('config',this)">&#9881; Config</button>
 </nav>
 
 <!-- ===== CONFIG TAB ===== -->
-<div id="tab-config" class="tab-panel active">
+<div id="tab-config" class="tab-panel">
   <div class="cfg-card">
     <h2>Stream Zone Configuration</h2>
     <table class="cfg-table">
@@ -548,7 +550,7 @@ HTML_TEMPLATE = """
 </div>
 
 <!-- ===== WEATHER TAB ===== -->
-<div id="tab-weather" class="tab-panel">
+<div id="tab-weather" class="tab-panel active">
   <div id="wx-load" style="text-align:center;padding:40px;color:#888;font-size:1rem;">Click the Weather tab to load forecast data&hellip;</div>
   <div id="wx-grid" class="wx-grid"></div>
 </div>
@@ -605,12 +607,32 @@ HTML_TEMPLATE = """
   </div>
 </div><!-- end tab-data -->
 
+<div id="tab-airports" class="tab-panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; padding:0 0 8px; flex-wrap:wrap; gap:8px;">
+    <small id="ap-refreshed" style="color:#888;">Loading...</small>
+    <button class="btn-smtp-test" onclick="_tabLoaded['airports']=0; loadAirports();" style="padding:7px 12px;">&#x21BA; Refresh</button>
+  </div>
+
+  <!-- TSA Wait Times -->
+  <h2>TSA Security Wait Times</h2>
+  <p style="color:#888;font-size:0.85rem;margin:-8px 0 12px;">Live data available for MCO and MIA. Other Florida airports do not publish public wait-time APIs.</p>
+  <div id="ap-tsa-content">
+    <div style="text-align:center;padding:30px;color:#888;">Loading TSA wait times&hellip;</div>
+  </div>
+
+  <!-- Airport Weather (METAR) -->
+  <h2 style="margin-top:28px;">Airport Weather <small id="ap-metar-count"></small></h2>
+  <div id="ap-metar-content">
+    <div style="text-align:center;padding:30px;color:#888;">Loading METAR data&hellip;</div>
+  </div>
+</div><!-- end tab-airports -->
+
 <div id="toast"></div>
 
 <script>
 const ZONES = {{ zones | tojson }};
 
-const _TAB_TTL = { weather: 600, playlist: 60, icecast: 30, data: 60 };
+const _TAB_TTL = { weather: 600, playlist: 60, icecast: 30, data: 60, airports: 120 };
 const _tabLoaded = {};
 function _isStale(tab) {
   const ttl = _TAB_TTL[tab] || 60;
@@ -628,8 +650,10 @@ function showTab(name, btn) {
   if (name === 'playlist') loadPlaylist();
   if (name === 'icecast')  loadIcecast();
   if (name === 'data')     loadDataTab();
+  if (name === 'airports') loadAirports();
   if (name === 'reports')  loadReports();
   if (name === 'config')   loadStreamControl();
+  if (name === 'zones')    loadZones();
 }
 
 function toast(msg, ok=true) {
@@ -712,6 +736,7 @@ loadStreamControl();
   // Auto-refresh intervals (in-place, no page reload)
   setInterval(() => { if (_isStale('data'))     loadDataTab(); },   0);  // checked on interval
   setInterval(loadDataTab,   60000);   // data tab: every 60s
+  setInterval(loadAirports, 120000);   // airports: every 2 min
   setInterval(loadIcecast,   30000);   // icecast: every 30s
   setInterval(loadPlaylist,  60000);   // playlist: every 60s
   setInterval(loadWeather,  600000);   // weather: every 10 min
@@ -967,6 +992,22 @@ function loadIcecast() {
 }
 
 // ---- Weather ----
+
+function loadZones() {
+  fetch('/api/zones')
+    .then(r => r.json())
+    .then(d => {
+      const tbody = document.getElementById('zones-tbody');
+      tbody.innerHTML = d.zones.map(z => {
+        const type = z.catch_all ? 'Catch-All' : 'County';
+        const counties = z.catch_all ? 'All Florida' : (z.counties||[]).slice(0,4).join(', ') + (z.counties.length>4?'...':'');
+        const age = z.cleanup ? z.cleanup.max_age_hours+'h' : '--';
+        const files = z.cleanup && z.cleanup.max_files ? z.cleanup.max_files : '--';
+        return '<tr><td>'+z.zone_id+'</td><td>'+type+'</td><td>'+counties+'</td><td>'+age+'</td><td>'+files+'</td></tr>';
+      }).join('');
+    }).catch(() => toast('Zones fetch failed', false));
+}
+
 function loadWeather() {
   if (!_isStale('weather')) return;
   _markLoaded('weather');
@@ -1053,25 +1094,6 @@ function loadDataTab() {
       }
       html += '</table>';
 
-      // Airport METAR
-      html += `<h2>Airport Weather <small>(METAR &mdash; ${d.airports.length} stations)</small></h2>
-        <table><tr><th>ICAO</th><th>Airport</th><th>Cat</th><th>Temp °F</th><th>Temp °C</th>
-        <th>Dewp °F</th><th>Dewp °C</th><th>Wind Dir</th><th>Wind kt</th><th>Vis</th><th>Raw METAR</th><th>Obs Time (UTC)</th></tr>`;
-      if (d.airports.length) {
-        d.airports.forEach(ap => {
-          html += `<tr><td><strong>${ap.icaoId}</strong></td><td>${ap.name}</td>
-            <td class="center ${ap.flt_class}">${ap.fltCat}</td>
-            <td class="center">${ap.temp_f}</td><td class="center">${ap.temp}</td>
-            <td class="center">${ap.dewp_f}</td><td class="center">${ap.dewp}</td>
-            <td class="center">${ap.wdir}</td><td class="center">${ap.wspd}</td>
-            <td class="center">${ap.visib}</td><td><small>${ap.rawOb}</small></td>
-            <td class="center">${ap.obsTime}</td></tr>`;
-        });
-      } else {
-        html += `<tr><td colspan="12" class="no-data">No METAR data</td></tr>`;
-      }
-      html += '</table>';
-
       // FL Traffic
       html += `<h2>FL Traffic <small>(${d.traffic.length} active incidents)</small></h2>
         <table><tr><th>Type</th><th>Road</th><th>Location</th><th>County</th><th>Severity</th><th>Last Updated</th></tr>`;
@@ -1119,6 +1141,77 @@ function loadDataTab() {
     .catch(() => {
       document.getElementById('data-refreshed').textContent = 'Failed to load — retrying...';
       _tabLoaded['data'] = 0;  // allow immediate retry
+    });
+}
+
+// ---- Airports Tab ----
+function loadAirports() {
+  if (!_isStale('airports')) return;
+  _markLoaded('airports');
+  fetch('/api/airports')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('ap-refreshed').textContent = 'Updated ' + d.now;
+
+      // TSA wait times
+      const tsaEl = document.getElementById('ap-tsa-content');
+      if (!d.tsa_waits || !d.tsa_waits.length) {
+        tsaEl.innerHTML = '<p style="color:#888;padding:12px 0;">No TSA wait time data available.</p>';
+      } else {
+        // Group by airport
+        const byAirport = {};
+        d.tsa_waits.forEach(w => {
+          if (!byAirport[w.airport]) byAirport[w.airport] = [];
+          byAirport[w.airport].push(w);
+        });
+        let html = '';
+        for (const [apt, lanes] of Object.entries(byAirport)) {
+          html += `<h3 style="margin:12px 0 6px;">${apt}</h3>
+            <table><tr><th>Checkpoint</th><th>Lane</th><th>Status</th><th>Wait</th><th>Range</th><th>Gates</th><th>Last Updated</th></tr>`;
+          lanes.forEach(w => {
+            const openBadge = w.is_open
+              ? '<span class="badge badge-yes">Open</span>'
+              : '<span class="badge badge-no">Closed</span>';
+            const waitColor = w.wait_min > 30 ? '#c62828' : w.wait_min > 15 ? '#e65100' : '#2e7d32';
+            html += `<tr>
+              <td><strong>${w.checkpoint}</strong></td>
+              <td>${w.lane || '&mdash;'}</td>
+              <td class="center">${openBadge}</td>
+              <td class="center" style="color:${waitColor};font-weight:600;">${w.wait_min} min</td>
+              <td class="center">${w.range}</td>
+              <td class="center">${w.gates || '&mdash;'}</td>
+              <td class="center"><small>${w.updated}</small></td></tr>`;
+          });
+          html += '</table>';
+        }
+        tsaEl.innerHTML = html;
+      }
+
+      // METAR table
+      const metarEl = document.getElementById('ap-metar-content');
+      document.getElementById('ap-metar-count').textContent = `(METAR \u2014 ${d.airports.length} stations)`;
+      if (!d.airports.length) {
+        metarEl.innerHTML = '<p class="no-data">No METAR data</p>';
+      } else {
+        let html = `<table><tr><th>ICAO</th><th>Airport</th><th>Cat</th>
+          <th>Temp \u00b0F</th><th>Temp \u00b0C</th><th>Dewp \u00b0F</th><th>Dewp \u00b0C</th>
+          <th>Wind Dir</th><th>Wind kt</th><th>Vis</th><th>Raw METAR</th><th>Obs Time (UTC)</th></tr>`;
+        d.airports.forEach(ap => {
+          html += `<tr><td><strong>${ap.icaoId}</strong></td><td>${ap.name}</td>
+            <td class="center ${ap.flt_class}">${ap.fltCat}</td>
+            <td class="center">${ap.temp_f}</td><td class="center">${ap.temp}</td>
+            <td class="center">${ap.dewp_f}</td><td class="center">${ap.dewp}</td>
+            <td class="center">${ap.wdir}</td><td class="center">${ap.wspd}</td>
+            <td class="center">${ap.visib}</td><td><small>${ap.rawOb}</small></td>
+            <td class="center">${ap.obsTime}</td></tr>`;
+        });
+        html += '</table>';
+        metarEl.innerHTML = html;
+      }
+    })
+    .catch(() => {
+      document.getElementById('ap-refreshed').textContent = 'Failed to load \u2014 retrying...';
+      _tabLoaded['airports'] = 0;
     });
 }
 
@@ -1484,6 +1577,17 @@ function toggleCustomDates() {
   </div>
 </div>
 
+
+<!-- ===== ZONES TAB ===== -->
+<div id="tab-zones" class="tab-panel">
+  <div style="max-width:960px;">
+    <div class="cfg-card">
+      <h2>Zones</h2>
+      <table class="cfg-table"><thead><tr><th>Zone</th><th>Type</th><th>Counties</th><th>Max Age</th><th>Max Files</th></tr></thead>
+      <tbody id="zones-tbody"><tr><td colspan="5">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
 </body>
 </html>
 """
@@ -2092,40 +2196,6 @@ def api_data_tab():
             "audio_ext":     os.path.splitext(audio_doc.get("wav_path", ""))[1].lstrip(".").upper() if audio_doc else None,
         })
 
-    # Airport METAR
-    airports = []
-    def to_f(c):
-        try:
-            return round(float(c) * 9 / 5 + 32, 1)
-        except (TypeError, ValueError):
-            return ""
-    for ap in airport_metar_col.find({}, sort=[("icaoId", 1)]):
-        flt_cat = ap.get("fltCat", "")
-        obs = ap.get("obsTime", "")
-        if isinstance(obs, str) and "T" in obs:
-            try:
-                dt = datetime.fromisoformat(obs)
-                obs = dt.strftime("%m-%d %H:%MZ")
-            except ValueError:
-                pass
-        temp_c = ap.get("temp", "")
-        dewp_c = ap.get("dewp", "")
-        airports.append({
-            "icaoId":    ap.get("icaoId", ""),
-            "name":      ap.get("name", ""),
-            "fltCat":    flt_cat,
-            "flt_class": FLTCAT_CLASS.get(flt_cat, ""),
-            "temp":      temp_c,
-            "temp_f":    to_f(temp_c),
-            "dewp":      dewp_c,
-            "dewp_f":    to_f(dewp_c),
-            "wdir":      ap.get("wdir", ""),
-            "wspd":      ap.get("wspd", ""),
-            "visib":     ap.get("visib", ""),
-            "rawOb":     ap.get("rawOb", ""),
-            "obsTime":   obs,
-        })
-
     # FL Traffic
     traffic = []
     for t in fl_traffic_col.find({}, sort=[("severity", 1)], limit=TRAFFIC_LIMIT):
@@ -2163,11 +2233,155 @@ def api_data_tab():
         "now":         now.strftime("%Y-%m-%d %H:%M:%S UTC"),
         "now_playing": now_playing,
         "alerts":      alerts,
-        "airports":    airports,
         "traffic":     traffic,
         "school":      school,
         "feeds":       feeds,
     })
+
+# -------------------- AIRPORTS TAB ---------------
+
+# Florida airports with public TSA wait-time APIs
+_MCO_WAIT_URL = "https://api.goaa.aero/wait-times/checkpoint/MCO"
+_MIA_WAIT_URL = "https://waittime.api.aero/waittime/v2/current/MIA"
+
+# FL airport display names for METAR table
+_AIRPORT_NAMES = {
+    "KGNV": "Gainesville Regional",
+    "KOCF": "Ocala International",
+    "KPAK": "Palatka",
+    "KJAX": "Jacksonville International",
+    "KTLH": "Tallahassee International",
+    "KPNS": "Pensacola International",
+    "KECP": "Northwest FL Beaches Int'l",
+    "KMCO": "Orlando International",
+    "KDAB": "Daytona Beach International",
+    "KTPA": "Tampa International",
+    "KSRQ": "Sarasota Bradenton Int'l",
+    "KLAL": "Lakeland Linder Int'l",
+    "KRSW": "Southwest FL International",
+    "KFLL": "Fort Lauderdale-Hollywood",
+    "KMIA": "Miami International",
+    "KPBI": "Palm Beach International",
+    "KEYW": "Key West International",
+    "KSPG": "St. Pete-Clearwater Int'l",
+    "KAPF": "Naples Municipal",
+}
+
+
+def _fetch_mco_waits() -> list:
+    """Fetch MCO TSA wait times. Returns list of lane dicts or [] on error."""
+    try:
+        req = _ureq.Request(
+            _MCO_WAIT_URL,
+            headers={
+                "Api-Key": "8eaac7209c824616a8fe58d22268cd59",
+                "Api-Version": "140",
+                "Referer": "https://flymco.com/",
+                "User-Agent": "FPREN/1.0",
+            },
+        )
+        with _ureq.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read())
+        lanes = data.get("data", {}).get("wait_times", [])
+        result = []
+        for lane in lanes:
+            mins = round(lane.get("waitSeconds", 0) / 60)
+            min_m = round(lane.get("minWaitSeconds", 0) / 60)
+            max_m = round(lane.get("maxWaitSeconds", 0) / 60)
+            attrs = lane.get("attributes", {})
+            result.append({
+                "airport":    "MCO",
+                "checkpoint": lane.get("name", ""),
+                "lane":       lane.get("lane", ""),
+                "is_open":    lane.get("isOpen", False),
+                "wait_min":   mins,
+                "range":      f"{min_m}–{max_m} min",
+                "gates":      f"{attrs.get('minGate','')}–{attrs.get('maxGate','')}".strip("–"),
+                "updated":    lane.get("lastUpdatedTimestamp", ""),
+            })
+        return result
+    except Exception:
+        return []
+
+
+def _fetch_mia_waits() -> list:
+    """Fetch MIA TSA wait times. Returns list of queue dicts or [] on error."""
+    try:
+        req = _ureq.Request(
+            _MIA_WAIT_URL,
+            headers={
+                "x-apikey": "5d0cacea6e41416fdcde0c5c5a19d867",
+                "Origin": "https://www.miami-airport.com",
+                "User-Agent": "FPREN/1.0",
+            },
+        )
+        with _ureq.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read())
+        queues = data if isinstance(data, list) else data.get("current", [])
+        result = []
+        for q in queues:
+            result.append({
+                "airport":    "MIA",
+                "checkpoint": q.get("queueName", ""),
+                "lane":       "",
+                "is_open":    q.get("status", "").upper() == "OPEN",
+                "wait_min":   q.get("projectedWaitTime", 0),
+                "range":      f"{q.get('projectedMinWaitMinutes',0)}–{q.get('projectedMaxWaitMinutes',0)} min",
+                "gates":      "",
+                "updated":    q.get("localTime", q.get("time", "")),
+            })
+        return result
+    except Exception:
+        return []
+
+
+@app.route("/api/airports")
+def api_airports():
+    def to_f(c):
+        try:
+            return round(float(c) * 9 / 5 + 32, 1)
+        except (TypeError, ValueError):
+            return ""
+
+    # METAR data
+    airports = []
+    for ap in airport_metar_col.find({}, sort=[("icaoId", 1)]):
+        flt_cat = ap.get("fltCat", "")
+        obs = ap.get("obsTime", "")
+        if isinstance(obs, str) and "T" in obs:
+            try:
+                dt = datetime.fromisoformat(obs)
+                obs = dt.strftime("%m-%d %H:%MZ")
+            except ValueError:
+                pass
+        temp_c = ap.get("temp", "")
+        dewp_c = ap.get("dewp", "")
+        icao   = ap.get("icaoId", "")
+        airports.append({
+            "icaoId":    icao,
+            "name":      ap.get("name", "") or _AIRPORT_NAMES.get(icao, icao),
+            "fltCat":    flt_cat,
+            "flt_class": FLTCAT_CLASS.get(flt_cat, ""),
+            "temp":      temp_c,
+            "temp_f":    to_f(temp_c),
+            "dewp":      dewp_c,
+            "dewp_f":    to_f(dewp_c),
+            "wdir":      ap.get("wdir", ""),
+            "wspd":      ap.get("wspd", ""),
+            "visib":     ap.get("visib", ""),
+            "rawOb":     ap.get("rawOb", ""),
+            "obsTime":   obs,
+        })
+
+    # TSA wait times
+    tsa_waits = _fetch_mco_waits() + _fetch_mia_waits()
+
+    return jsonify({
+        "now":       datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "airports":  airports,
+        "tsa_waits": tsa_waits,
+    })
+
 
 # -------------------- AI ENDPOINTS --------------
 
@@ -2385,6 +2599,19 @@ def api_report_generate():
 
 
 # -------------------- FEEDBACK ------------------
+
+@app.route("/api/zones")
+def api_zones():
+    try:
+        from pymongo import MongoClient
+        client = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=2000)
+        db = client["weather_rss"]
+        zones = list(db["zone_definitions"].find({}, {"zone_id":1,"catch_all":1,"counties":1,"cleanup":1,"_id":0}))
+        client.close()
+        return jsonify({"zones": zones})
+    except Exception as e:
+        return jsonify({"zones": [], "error": str(e)})
+
 @app.route("/feedback", methods=["POST"])
 def submit_feedback():
     name    = request.form.get("name", "").strip()
