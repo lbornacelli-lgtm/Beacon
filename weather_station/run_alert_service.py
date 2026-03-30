@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Beacon alert-processor background service entry point.
+FPREN alert-processor background service entry point.
 
 Runs continuously:
   - Converts new NWS alerts to WAV every 30 seconds
@@ -9,7 +9,7 @@ Runs continuously:
   - Logs all deletions to weather_station/logs/wav_deletions.jsonl
 
 Usage:
-    cd /home/lh_admin/weather_station
+    cd /home/ufuser/weather_station
     source venv/bin/activate
     python run_alert_service.py
 """
@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 LOG_FILE = os.environ.get(
     "ALERT_SERVICE_LOG",
-    "/home/lh_admin/weather_station/logs/alert_service.log",
+    "/home/ufuser/weather_station/logs/alert_service.log",
 )
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 

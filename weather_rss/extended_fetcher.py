@@ -27,7 +27,7 @@ from pymongo import MongoClient
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 DB_NAME = "weather_rss"
 
-LOG_FILE = os.environ.get("LOG_FILE", "/home/lh_admin/weather_rss/logs/extended_fetcher.log")
+LOG_FILE = os.environ.get("LOG_FILE", "/home/ufuser/weather_rss/logs/extended_fetcher.log")
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
 # Loop intervals

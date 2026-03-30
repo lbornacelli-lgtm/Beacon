@@ -8,6 +8,6 @@ ExecStart=/bin/bash -c '\
   HOST="lighthouseserver"; \
   NOW=$(date "+%%Y-%%m-%%d %%H:%%M:%%S %%Z"); \
   STATUS=$(systemctl --user status "$SERVICE" 2>&1 | head -20); \
-  printf "To: lbornacelli@gmail.com\nFrom: lh_admin@lighthouseserver.local\nSubject: Beacon Alert — %s stopped on %s\nContent-Type: text/plain\n\nService: %s\nHost: %s\nTime: %s\n\nLast status output:\n%s\n\nBeacon Weather Station | Gainesville, FL\n" \
+  printf "To: lbornacelli@gmail.com\nFrom: fpren@fpren.local\nSubject: FPREN Alert — %s stopped on %s\nContent-Type: text/plain\n\nService: %s\nHost: %s\nTime: %s\n\nLast status output:\n%s\n\nFPREN Weather Station | Gainesville, FL\n" \
     "$SERVICE" "$HOST" "$SERVICE" "$HOST" "$NOW" "$STATUS" \
   | sendmail lbornacelli@gmail.com'

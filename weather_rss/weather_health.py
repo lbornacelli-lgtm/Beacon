@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 # ==========================
 # CONFIGURATION
 # ==========================
-WATCHDOG = "/home/lh_admin/weather_rss/weather_rss.watchdog"
+WATCHDOG = "/home/ufuser/weather_rss/weather_rss.watchdog"
 MONGO_URI = "mongodb://localhost:27017/"
 DB_NAME = "weather"
 FEEDS_COLL = "feeds"

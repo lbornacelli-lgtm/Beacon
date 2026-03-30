@@ -232,8 +232,8 @@ HTML = """
           <a href="https://api.weather.gov/alerts/active?area=FL" target="_blank">
             api.weather.gov/alerts/active?area=FL</a></li>
         <li><span class="url-label">Icecast Stream</span>
-          <a href="http://localhost:8000/beacon" target="_blank">
-            localhost:8000/beacon</a></li>
+          <a href="http://localhost:8000/fpren" target="_blank">
+            localhost:8000/fpren</a></li>
         <li><span class="url-label">MongoDB</span>
           <span>mongodb://localhost:27017/weather_rss</span></li>
         <li><span class="url-label">FL511 Traffic</span>

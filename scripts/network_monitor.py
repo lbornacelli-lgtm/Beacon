@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Beacon network interface monitor.
+FPREN network interface monitor.
 
 Polls enp0s31f6 (ethernet) and wlp0s20f3 (wireless) every 30 seconds.
 Sends an email via local Postfix relay when either interface changes state.
@@ -11,7 +11,7 @@ import subprocess
 import logging
 from datetime import datetime, timezone
 
-LOG_FILE   = "/home/lh_admin/weather_station/logs/network_monitor.log"
+LOG_FILE   = "/home/ufuser/weather_station/logs/network_monitor.log"
 RECIPIENT  = "lbornacelli@gmail.com"
 INTERFACES = {
     "enp0s31f6": "Ethernet (ETH)",
@@ -44,7 +44,7 @@ def get_interface_state(iface: str) -> str:
 
 def send_alert(iface: str, label: str, old_state: str, new_state: str):
     now     = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    subject = f"Beacon Network Alert — {label} is {new_state}"
+    subject = f"FPREN Network Alert — {label} is {new_state}"
     body    = (
         f"Network Interface State Change\n"
         f"{'=' * 40}\n"
@@ -54,11 +54,11 @@ def send_alert(iface: str, label: str, old_state: str, new_state: str):
         f"Host      : lighthouseserver\n"
         f"\n"
         f"{'Action required: check network connection.' if new_state == 'DOWN' else 'Interface is back online.'}\n"
-        f"\nBeacon Weather Station | Gainesville, FL"
+        f"\nFPREN Weather Station | Gainesville, FL"
     )
     raw = (
         f"To: {RECIPIENT}\n"
-        f"From: lh_admin@lighthouseserver.local\n"
+        f"From: fpren@fpren.local\n"
         f"Subject: {subject}\n"
         f"Content-Type: text/plain\n"
         f"\n"

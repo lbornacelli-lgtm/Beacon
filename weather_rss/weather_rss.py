@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
 # Directory to save XML files — override with OUTPUT_DIR env var for Docker
-output_dir = os.environ.get("OUTPUT_DIR", "/home/lh_admin/weather_rss/feeds")
+output_dir = os.environ.get("OUTPUT_DIR", "/home/ufuser/weather_rss/feeds")
 os.makedirs(output_dir, exist_ok=True)
 
 # Florida ASOS stations — NOAA current_obs XML (updates ~hourly at source)

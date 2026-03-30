@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger("DailyReport")
 
-ALERT_AUDIO_ROOT = "/home/lh_admin/audio_playlist/alerts"
+ALERT_AUDIO_ROOT = "/home/ufuser/audio_playlist/alerts"
 RECIPIENT        = "lbornacelli@gmail.com"
-TIMESTAMP_FILE   = "/home/lh_admin/weather_station/logs/last_daily_report.txt"
+TIMESTAMP_FILE   = "/home/ufuser/weather_station/logs/last_daily_report.txt"
 
 
 def _load_last_run() -> datetime:
@@ -57,7 +57,7 @@ def _build_email_body(new_wavs: list[dict], since: datetime) -> str:
     since_str = since.strftime("%Y-%m-%d %H:%M UTC")
 
     lines = [
-        "Beacon Weather Station — Daily Alert Report",
+        "FPREN Weather Station — Daily Alert Report",
         f"Period : {since_str} → {now_str}",
         f"New alerts converted to WAV: {len(new_wavs)}",
         "",
@@ -79,8 +79,8 @@ def _build_email_body(new_wavs: list[dict], since: datetime) -> str:
 
     lines += [
         "---",
-        "Beacon Weather Station | Gainesville, FL",
-        f"Log: /home/lh_admin/weather_station/logs/alert_service.log",
+        "FPREN Weather Station | Gainesville, FL",
+        f"Log: /home/ufuser/weather_station/logs/alert_service.log",
     ]
     return "\n".join(lines)
 
@@ -96,7 +96,7 @@ def send_daily_report():
         _save_last_run(now)
         return
 
-    subject = f"Beacon Daily Alert Report — {len(new_wavs)} new alert(s)"
+    subject = f"FPREN Daily Alert Report — {len(new_wavs)} new alert(s)"
     body    = _build_email_body(new_wavs, since)
 
     raw_email = (

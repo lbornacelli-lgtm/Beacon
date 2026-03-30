@@ -1,19 +1,19 @@
 #!/bin/bash
-# Installs all Beacon systemd services so they auto-start on boot
+# Installs all FPREN systemd services so they auto-start on boot
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SYSTEMD_DIR="$SCRIPT_DIR/systemd"
 UNIT_DIR="/etc/systemd/system"
 
-echo "=== Installing Beacon systemd services ==="
+echo "=== Installing FPREN systemd services ==="
 
 SERVICES=(
-    beacon-weather-service
-    beacon-obs-fetcher
-    beacon-ipaws-fetcher
-    beacon-extended-fetcher
-    beacon-alert-worker
-    beacon-web-dashboard
+    fpren-weather-service
+    fpren-obs-fetcher
+    fpren-ipaws-fetcher
+    fpren-extended-fetcher
+    fpren-alert-worker
+    fpren-web-dashboard
 )
 
 for svc in "${SERVICES[@]}"; do
@@ -26,9 +26,9 @@ for svc in "${SERVICES[@]}"; do
 done
 
 echo ""
-echo "=== All Beacon services installed ==="
-echo "Check status with:  sudo systemctl status beacon-weather-service"
-echo "View logs with:     journalctl -u beacon-weather-service -f"
+echo "=== All FPREN services installed ==="
+echo "Check status with:  sudo systemctl status fpren-weather-service"
+echo "View logs with:     journalctl -u fpren-weather-service -f"
 echo ""
 echo "MongoDB (mongod) should already be enabled. If not, run:"
 echo "  sudo systemctl enable mongod"

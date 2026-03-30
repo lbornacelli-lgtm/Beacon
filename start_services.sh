@@ -1,5 +1,5 @@
 #!/bin/bash
-# Beacon Weather Station - Native Service Launcher
+# FPREN Weather Station - Native Service Launcher
 # Starts MongoDB and all weather_rss fetcher services
 
 BEACON_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -10,7 +10,7 @@ MONGO_LOG="/var/log/mongodb/mongod.log"
 
 mkdir -p "$LOG_DIR"
 
-echo "=== Beacon Weather Station Startup ==="
+echo "=== FPREN Weather Station Startup ==="
 
 # --- MongoDB ---
 if mongosh --eval "db.runCommand({ping:1})" --quiet > /dev/null 2>&1; then

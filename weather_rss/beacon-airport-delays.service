@@ -1,5 +1,5 @@
 [Unit]
-Description=Beacon Airport Delays Fetcher — FAA delays + ElevenLabs TTS
+Description=FPREN Airport Delays Fetcher — FAA delays + ElevenLabs TTS
 After=network.target mongod.service
 Wants=mongod.service
 

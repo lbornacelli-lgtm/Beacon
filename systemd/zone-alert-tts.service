@@ -1,6 +1,6 @@
 [Unit]
 Description=FPREN Zone Alert TTS — transcodes NWS alerts and traffic to MP3 per zone
-After=network.target mongod.service beacon-weather-service.service
+After=network.target mongod.service fpren-weather-service.service
 Wants=mongod.service
 
 [Service]

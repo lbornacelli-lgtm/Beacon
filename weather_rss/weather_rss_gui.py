@@ -43,7 +43,7 @@ SMTP_CFG_FILE   = "/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json"
 # -------------------------------
 PLAYLISTS_DIR         = "/home/ufuser/Fpren-main/weather_station/playlists"
 STREAM_PLAYLISTS_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_playlists.json"
-PLAYLIST_STATE_FILE   = "/tmp/beacon_playlist_state.json"
+PLAYLIST_STATE_FILE   = "/tmp/fpren_playlist_state.json"
 
 # -------------------------------
 # STREAM ZONE CONFIG
@@ -1112,7 +1112,7 @@ class SystemdMonitor(tk.Tk):
 
         # Now Playing — read from station engine's JSON file
         try:
-            with open("/tmp/beacon_now_playing.json") as f:
+            with open("/tmp/fpren_now_playing.json") as f:
                 np = json.load(f)
             title    = np.get("title", "—")
             category = np.get("category", "")
@@ -1152,7 +1152,7 @@ class SystemdMonitor(tk.Tk):
         {"name": "Orlando",      "icao": "KMCO", "lat": 28.4294, "lon": -81.3089},
         {"name": "Tampa",        "icao": "KTPA", "lat": 27.9755, "lon": -82.5332},
     ]
-    _NWS_UA = "BeaconWeatherStation/1.0 (lh_admin@localhost)"
+    _NWS_UA = "FPRENWeatherStation/1.0 (ufuser@localhost)"
 
     def _build_weather_tab(self):
         btn_frame = ttk.Frame(self.tab_weather)

@@ -141,7 +141,7 @@ WEATHER_CITIES = [
     {"name": "Orlando",      "icao": "KMCO", "lat": 28.4294, "lon": -81.3089},
     {"name": "Tampa",        "icao": "KTPA", "lat": 27.9755, "lon": -82.5332},
 ]
-_NWS_UA          = "BeaconWeatherStation/1.0 (lh_admin@localhost)"
+_NWS_UA          = "FPRENWeatherStation/1.0 (ufuser@localhost)"
 _NWS_GRID_CACHE: dict = {}   # icao → nws forecast url
 _WX_CACHE:       dict = {}   # icao → {"data": dict, "ts": float}
 _WX_CACHE_TTL    = 600       # 10 minutes
@@ -1646,7 +1646,7 @@ def api_stream_start_engine():
         subprocess.run(["sudo", "systemctl", "start", "icecast2"],
                        capture_output=True, text=True, timeout=10)
         result = subprocess.run(
-            ["sudo", "systemctl", "start", "beacon-station-engine"],
+            ["sudo", "systemctl", "start", "fpren-station-engine"],
             capture_output=True, text=True, timeout=20
         )
         if result.returncode == 0:
@@ -1660,7 +1660,7 @@ def api_stream_restart_engine():
     import subprocess
     try:
         result = subprocess.run(
-            ["sudo", "systemctl", "restart", "beacon-station-engine"],
+            ["sudo", "systemctl", "restart", "fpren-station-engine"],
             capture_output=True, text=True, timeout=20
         )
         if result.returncode == 0:
@@ -1837,7 +1837,7 @@ def api_icecast():
 # -------------------- PLAYLIST API --------------
 PLAYLISTS_DIR       = "/home/ufuser/Fpren-main/weather_station/playlists"
 STREAM_PLAYLISTS_FILE = "/home/ufuser/Fpren-main/weather_station/config/stream_playlists.json"
-NOW_PLAYING_FILE    = "/tmp/beacon_now_playing.json"
+NOW_PLAYING_FILE    = "/tmp/fpren_now_playing.json"
 
 def _load_stream_playlists():
     try:
@@ -2224,7 +2224,7 @@ def api_data_tab():
     # Now playing
     now_playing = None
     try:
-        with open("/tmp/beacon_now_playing.json") as f:
+        with open("/tmp/fpren_now_playing.json") as f:
             now_playing = json.load(f)
     except (FileNotFoundError, ValueError):
         pass

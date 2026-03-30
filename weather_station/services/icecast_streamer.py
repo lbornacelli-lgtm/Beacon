@@ -30,7 +30,7 @@ CHUNK_SECONDS    = 0.1     # 100 ms per write burst
 CHUNK_BYTES   = int(TARGET_RATE * CHUNK_SECONDS * CHANNELS * BYTES_PER_SAMPLE)
 SILENCE_CHUNK = bytes(CHUNK_BYTES)
 
-FIFO_PATH    = "/tmp/beacon_stream.fifo"
+FIFO_PATH    = "/tmp/fpren_stream.fifo"
 FIFO_TIMEOUT = 15  # seconds to wait for FFmpeg to open the FIFO
 
 
@@ -105,8 +105,8 @@ class IcecastStreamer:
             "-ac", "2",          # upmix mono → stereo (Icecast expects stereo)
             "-f", "mp3",
             "-content_type", "audio/mpeg",
-            "-ice_name", "Beacon - All Florida",
-            "-ice_description", "This is a stream of the Beacon Emergency Alerting System.",
+            "-ice_name", "FPREN - All Florida",
+            "-ice_description", "This is a stream of the FPREN Emergency Alerting System.",
             "-ice_genre", "FPREN",
             self._icecast_url(),
         ]

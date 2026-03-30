@@ -33,7 +33,7 @@ IPAWS_BASE_URL = os.getenv(
 )
 POLL_INTERVAL  = int(os.getenv("IPAWS_POLL_INTERVAL", "120"))  # 2 minutes
 MONGO_URI      = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-LOG_FILE       = os.getenv("LOG_FILE", "/home/lh_admin/weather_rss/logs/ipaws.log")
+LOG_FILE       = os.getenv("LOG_FILE", "/home/ufuser/weather_rss/logs/ipaws.log")
 
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 logging.basicConfig(

@@ -2,7 +2,7 @@
 BEACON_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG_DIR="$BEACON_DIR/weather_rss/logs"
 
-echo "=== Stopping Beacon Weather Station Services ==="
+echo "=== Stopping FPREN Weather Station Services ==="
 
 for pidfile in "$LOG_DIR"/*.pid; do
     [ -f "$pidfile" ] || continue

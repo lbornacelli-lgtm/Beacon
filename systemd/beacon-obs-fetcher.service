@@ -1,16 +1,16 @@
 [Unit]
-Description=Beacon Observation Fetcher — 19 FL ASOS stations
+Description=FPREN Observation Fetcher — 19 FL ASOS stations
 After=network.target mongod.service
 Wants=mongod.service
 
 [Service]
 Type=simple
 User=ufuser
-WorkingDirectory=/home/ufuser/Downloads/Beacon-main/weather_rss
-ExecStart=/home/ufuser/Downloads/Beacon-main/venv/bin/python3 weather_rss.py
+WorkingDirectory=/home/ufuser/Fpren-main/weather_rss
+ExecStart=/home/ufuser/Fpren-main/venv/bin/python3 weather_rss.py
 Restart=on-failure
 RestartSec=10
-Environment=OUTPUT_DIR=/home/ufuser/Downloads/Beacon-main/weather_rss/feeds
+Environment=OUTPUT_DIR=/home/ufuser/Fpren-main/weather_rss/feeds
 
 [Install]
 WantedBy=multi-user.target
