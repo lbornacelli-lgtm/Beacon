@@ -405,6 +405,36 @@ server <- function(input, output, session) {
     }, error = function(e) data.frame())
   })
 
+  metar_data <- reactive({
+    if (input$auto_refresh) timer()
+    col <- get_col("airport_metar")
+    if (is.null(col)) return(data.frame())
+    tryCatch({
+      df <- col$find('{}', fields = '{"icaoId":1,"name":1,"temp":1,
+        "wspd":1,"wdir":1,"visib":1,"fltCat":1,"obsTime":1,"_id":0}')
+      col$disconnect()
+      if (nrow(df) == 0) return(data.frame())
+      df %>%
+        rename(icao = icaoId) %>%
+        mutate(
+          temp_f     = if_else(!is.na(temp),
+                         paste0(round(temp * 9/5 + 32), "\u00b0F"), "\u2014"),
+          wind       = case_when(
+            is.na(wspd) ~ "\u2014",
+            wspd == 0   ~ "Calm",
+            TRUE        ~ paste0(wspd, " kt / ", wdir, "\u00b0")
+          ),
+          visibility = if_else(!is.na(visib), paste0(visib, " mi"), "\u2014"),
+          sky        = if_else(!is.na(fltCat) & nchar(as.character(fltCat)) > 0,
+                         as.character(fltCat), "\u2014"),
+          obs_time   = tryCatch(
+            format(as.POSIXct(obsTime, tz = "UTC"), "%H:%M UTC"),
+            error = function(e) "\u2014"
+          )
+        )
+    }, error = function(e) data.frame())
+  })
+
   wav_data <- reactive({
     if (input$auto_refresh) timer()
     col <- get_col("zone_alert_wavs")
@@ -567,22 +597,65 @@ server <- function(input, output, session) {
   })
 
   output$box_airports_total <- renderValueBox({
-    valueBox(nrow(airport_data()), "Airports Monitored",
-             icon = icon("globe"), color = "blue")
+    n <- max(nrow(airport_data()), nrow(metar_data()))
+    valueBox(n, "Airports Monitored", icon = icon("globe"), color = "blue")
   })
 
   output$tbl_airports <- renderDT({
-    df <- airport_data()
-    if (nrow(df) == 0) return(datatable(data.frame(Message = "No airport data")))
+    delays <- airport_data()
+    metars <- metar_data()
+
+    if (nrow(metars) == 0 && nrow(delays) == 0)
+      return(datatable(data.frame(Message = "No airport data available")))
+
+    if (nrow(metars) > 0) {
+      df <- metars
+      if (nrow(delays) > 0 && "icao" %in% names(delays)) {
+        df <- df %>% left_join(
+          delays %>% select(any_of(c("icao","state","has_delay"))),
+          by = "icao"
+        )
+      } else {
+        df$has_delay <- NA
+      }
+    } else {
+      df <- delays %>%
+        mutate(temp_f = "\u2014", wind = "\u2014", visibility = "\u2014",
+               sky = "\u2014", obs_time = "\u2014")
+    }
+
     df <- df %>%
-      mutate(status = ifelse(has_delay == TRUE, "DELAYED", "Normal")) %>%
-      select(any_of(c("icao","name","state","status","fetched_at"))) %>%
-      arrange(desc(status))
+      mutate(
+        delay_status = case_when(
+          is.na(has_delay) ~ "Unknown",
+          has_delay         ~ "DELAYED",
+          TRUE              ~ "Normal"
+        )
+      ) %>%
+      select(any_of(c("icao","name","state","delay_status",
+                       "temp_f","wind","visibility","sky","obs_time"))) %>%
+      arrange(desc(delay_status))
+
+    names(df)[names(df) == "icao"]         <- "ICAO"
+    names(df)[names(df) == "name"]         <- "Airport"
+    names(df)[names(df) == "state"]        <- "State"
+    names(df)[names(df) == "delay_status"] <- "Delay Status"
+    names(df)[names(df) == "temp_f"]       <- "Temp"
+    names(df)[names(df) == "wind"]         <- "Wind"
+    names(df)[names(df) == "visibility"]   <- "Visibility"
+    names(df)[names(df) == "sky"]          <- "Sky/Cat"
+    names(df)[names(df) == "obs_time"]     <- "Obs Time"
+
     datatable(df, options = list(pageLength = 20, scrollX = TRUE),
               rownames = FALSE) %>%
-      formatStyle("status",
-        color = styleEqual(c("DELAYED","Normal"), c("red","green")),
-        fontWeight = styleEqual("DELAYED", "bold"))
+      formatStyle("Delay Status",
+        color      = styleEqual(c("DELAYED","Normal","Unknown"),
+                                c("red","green","gray")),
+        fontWeight = styleEqual(c("DELAYED","Normal","Unknown"),
+                                c("bold","normal","normal"))) %>%
+      formatStyle("Sky/Cat",
+        color = styleEqual(c("IFR","LIFR","MVFR","VFR"),
+                           c("#cc0000","#cc0000","#ff8800","#006600")))
   })
 
   # ── Station health tab ──────────────────────────────────────────────────────
