@@ -334,7 +334,8 @@ get_col <- function(collection) {
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 ui <- dashboardPage(
-  skin = "blue",
+  skin  = "blue",
+  title = "FPREN",
 
   dashboardHeader(
     title = tags$span(
