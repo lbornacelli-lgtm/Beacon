@@ -72,6 +72,9 @@ Fpren-main/
 | `zone_alert_wavs` | Tracking records for generated audio files |
 | `zone_definitions` | 9 zone configs (county lists + cleanup rules) |
 | `fl_traffic` | FL511 traffic incidents |
+| `airport_metar` | Current METAR obs for 19 FL ASOS stations (updated every 15 min) |
+| `airport_delays` | FAA airport delay status |
+| `weather_history` | Hourly METAR snapshots for 16 FL cities — temp, wind, humidity, flight cat (90-day retention) |
 | `users` | Dashboard user accounts (bcrypt hashed) |
 | `feed_status` | RSS feed health status |
 | `dashboard_state` | Singleton `_id:"singleton"` — shared active_tab between web + desktop for bidirectional sync |

@@ -1,0 +1,258 @@
+---
+title: "FPREN Weather Trends Report"
+subtitle: "`r params$city_name` — `r params$start_date` to `r params$end_date`"
+date: "Generated `r format(Sys.time(), '%B %d, %Y at %I:%M %p UTC')`"
+geometry: "margin=1in"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    latex_engine: xelatex
+    keep_tex: false
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{xcolor}
+  - \usepackage{longtable}
+  - \definecolor{fprenblue}{RGB}{0, 70, 127}
+  - \usepackage{fancyhdr}
+  - \pagestyle{fancy}
+  - \fancyhead[L]{\textcolor{fprenblue}{\textbf{FPREN}}}
+  - \fancyhead[C]{\textcolor{fprenblue}{Weather Trends}}
+  - \fancyhead[R]{\textcolor{gray}{`r params$city_name`}}
+  - \renewcommand{\headrulewidth}{0.4pt}
+params:
+  icao:       "KGNV"
+  city_name:  "Gainesville"
+  start_date: ""
+  end_date:   ""
+  mongo_uri:  "mongodb://localhost:27017/"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 8, fig.height = 4)
+suppressPackageStartupMessages({
+  library(mongolite)
+  library(dplyr)
+  library(lubridate)
+  library(ggplot2)
+  library(scales)
+  library(knitr)
+  library(kableExtra)
+})
+
+start_d <- if (nchar(params$start_date) > 0) params$start_date else
+             format(Sys.Date() - 30, "%Y-%m-%d")
+end_d   <- if (nchar(params$end_date)   > 0) params$end_date   else
+             format(Sys.Date(),        "%Y-%m-%d")
+
+# Extend end to include the full day
+end_dt_str <- paste0(end_d, "T23:59:59Z")
+
+query <- sprintf(
+  '{"icao":"%s","timestamp":{"$gte":"%sT00:00:00Z","$lte":"%s"}}',
+  params$icao, start_d, end_dt_str
+)
+
+col <- tryCatch(
+  mongo(collection = "weather_history", db = "weather_rss", url = params$mongo_uri),
+  error = function(e) NULL
+)
+
+df <- if (!is.null(col)) {
+  tryCatch({
+    d <- col$find(query, fields = '{"_id":0}',
+                  sort = '{"timestamp":1}')
+    col$disconnect()
+    d
+  }, error = function(e) {
+    tryCatch(col$disconnect(), error=function(e2) NULL)
+    data.frame()
+  })
+} else data.frame()
+
+n_records <- nrow(df)
+
+if (n_records > 0) {
+  df$ts <- as.POSIXct(df$timestamp, tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ")
+  df$date <- as.Date(df$ts)
+  df$flight_cat <- factor(df$flight_cat,
+    levels = c("VFR","MVFR","IFR","LIFR","UNK"), exclude = NULL)
+}
+
+CAT_COLOURS <- c(VFR="#1a6bb5", MVFR="#b5860a", IFR="#c0460a",
+                 LIFR="#8b0000", UNK="#888888")
+```
+
+\newpage
+
+# Summary
+
+**Station:** `r params$icao` — `r params$city_name`
+**Period:** `r start_d` to `r end_d`
+**Records:** `r n_records`
+**Generated:** `r format(Sys.time(), "%Y-%m-%d %H:%M UTC")`
+
+```{r no-data, results='asis'}
+if (n_records == 0) {
+  cat("\n> **No weather history data found for this station and date range.**\n\n")
+  cat("> The `fpren-weather-history.timer` service must run for at least one hour")
+  cat(" before data is available.\n")
+  knitr::knit_exit()
+}
+```
+
+```{r summary-stats}
+stats <- df %>%
+  summarise(
+    Temp_Min    = round(min(temp_f,     na.rm=TRUE), 1),
+    Temp_Max    = round(max(temp_f,     na.rm=TRUE), 1),
+    Temp_Avg    = round(mean(temp_f,    na.rm=TRUE), 1),
+    FeelsLk_Avg = round(mean(feels_like_f, na.rm=TRUE), 1),
+    Humidity_Avg = round(mean(humidity, na.rm=TRUE), 1),
+    Wind_Max    = round(max(wind_speed, na.rm=TRUE), 1),
+    Wind_Avg    = round(mean(wind_speed,na.rm=TRUE), 1),
+    Vis_Min     = round(min(visibility, na.rm=TRUE), 1),
+    Vis_Avg     = round(mean(visibility,na.rm=TRUE), 1)
+  )
+
+tbl <- data.frame(
+  Metric = c("Temp Min (°F)","Temp Max (°F)","Temp Avg (°F)",
+             "Feels Like Avg (°F)","Humidity Avg (%)","Wind Max (kt)",
+             "Wind Avg (kt)","Visibility Min (mi)","Visibility Avg (mi)"),
+  Value  = unlist(stats),
+  stringsAsFactors = FALSE
+)
+kable(tbl, booktabs=TRUE, row.names=FALSE,
+      caption="Summary statistics for the selected period") %>%
+  kable_styling(latex_options=c("hold_position"), font_size=10)
+```
+
+\newpage
+
+# Temperature Trend
+
+```{r temp-trend, fig.cap="Temperature over time. Red = feels-like temperature."}
+ggplot(df, aes(x = ts)) +
+  geom_line(aes(y = temp_f,      colour = "Actual"),     linewidth = 0.7, alpha = 0.9) +
+  geom_line(aes(y = feels_like_f, colour = "Feels Like"), linewidth = 0.5, alpha = 0.7,
+            linetype = "dashed") +
+  scale_colour_manual(values = c(Actual="#1a6bb5", "Feels Like"="#c0392b"),
+                      name = NULL) +
+  scale_x_datetime(date_labels = "%b %d", date_breaks = "3 days") +
+  labs(x = NULL, y = "Temperature (°F)",
+       title = paste0(params$city_name, " — Temperature ", start_d, " to ", end_d)) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "top", axis.text.x = element_text(angle=30, hjust=1))
+```
+
+\newpage
+
+# Wind Speed Trend
+
+```{r wind-trend, fig.cap="Wind speed (kt) over time. Background shading shows flight category."}
+cat_bg <- df %>%
+  mutate(cat_col = CAT_COLOURS[as.character(flight_cat)]) %>%
+  select(ts, cat_col)
+
+ggplot(df, aes(x = ts, y = wind_speed)) +
+  geom_rect(data = df,
+    aes(xmin = ts, xmax = lead(ts, default = last(ts)),
+        ymin = -Inf, ymax = Inf,
+        fill = flight_cat),
+    alpha = 0.15, inherit.aes = FALSE) +
+  geom_line(colour = "#2980b9", linewidth = 0.8) +
+  scale_fill_manual(values = CAT_COLOURS, name = "Flight Cat", na.value = "#dddddd") +
+  scale_x_datetime(date_labels = "%b %d", date_breaks = "3 days") +
+  labs(x = NULL, y = "Wind Speed (kt)",
+       title = paste0(params$city_name, " — Wind Speed ", start_d, " to ", end_d)) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "top", axis.text.x = element_text(angle=30, hjust=1))
+```
+
+\newpage
+
+# Humidity Trend
+
+```{r humidity-trend, fig.cap="Relative humidity (%) over time."}
+ggplot(df %>% filter(!is.na(humidity)), aes(x = ts, y = humidity)) +
+  geom_line(colour = "#27ae60", linewidth = 0.7, alpha = 0.9) +
+  geom_hline(yintercept = 80, linetype="dashed", colour="#e67e22", alpha=0.7) +
+  annotate("text", x = min(df$ts), y = 82, label="80% threshold",
+           hjust=0, size=3, colour="#e67e22") +
+  scale_x_datetime(date_labels = "%b %d", date_breaks = "3 days") +
+  scale_y_continuous(limits = c(0, 100), labels = scales::percent_format(scale=1)) +
+  labs(x = NULL, y = "Relative Humidity (%)",
+       title = paste0(params$city_name, " — Humidity ", start_d, " to ", end_d)) +
+  theme_bw(base_size = 11) +
+  theme(axis.text.x = element_text(angle=30, hjust=1))
+```
+
+\newpage
+
+# Flight Category Distribution
+
+```{r flt-cat-dist, fig.width=5, fig.height=4, fig.align='center',
+    fig.cap="Distribution of flight categories over the report period."}
+cat_counts <- df %>%
+  count(flight_cat, .drop=FALSE) %>%
+  filter(!is.na(flight_cat), flight_cat != "UNK" | n > 0) %>%
+  mutate(
+    pct   = round(n / sum(n) * 100, 1),
+    label = paste0(flight_cat, "\n", pct, "%")
+  )
+
+ggplot(cat_counts, aes(x="", y=n, fill=flight_cat)) +
+  geom_bar(stat="identity", width=1, colour="white") +
+  coord_polar("y", start=0) +
+  scale_fill_manual(values=CAT_COLOURS, name="Category") +
+  geom_text(aes(label=label),
+            position=position_stack(vjust=0.5), size=3.5, colour="white") +
+  labs(title = "Flight Category Distribution") +
+  theme_void(base_size=11) +
+  theme(legend.position="right")
+```
+
+```{r flt-cat-table}
+kable(cat_counts %>% select(flight_cat, n, pct) %>%
+        rename(Category=flight_cat, Count=n, `Pct %`=pct),
+      booktabs=TRUE, row.names=FALSE,
+      caption="Flight category counts and percentages") %>%
+  kable_styling(latex_options=c("hold_position"), font_size=10)
+```
+
+\newpage
+
+# Notable IFR / LIFR Events
+
+```{r ifr-events, results='asis'}
+ifr_df <- df %>%
+  filter(flight_cat %in% c("IFR","LIFR")) %>%
+  select(ts, flight_cat, temp_f, humidity, visibility, wx_desc) %>%
+  mutate(ts = format(ts, "%Y-%m-%d %H:%M UTC"))
+
+if (nrow(ifr_df) == 0) {
+  cat("> No IFR or LIFR periods recorded during this window.\n")
+} else {
+  cat(paste0("There were **", nrow(ifr_df),
+    "** IFR/LIFR observations during this period.\n\n"))
+  display <- ifr_df %>%
+    rename(Time=ts, Category=flight_cat, `Temp (°F)`=temp_f,
+           `RH (%)`=humidity, `Vis (mi)`=visibility, Description=wx_desc)
+  print(kable(display, booktabs=TRUE, longtable=TRUE,
+              caption="IFR and LIFR observation periods") %>%
+    kable_styling(latex_options=c("striped","hold_position","repeat_header"),
+                  font_size=8) %>%
+    row_spec(which(display$Category == "LIFR"), bold=TRUE, color="white",
+             background="#8b0000") %>%
+    row_spec(which(display$Category == "IFR"),  bold=FALSE, color="white",
+             background="#c0460a"))
+}
+```
+
+---
+
+*Report generated by FPREN R reporting system.*
+*Data source: `weather_history` MongoDB collection (hourly METAR snapshots).*
+*Station: `r params$icao` | Period: `r start_d` to `r end_d`*
+*Server: `r Sys.info()[["nodename"]]` | R `r R.version.string`*

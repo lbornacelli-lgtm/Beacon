@@ -377,7 +377,71 @@ ui <- dashboardPage(
                   background: rgba(255,255,255,0.25); border-radius: 4px;
                   padding: 1px 6px; display: inline-block; margin-bottom: 4px; }
       .wx-time  { font-size: 11px; opacity: 0.7; margin-top: 6px; }
+      .wx-radar-thumb { width:200px; height:200px; object-fit:cover;
+                        border-radius:4px; margin-top:8px; cursor:pointer;
+                        border:1px solid rgba(255,255,255,0.3); display:block; }
+      .wx-radar-link  { display:block; text-align:center; }
+      .wx-radar-label { font-size:10px; opacity:0.7; text-align:center; margin-top:2px; }
+      .zip-panel { background:#fff; border-radius:8px; padding:16px;
+                   margin-bottom:18px; border-left:4px solid #3c8dbc; }
+      .zip-panel h4  { margin-top:0; color:#3c8dbc; }
+      .zip-panel .zip-loc { font-size:15px; font-weight:bold; margin-bottom:6px; }
+      .zip-panel .zip-cur { font-size:13px; color:#555; margin-bottom:10px; }
+      .zip-days-scroll { display:flex; overflow-x:auto; gap:10px;
+                         padding-bottom:8px; }
+      .zip-day-card { flex:0 0 110px; background:#f4f6f9; border-radius:6px;
+                      padding:10px 8px; text-align:center; border:1px solid #ddd; }
+      .zip-day-card .day-name { font-weight:bold; font-size:13px; color:#333;
+                                 margin-bottom:4px; }
+      .zip-day-card .day-hi   { font-size:18px; font-weight:bold; color:#c0392b; }
+      .zip-day-card .day-lo   { font-size:13px; color:#3498db; }
+      .zip-day-card .day-precip { font-size:11px; color:#27ae60; margin-top:3px; }
+      .zip-day-card .day-wind   { font-size:11px; color:#7f8c8d; }
+      .zip-day-card .day-desc   { font-size:11px; color:#555; margin-top:4px;
+                                   line-height:1.3; }
     "))),
+
+    # ── NWS Radar enlargement modal (plain Bootstrap — works inside Shiny) ────
+    tags$div(id = "radar-enlarge-modal", class = "modal fade",
+      tabindex = "-1", role = "dialog",
+      tags$div(class = "modal-dialog modal-lg", role = "document",
+        tags$div(class = "modal-content",
+          tags$div(class = "modal-header",
+            tags$button(type = "button", class = "close",
+                        `data-dismiss` = "modal", HTML("&times;")),
+            tags$h4(class = "modal-title", id = "radar-enlarge-title", "NWS Radar")
+          ),
+          tags$div(class = "modal-body", style = "text-align:center; padding:20px;",
+            tags$img(id = "radar-enlarge-img", src = "",
+                     style = "max-width:100%; border-radius:4px;"),
+            tags$p(id = "radar-enlarge-ts",
+                   style = "font-size:11px; color:#888; margin-top:8px;", "")
+          ),
+          tags$div(class = "modal-footer",
+            tags$button(type = "button", class = "btn btn-default",
+                        `data-dismiss` = "modal", "Close")
+          )
+        )
+      )
+    ),
+    tags$script(HTML("
+      function showRadarModal(radarUrl, city) {
+        var ts = new Date().toLocaleTimeString();
+        var src = radarUrl + '?t=' + Date.now();
+        document.getElementById('radar-enlarge-img').src = src;
+        document.getElementById('radar-enlarge-title').innerText = city + ' — NWS Radar';
+        document.getElementById('radar-enlarge-ts').innerText = 'Loaded at ' + ts;
+        $('#radar-enlarge-modal').modal('show');
+      }
+      // Refresh radar thumbnails every 5 minutes client-side (cache-bust via &t=)
+      setInterval(function() {
+        var ts = Date.now();
+        document.querySelectorAll('img.wx-radar-thumb').forEach(function(img) {
+          var base = img.getAttribute('data-src');
+          if (base) { img.src = base + '&t=' + ts; }
+        });
+      }, 300000);
+    ")),
 
     tabItems(
 
@@ -430,13 +494,42 @@ ui <- dashboardPage(
 
       # ── Weather Conditions ───────────────────────────────────────────────────
       tabItem(tabName = "wx_cities",
+        # ZIP forecast section
+        fluidRow(
+          box(title = "ZIP Code Forecast", width = 12, status = "info",
+              solidHeader = TRUE,
+              fluidRow(
+                column(3,
+                  textInput("wx_zip", label = "Florida ZIP Code",
+                            placeholder = "e.g. 32601")
+                ),
+                column(2, br(),
+                  actionButton("btn_wx_forecast", "Get Forecast",
+                               class = "btn-info btn-lg", icon = icon("search"))
+                ),
+                column(2, br(),
+                  actionButton("btn_wx_clear", "Clear",
+                               class = "btn-default", icon = icon("times"))
+                ),
+                column(5, br(),
+                  tags$small(style = "color:#555;",
+                    icon("info-circle"),
+                    " Enter a Florida ZIP to see NWS 7-day forecast for that location")
+                )
+              )
+          )
+        ),
+        uiOutput("wx_zip_error_ui"),
+        uiOutput("wx_zip_forecast_ui"),
+        # 16-city grid header
         fluidRow(
           box(title = "Florida City Weather Conditions", width = 12, status = "primary",
               solidHeader = TRUE,
               fluidRow(
-                column(6, h5(icon("info-circle"),
-                  " Current conditions from ASOS stations — auto-refreshes every 15 minutes")),
-                column(6, align = "right",
+                column(8, h5(icon("info-circle"),
+                  " Current METAR conditions — weather refreshes every 15 min,",
+                  " radar thumbnails refresh every 5 min")),
+                column(4, align = "right",
                   actionButton("btn_wx_refresh", "Refresh Now",
                                class = "btn-sm btn-default", icon = icon("sync")))
               )
@@ -760,6 +853,61 @@ ui <- dashboardPage(
               p("To run manually from the server:"),
               code("Rscript /home/ufuser/Fpren-main/reports/generate_and_email.R 7")
           )
+        ),
+        hr(),
+        h3(icon("chart-line"), " Weather Trends Reports"),
+        fluidRow(
+          box(title = "Generate Weather Trends PDF", width = 6, status = "warning",
+              solidHeader = TRUE,
+              selectInput("wt_city", "City / ICAO Station",
+                choices = c(
+                  "Jacksonville (KJAX)"    = "KJAX",
+                  "Tallahassee (KTLH)"     = "KTLH",
+                  "Gainesville (KGNV)"     = "KGNV",
+                  "Ocala (KOCF)"           = "KOCF",
+                  "Orlando (KMCO)"         = "KMCO",
+                  "Daytona Beach (KDAB)"   = "KDAB",
+                  "Tampa (KTPA)"           = "KTPA",
+                  "St. Petersburg (KSPG)"  = "KSPG",
+                  "Sarasota (KSRQ)"        = "KSRQ",
+                  "Fort Myers (KRSW)"      = "KRSW",
+                  "Miami (KMIA)"           = "KMIA",
+                  "Fort Lauderdale (KFLL)" = "KFLL",
+                  "West Palm Beach (KPBI)" = "KPBI",
+                  "Key West (KEYW)"        = "KEYW",
+                  "Pensacola (KPNS)"       = "KPNS",
+                  "Panama City (KECP)"     = "KECP"
+                ),
+                selected = "KGNV"),
+              dateRangeInput("wt_dates", "Date Range",
+                start = Sys.Date() - 30, end = Sys.Date(),
+                min   = Sys.Date() - 90, max = Sys.Date(),
+                format = "yyyy-mm-dd"),
+              checkboxInput("wt_email", "Email report after generating", value = FALSE),
+              br(),
+              actionButton("btn_gen_wx_trend", "Generate Weather Trends PDF",
+                           class = "btn-warning btn-lg", icon = icon("chart-line")),
+              br(), br(),
+              verbatimTextOutput("wt_status")
+          ),
+          box(title = "About Weather Trends Reports", width = 6, status = "info",
+              solidHeader = TRUE,
+              p(icon("info-circle"),
+                " Weather Trends reports use historical METAR snapshots stored hourly",
+                " in the ", code("weather_history"), " MongoDB collection."),
+              tags$ul(
+                tags$li("Temperature trend line chart over the selected period"),
+                tags$li("Wind speed / direction rose chart"),
+                tags$li("Humidity trend"),
+                tags$li("Flight category distribution (VFR/MVFR/IFR/LIFR)"),
+                tags$li("Summary statistics: min / max / avg per metric"),
+                tags$li("Notable IFR/LIFR events highlighted")
+              ),
+              hr(),
+              p(icon("clock"), strong(" History is collected hourly"),
+                " via the ", code("fpren-weather-history.timer"), " systemd unit."),
+              p(icon("database"), " Up to 90 days of data retained per station.")
+          )
         )
       )
     )
@@ -828,7 +976,7 @@ server <- function(input, output, session) {
     }, error = function(e) data.frame())
   })
 
-  # ── wx_cities: ICAO → city name map ─────────────────────────────────────────
+  # ── wx_cities: ICAO → city name + coordinates ────────────────────────────────
   WX_CITIES <- data.frame(
     icao = c("KJAX","KTLH","KGNV","KOCF","KMCO","KDAB",
              "KTPA","KSPG","KSRQ","KRSW","KMIA","KFLL",
@@ -836,8 +984,95 @@ server <- function(input, output, session) {
     city = c("Jacksonville","Tallahassee","Gainesville","Ocala","Orlando","Daytona Beach",
              "Tampa","St. Petersburg","Sarasota","Fort Myers","Miami","Fort Lauderdale",
              "West Palm Beach","Key West","Pensacola","Panama City"),
+    lat  = c(30.49,30.40,29.69,29.17,28.43,29.18,
+             27.98,27.92,27.40,26.54,25.80,26.07,
+             26.68,24.56,30.47,30.36),
+    lon  = c(-81.69,-84.35,-82.27,-82.22,-81.31,-81.06,
+             -82.53,-82.69,-82.55,-81.76,-80.29,-80.15,
+             -80.10,-81.76,-87.19,-85.80),
     stringsAsFactors = FALSE
   )
+
+  # City ICAO → NWS radar station (informational; radar images use Iowa State service)
+  WX_RADAR <- c(
+    KJAX="KJAX", KTLH="KTLH", KGNV="KJAX",
+    KOCF="KTBW", KMCO="KMLB", KDAB="KMLB",
+    KTPA="KTBW", KSPG="KTBW", KSRQ="KTBW",
+    KRSW="KAMX", KMIA="KAMX", KFLL="KAMX",
+    KPBI="KAMX", KEYW="KAMX",
+    KPNS="KEVX", KECP="KEVX"
+  )
+
+  # Build radar thumbnail URL using Iowa State's public radar map service
+  # (NWS /ridge/lite/ endpoint returns 404 as of 2026)
+  wx_radar_url <- function(lat, lon) {
+    sprintf(
+      "https://mesonet.agron.iastate.edu/GIS/radmap.php?layers[]=nexrad&styles[]=default&width=250&height=250&zoom=7&lat=%.4f&lon=%.4f",
+      lat, lon
+    )
+  }
+
+  # Florida county approximate centroids (lat, lon) for NWS API lookups
+  FL_COUNTY_LATLON <- data.frame(
+    county = c(
+      "Alachua","Baker","Bay","Bradford","Brevard","Broward","Calhoun",
+      "Charlotte","Citrus","Clay","Collier","Columbia","Miami-Dade","DeSoto",
+      "Dixie","Duval","Escambia","Flagler","Franklin","Gadsden","Gilchrist",
+      "Glades","Gulf","Hamilton","Hardee","Hendry","Hernando","Highlands",
+      "Hillsborough","Holmes","Indian River","Jackson","Jefferson","Lafayette",
+      "Lake","Lee","Leon","Levy","Liberty","Madison","Manatee","Marion",
+      "Martin","Monroe","Nassau","Okaloosa","Okeechobee","Orange","Osceola",
+      "Palm Beach","Pasco","Pinellas","Polk","Putnam","Saint Johns",
+      "Saint Lucie","Santa Rosa","Sarasota","Seminole","Sumter","Suwannee",
+      "Taylor","Union","Volusia","Wakulla","Walton","Washington"),
+    lat = c(
+      29.67,30.33,30.21,29.94,28.23,26.15,30.41,
+      26.97,28.84,29.98,26.11,30.22,25.55,27.19,
+      29.68,30.33,30.55,29.47,29.80,30.59,29.72,
+      26.94,29.87,30.48,27.49,26.50,28.55,27.35,
+      27.90,30.87,27.74,30.83,30.52,30.07,28.76,
+      26.56,30.46,29.31,30.25,30.46,27.48,29.23,
+      27.09,24.70,30.52,30.74,27.24,28.45,28.06,
+      26.65,28.28,27.86,27.90,29.56,29.96,
+      27.35,30.76,27.22,28.66,28.69,30.18,
+      30.04,29.98,29.07,30.26,30.62,30.63),
+    lon = c(
+      -82.49,-82.27,-85.62,-82.14,-80.72,-80.46,-85.16,
+      -81.94,-82.47,-81.76,-81.39,-82.62,-80.60,-81.83,
+      -83.18,-81.66,-87.35,-81.21,-84.89,-84.63,-82.74,
+      -81.11,-85.23,-82.97,-81.83,-80.91,-82.41,-81.28,
+      -82.33,-85.81,-80.57,-85.22,-83.81,-83.16,-81.76,
+      -81.71,-84.28,-82.83,-84.88,-83.42,-82.57,-82.07,
+      -80.41,-81.52,-81.60,-86.49,-80.88,-81.32,-81.26,
+      -80.25,-82.40,-82.77,-81.70,-81.68,-81.41,
+      -80.40,-86.92,-82.48,-81.26,-82.07,-83.14,
+      -83.61,-82.39,-81.24,-84.39,-86.17,-85.67),
+    stringsAsFactors = FALSE
+  )
+
+  # Call NWS API for a 7-day forecast given lat/lon
+  # Returns a list of period data.frames or NULL on error
+  nws_get_forecast <- function(lat, lon) {
+    ua <- httr::user_agent("FPREN-Dashboard/1.0 (fpren@ufl.edu)")
+    pts_url <- sprintf("https://api.weather.gov/points/%.4f,%.4f", lat, lon)
+    r1 <- tryCatch(
+      httr::GET(pts_url, ua, httr::timeout(10)),
+      error = function(e) NULL)
+    if (is.null(r1) || httr::status_code(r1) != 200) return(NULL)
+    pts <- tryCatch(httr::content(r1, as = "parsed"), error = function(e) NULL)
+    if (is.null(pts$properties$forecastHourly)) return(NULL)
+    fcst_url <- pts$properties$forecast
+    r2 <- tryCatch(
+      httr::GET(fcst_url, ua, httr::timeout(10)),
+      error = function(e) NULL)
+    if (is.null(r2) || httr::status_code(r2) != 200) return(NULL)
+    fcst <- tryCatch(httr::content(r2, as = "parsed"), error = function(e) NULL)
+    if (is.null(fcst$properties$periods)) return(NULL)
+    periods <- fcst$properties$periods
+    office_name <- paste0(pts$properties$relativeLocation$properties$city,
+                          ", ", pts$properties$relativeLocation$properties$state)
+    list(location = office_name, periods = periods)
+  }
 
   wx_cities_timer <- reactiveTimer(900000)  # 15 minutes
 
@@ -864,6 +1099,154 @@ server <- function(input, output, session) {
       df$fltCat[is.na(df$fltCat) | df$fltCat == ""] <- "UNK"
       df
     }, error = function(e) data.frame())
+  })
+
+  # ── ZIP code forecast ────────────────────────────────────────────────────────
+
+  wx_zip_error_rv    <- reactiveVal("")
+  wx_zip_forecast_rv <- reactiveVal(NULL)   # list(location, periods, county, metar)
+
+  observeEvent(input$btn_wx_forecast, {
+    wx_zip_error_rv("")
+    wx_zip_forecast_rv(NULL)
+    z <- trimws(input$wx_zip)
+    if (!grepl("^\\d{5}$", z)) {
+      wx_zip_error_rv("Invalid format — please enter exactly 5 digits.")
+      return()
+    }
+    n <- as.integer(z)
+    if (n < 32004L || n > 34997L) {
+      wx_zip_error_rv(paste0(
+        "ZIP code ", z, " is not a Florida ZIP code.",
+        " Florida ZIPs range from 32004 to 34997."))
+      return()
+    }
+    county <- zip_to_florida_county(z)
+    if (is.na(county)) {
+      wx_zip_error_rv(paste0("ZIP code ", z, " could not be matched to a Florida county."))
+      return()
+    }
+    # Look up county centroid
+    idx <- which(FL_COUNTY_LATLON$county == county)
+    if (length(idx) == 0) {
+      wx_zip_error_rv(paste0("No coordinates on file for ", county, " County."))
+      return()
+    }
+    lat <- FL_COUNTY_LATLON$lat[idx[1]]
+    lon <- FL_COUNTY_LATLON$lon[idx[1]]
+
+    # Fetch NWS 7-day forecast
+    wx_zip_error_rv(paste0("Fetching NWS forecast for ", county, " County\u2026"))
+    result <- nws_get_forecast(lat, lon)
+    if (is.null(result)) {
+      wx_zip_error_rv(paste0(
+        "NWS API unavailable or no data for ", county, " County (",
+        lat, ", ", lon, "). Try again in a moment."))
+      return()
+    }
+
+    # Pull nearest ASOS obs from airport_metar (best match ICAO for county)
+    zone <- COUNTY_TO_ZONE[county]
+    # Map zone → representative ICAO
+    zone_icao <- c(
+      gainesville="KGNV", jacksonville="KJAX", orlando="KMCO",
+      tampa="KTPA", miami="KMIA", north_florida="KTLH",
+      central_florida="KMCO", south_florida="KRSW", all_florida="KMCO"
+    )
+    icao_guess <- if (!is.na(zone) && zone %in% names(zone_icao)) zone_icao[zone] else "KGNV"
+    metar_row <- NULL
+    col <- get_col("airport_metar")
+    if (!is.null(col)) {
+      metar_row <- tryCatch({
+        r <- col$find(sprintf('{"icaoId":"%s"}', icao_guess),
+                      fields='{"icaoId":1,"temp":1,"dewp":1,"wspd":1,"wdir":1,
+                               "visib":1,"fltCat":1,"obsTime":1,"wxString":1,"_id":0}',
+                      limit = 1)
+        col$disconnect()
+        if (nrow(r) > 0) r else NULL
+      }, error = function(e) { tryCatch(col$disconnect(), error=function(e2) NULL); NULL })
+    }
+
+    wx_zip_error_rv("")
+    wx_zip_forecast_rv(list(
+      location = result$location,
+      county   = county,
+      periods  = result$periods,
+      metar    = metar_row
+    ))
+  })
+
+  observeEvent(input$btn_wx_clear, {
+    wx_zip_error_rv("")
+    wx_zip_forecast_rv(NULL)
+    updateTextInput(session, "wx_zip", value = "")
+  })
+
+  output$wx_zip_error_ui <- renderUI({
+    msg <- wx_zip_error_rv()
+    if (nchar(msg) == 0) return(NULL)
+    # Progress style while fetching
+    is_progress <- grepl("Fetching", msg)
+    bg <- if (is_progress) "#2980b9" else "#c0392b"
+    div(style = paste0(
+          "background:", bg, "; color:white; padding:10px 15px;",
+          "border-radius:4px; margin-bottom:12px; font-weight:bold;"),
+      icon(if (is_progress) "spinner" else "exclamation-circle"), " ", msg)
+  })
+
+  output$wx_zip_forecast_ui <- renderUI({
+    data <- wx_zip_forecast_rv()
+    if (is.null(data)) return(NULL)
+
+    # Current conditions from METAR
+    cur_html <- NULL
+    m <- data$metar
+    if (!is.null(m) && nrow(m) > 0) {
+      temp_f <- if (!is.na(m$temp[1])) paste0(round(m$temp[1]*9/5+32), "\u00b0F") else "\u2014"
+      wind_s <- if (!is.na(m$wspd[1]) && m$wspd[1] > 0)
+        paste0(m$wspd[1], " kt / ", m$wdir[1], "\u00b0") else "Calm"
+      vis_s  <- if (!is.na(m$visib[1])) paste0(m$visib[1], " mi") else "\u2014"
+      cat_s  <- if (!is.na(m$fltCat[1])) as.character(m$fltCat[1]) else "\u2014"
+      wx_s   <- if ("wxString" %in% names(m) && !is.na(m$wxString[1]) && nchar(m$wxString[1])>0)
+                  m$wxString[1] else ""
+      cur_html <- div(class = "zip-panel zip-cur",
+        strong("Current conditions (nearest ASOS): "),
+        temp_f, " | Wind: ", wind_s, " | Vis: ", vis_s,
+        " | Flight cat: ", strong(cat_s),
+        if (nchar(wx_s)>0) paste0(" | ", wx_s)
+      )
+    }
+
+    # Build day cards from NWS periods (daytime periods only, up to 7)
+    periods <- data$periods
+    day_cards <- lapply(periods, function(p) {
+      name <- p$name %||% "?"
+      is_day <- isTRUE(p$isDaytime)
+      temp_val <- if (!is.null(p$temperature)) paste0(p$temperature, "\u00b0F") else "\u2014"
+      precip <- if (!is.null(p$probabilityOfPrecipitation$value) &&
+                    !is.na(p$probabilityOfPrecipitation$value))
+                  paste0(p$probabilityOfPrecipitation$value, "% precip") else ""
+      wind_sp <- paste0(p$windSpeed %||% "", " ", p$windDirection %||% "")
+      desc_s  <- p$shortForecast %||% ""
+      div(class = "zip-day-card",
+        div(class = "day-name", name),
+        div(class = if (is_day) "day-hi" else "day-lo", temp_val),
+        div(class = "day-precip", precip),
+        div(class = "day-wind", wind_sp),
+        div(class = "day-desc", desc_s)
+      )
+    })
+
+    div(class = "zip-panel",
+      fluidRow(
+        column(12,
+          h4(icon("map-marker-alt"), " ", data$location, " — ", data$county, " County"),
+          if (!is.null(cur_html)) cur_html,
+          h5(icon("calendar-alt"), " 7-Day Forecast"),
+          div(class = "zip-days-scroll", day_cards)
+        )
+      )
+    )
   })
 
   # ── traffic data ─────────────────────────────────────────────────────────────
@@ -1067,20 +1450,45 @@ server <- function(input, output, session) {
       cat <- if (!is.na(row$fltCat)) row$fltCat else "UNK"
       css_class <- cat_class(cat)
 
-      column(3,
-        div(class = paste("wx-card", css_class),
-          div(class = "wx-city", row$display_name),
-          div(class = "wx-cat",  cat),
-          div(class = "wx-temp", temp_f),
-          div(class = "wx-feels", feels_str),
-          if (nchar(wx_desc) > 0) div(class = "wx-desc", wx_desc),
-          div(class = "wx-detail",
-            icon("wind"), wind_str, tags$br(),
-            icon("tint"), hum_str, tags$br(),
-            icon("eye"),  vis_str),
-          div(class = "wx-time", icon("clock"), " Obs: ", obs_str)
+      {
+        # Build radar URL from city coordinates (Iowa State public radar map)
+        city_row  <- WX_CITIES[WX_CITIES$icao == row$icao, ]
+        radar_url <- if (nrow(city_row) > 0 && !is.na(city_row$lat[1]))
+          wx_radar_url(city_row$lat[1], city_row$lon[1]) else NA
+        radar_stn <- if (row$icao %in% names(WX_RADAR)) WX_RADAR[[row$icao]] else ""
+        radar_html <- if (!is.na(radar_url)) {
+          js_call <- sprintf("showRadarModal('%s','%s')", radar_url, row$display_name)
+          tags$a(class = "wx-radar-link", href = "#",
+                 onclick = paste0(js_call, "; return false;"),
+            tags$img(
+              class = "wx-radar-thumb",
+              src   = paste0(radar_url, "&t=", as.integer(Sys.time())),
+              `data-src` = radar_url,
+              alt   = paste0(row$display_name, " radar"),
+              title = "Click to enlarge"
+            ),
+            tags$div(class = "wx-radar-label",
+              icon("expand"), " Click to enlarge",
+              if (nchar(radar_stn) > 0) paste0(" \u2014 ", radar_stn, " radar") else "")
+          )
+        } else NULL
+
+        column(3,
+          div(class = paste("wx-card", css_class),
+            div(class = "wx-city", row$display_name),
+            div(class = "wx-cat",  cat),
+            div(class = "wx-temp", temp_f),
+            div(class = "wx-feels", feels_str),
+            if (nchar(wx_desc) > 0) div(class = "wx-desc", wx_desc),
+            div(class = "wx-detail",
+              icon("wind"), wind_str, tags$br(),
+              icon("tint"), hum_str, tags$br(),
+              icon("eye"),  vis_str),
+            div(class = "wx-time", icon("clock"), " Obs: ", obs_str),
+            radar_html
+          )
         )
-      )
+      }
     })
 
     # Split into rows of 4
@@ -1842,6 +2250,61 @@ server <- function(input, output, session) {
     upload_msg(paste(results, collapse="\n"))
   })
   output$upload_status <- renderText({ upload_msg() })
+
+  # ── Weather Trends Report ────────────────────────────────────────────────────
+  wt_status_msg <- reactiveVal("")
+  output$wt_status <- renderText({ wt_status_msg() })
+
+  observeEvent(input$btn_gen_wx_trend, {
+    wt_status_msg("Generating weather trends report\u2026 (30\u201360 s)")
+    icao      <- input$wt_city
+    city_name <- WX_CITIES$city[WX_CITIES$icao == icao]
+    if (length(city_name) == 0) city_name <- icao
+    start_d   <- as.character(input$wt_dates[1])
+    end_d     <- as.character(input$wt_dates[2])
+    email     <- isTRUE(input$wt_email)
+    tryCatch({
+      output_dir  <- "/home/ufuser/Fpren-main/reports/output"
+      dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+      timestamp   <- format(Sys.time(), "%Y%m%d_%H%M")
+      safe_city   <- gsub("[^A-Za-z0-9]", "_", city_name)
+      output_file <- file.path(output_dir,
+        paste0("weather_trends_", safe_city, "_", timestamp, ".pdf"))
+      rmarkdown::render(
+        input       = "/home/ufuser/Fpren-main/reports/weather_trends_report.Rmd",
+        output_file = output_file,
+        params      = list(icao       = icao,
+                           city_name  = city_name,
+                           start_date = start_d,
+                           end_date   = end_d,
+                           mongo_uri  = MONGO_URI),
+        quiet = TRUE
+      )
+      msg <- paste0("Report saved: ", basename(output_file))
+      if (email) {
+        sc        <- tryCatch(fromJSON("/home/ufuser/Fpren-main/weather_rss/config/smtp_config.json"),
+                              error = function(e) list())
+        smtp_host <- sc$smtp_host %||% "smtp.ufl.edu"
+        smtp_port <- as.integer(sc$smtp_port %||% 25)
+        mail_from <- sc$mail_from %||% "lawrence.bornace@ufl.edu"
+        mail_to   <- sc$mail_to   %||% "lawrence.bornace@ufl.edu"
+        library(emayili)
+        em <- envelope() %>%
+          from(mail_from) %>% to(mail_to) %>%
+          subject(paste0("FPREN Weather Trends — ", city_name,
+                         " (", start_d, " to ", end_d, ")")) %>%
+          text(paste0("Weather Trends Report\nCity: ", city_name,
+                      "\nPeriod: ", start_d, " to ", end_d,
+                      "\nGenerated: ", format(Sys.time(), "%Y-%m-%d %H:%M UTC"))) %>%
+          attachment(output_file)
+        server(host = smtp_host, port = smtp_port, reuse = FALSE)(em, verbose = FALSE)
+        msg <- paste0(msg, "\nEmail sent to ", mail_to)
+      }
+      wt_status_msg(msg)
+    }, error = function(e) {
+      wt_status_msg(paste0("ERROR: ", conditionMessage(e)))
+    })
+  })
 
   # Zones
   zones_col <- get_col("zone_definitions")

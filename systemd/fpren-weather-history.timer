@@ -1,0 +1,11 @@
+[Unit]
+Description=FPREN Weather History Timer — runs store_weather_history.R every hour
+Requires=fpren-weather-history.service
+
+[Timer]
+OnCalendar=hourly
+AccuracySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -99,6 +99,11 @@ sudo Rscript -e "install.packages('package_name', repos='https://cran.rstudio.co
 
 **tabName:** `wx_cities`
 
+### Sub-features
+1. **ZIP Code Forecast** — at top of tab; validates FL ZIP, resolves county via `FL_ZIP_RANGES`, looks up county centroid from `FL_COUNTY_LATLON`, calls NWS API for 7-day forecast, displays as horizontal scrollable day cards.
+2. **16-City Card Grid** — METAR obs for 16 FL cities with radar thumbnails.
+3. **Radar Thumbnails** — Iowa State public radar map (`mesonet.agron.iastate.edu/GIS/radmap.php`) centered on each city's lat/lon. Click to enlarge via Bootstrap modal. JS `setInterval` refreshes thumbnails every 5 min client-side via `&t=` cache-busting.
+
 ### Data Source
 - MongoDB collection: `airport_metar`
 - Queries 16 specific ICAO stations: `KJAX KTLH KGNV KOCF KMCO KDAB KTPA KSPG KSRQ KRSW KMIA KFLL KPBI KEYW KPNS KECP`
@@ -111,8 +116,21 @@ sudo Rscript -e "install.packages('package_name', repos='https://cran.rstudio.co
 - Humidity: from `rhum` field if present, otherwise derived from dewpoint via Magnus formula
 - Auto-refreshes every 15 minutes via `reactiveTimer(900000)` + "Refresh Now" button
 
+### ZIP Forecast Reactives
+- `wx_zip_error_rv` — `reactiveVal("")` for error/progress messages
+- `wx_zip_forecast_rv` — `reactiveVal(NULL)` stores list(location, county, periods, metar)
+- `observeEvent(input$btn_wx_forecast)` — validates, resolves county, calls `nws_get_forecast()`
+- `nws_get_forecast(lat, lon)` — calls `api.weather.gov/points` then `/forecast`; returns NULL on error
+- `FL_COUNTY_LATLON` data.frame maps all 67 FL counties to approximate centroids
+
+### Radar
+- `WX_RADAR` named vector: city ICAO → nearest NWS radar station (informational)
+- `wx_radar_url(lat, lon)` helper: builds Iowa State radar map URL for given coordinates
+- NWS `/ridge/lite/` endpoint returns 404 as of 2026 — Iowa State service is used instead
+- Radar modal: `id="radar-enlarge-modal"` Bootstrap modal + `showRadarModal()` JS function
+
 ### City → ICAO Mapping
-`WX_CITIES` data.frame defined in server section maps 16 cities to their nearest ASOS stations.
+`WX_CITIES` data.frame defined in server section maps 16 cities to their nearest ASOS stations, including lat/lon for radar centering.
 
 ---
 
@@ -183,6 +201,53 @@ sudo Rscript -e "install.packages('package_name', repos='https://cran.rstudio.co
 - Reads `weather_rss/config/smtp_config.json` for SMTP settings
 - Sends most-recent county PDF as attachment via `emayili`
 - Subject: `FPREN County Alert Report - {County} - {Date}`
+
+---
+
+## Weather Trends Report Architecture
+
+**Template:** `reports/weather_trends_report.Rmd`
+**Params:** `icao`, `city_name`, `start_date`, `end_date`, `mongo_uri`
+**Data source:** `weather_history` MongoDB collection (written hourly by `fpren-weather-history.timer`)
+
+**Charts generated:**
+1. Temperature trend line (actual + feels-like)
+2. Wind speed trend with flight-category background shading
+3. Humidity trend with 80% threshold reference line
+4. Flight category pie/distribution chart
+5. IFR/LIFR events table
+
+**Reports tab UI:** `wt_city` selectInput (16 cities), `wt_dates` dateRangeInput (max 90 days),
+`btn_gen_wx_trend` generates PDF, `btn_ca_email` / `wt_email` checkbox emails via SMTP.
+
+---
+
+## Weather History Collection
+
+**MongoDB collection:** `weather_history` (database: `weather_rss`)
+**Written by:** `scripts/store_weather_history.R` via `fpren-weather-history.timer`
+**Frequency:** Hourly (on the hour)
+**Retention:** 90 days (auto-purged)
+**Compression:** Skips write if temp change < 2°F, wind < 5 kt, vis < 1 mi AND last record < 2h ago
+
+**Document schema:**
+```json
+{
+  "icao": "KGNV",
+  "city": "Gainesville",
+  "timestamp": "2026-04-01T15:00:00Z",
+  "temp_f": 72.5,
+  "feels_like_f": 70.0,
+  "humidity": 65.0,
+  "wind_speed": 8.0,
+  "wind_dir": 270.0,
+  "visibility": 10.0,
+  "flight_cat": "VFR",
+  "wx_desc": "Clear"
+}
+```
+
+**Index:** `{icao: 1, timestamp: -1}`
 
 ---
 

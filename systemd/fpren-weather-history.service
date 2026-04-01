@@ -1,0 +1,17 @@
+[Unit]
+Description=FPREN Weather History Snapshot — stores hourly METAR data to MongoDB
+After=mongod.service network.target
+Wants=mongod.service
+
+[Service]
+Type=oneshot
+User=ufuser
+WorkingDirectory=/home/ufuser/Fpren-main
+ExecStart=/usr/bin/Rscript /home/ufuser/Fpren-main/scripts/store_weather_history.R
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fpren-weather-history
+Environment=MONGO_URI=mongodb://localhost:27017/
+
+[Install]
+WantedBy=multi-user.target
