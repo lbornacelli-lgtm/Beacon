@@ -52,7 +52,10 @@ dead.letter
 .bashrc
 .bash_logout
 .claude.json
-.claude/
+.claude/settings.json
+.claude/settings.local.json
+.claude/todos.json
+.claude/projects/
 snap/
 Desktop/
 Downloads/

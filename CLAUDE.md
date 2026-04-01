@@ -1,31 +1,30 @@
-# CLAUDE.md — FPREN Weather Station
+# CLAUDE.md — FPREN Master Context
 
-## Project Overview
+FPREN (Florida Public Radio Emergency Network) is a 24/7 automated weather radio broadcast system serving Florida. It fetches NWS/IPAWS alerts, converts them to speech via TTS, manages a broadcast playlist per zone, and streams audio over Icecast. A Shiny dashboard provides real-time monitoring; a Flask app provides admin control.
 
-FPREN (Florida Public Radio Emergency Network) is a weather radio broadcast system serving Florida. It fetches NWS/IPAWS alerts, converts them to audio via TTS, manages a broadcast playlist per zone, and streams audio over Icecast. A Shiny dashboard provides monitoring and control.
-
-**Server:** `128.227.67.234` (UF VM)
-**Primary dashboard:** `http://128.227.67.234` (Shiny, port 3838 via Nginx)
-**Flask admin dashboard:** `http://128.227.67.234:5000` (requires login)
+**Server:** `128.227.67.234` (UF VM, `/home/ufuser/Fpren-main`)
+**Shiny dashboard:** `http://128.227.67.234` → port 3838 via Nginx
+**Flask admin:** `http://128.227.67.234:5000` (login required)
 **Icecast stream:** `http://128.227.67.234:8000/fpren`
+**Git repo:** `https://github.com/lbornacelli-lgtm/FPREN.git`
 
 ---
 
 ## Active Services (systemd)
 
-| Service | File | Purpose |
-|---------|------|---------|
+| Service | Source file | Purpose |
+|---------|-------------|---------|
 | `beacon-web-dashboard` | `weather_rss/web/app.py` | Flask admin dashboard (port 5000) |
 | `beacon-station-engine` | `weather_station/main.py` | TTS + Icecast broadcast engine |
-| `beacon-ipaws-fetcher` | `weather_rss/ipaws_fetcher.py` | NWS/IPAWS alert fetcher |
-| `beacon-obs-fetcher` | `weather_rss/weather_rss.py` | 19 FL ASOS station obs fetcher |
-| `beacon-extended-fetcher` | `weather_rss/extended_fetcher.py` | Extended forecast + traffic data |
+| `beacon-ipaws-fetcher` | `weather_rss/ipaws_fetcher.py` | NWS/IPAWS alert fetcher (2 min) |
+| `beacon-obs-fetcher` | `weather_rss/weather_rss.py` | 19 FL ASOS station obs (15 min) |
+| `beacon-extended-fetcher` | `weather_rss/extended_fetcher.py` | Extended forecast + FL511 traffic |
 | `beacon-mongo-tts` | `mongo_tts/app.py` | MongoDB TTS monitor |
-| `zone-alert-tts` | `weather_station/services/zone_alert_tts.py` | Alert → MP3 per zone |
+| `zone-alert-tts` | `weather_station/services/zone_alert_tts.py` | Alert → MP3 per zone (main pipeline) |
 | `icecast2` | system | Audio streaming server |
-| `shiny-server` | `/srv/shiny-server/fpren/app.R` | Primary dashboard |
-| `mongod` | system | MongoDB database |
-| `nginx` | `/etc/nginx/sites-available/fpren` | Reverse proxy (port 80/443) |
+| `shiny-server` | `/srv/shiny-server/fpren/app.R` | Primary monitoring dashboard |
+| `mongod` | system | MongoDB (`weather_rss` database) |
+| `nginx` | `/etc/nginx/sites-available/fpren` | Reverse proxy (port 80 → 3838) |
 
 ---
 
@@ -33,74 +32,31 @@ FPREN (Florida Public Radio Emergency Network) is a weather radio broadcast syst
 
 ```
 Fpren-main/
-├── weather_rss/                    # Alert/data fetchers (ACTIVE)
-│   ├── ipaws_fetcher.py            # NWS/IPAWS FL alerts → MongoDB (runs every 2min)
-│   ├── weather_rss.py              # 19 FL ASOS obs fetcher (runs every 15min)
+├── CLAUDE.md                       ← You are here (master context)
+├── weather_rss/                    # Fetcher pipeline + Flask admin
+│   ├── CLAUDE.md                   ← Fetcher pipeline details
+│   ├── ipaws_fetcher.py            # NWS/IPAWS FL alerts → MongoDB (2 min)
+│   ├── weather_rss.py              # 19 FL ASOS obs (15 min)
 │   ├── extended_fetcher.py         # Extended forecasts + FL511 traffic
 │   ├── airport_delays_fetcher.py   # FAA airport delays
 │   ├── alert_worker.py             # Alert rule processor
-│   ├── web/
-│   │   └── app.py                  # Flask admin dashboard (port 5000) — PRIMARY FLASK APP
-│   └── config/
-│       └── smtp_config.json        # Email settings
-│
-├── weather_station/                # Broadcast engine (ACTIVE)
-│   ├── main.py                     # Entry point for beacon-station-engine
-│   ├── core/
-│   │   ├── tts_service.py          # Piper TTS (primary), falls back to gTTS
-│   │   ├── audio_engine.py         # Audio playback + Icecast feed
-│   │   ├── playlist_engine.py      # Hourly playlist builder
-│   │   └── station_engine.py       # Main station loop
-│   ├── services/
-│   │   ├── zone_alert_tts.py       # Alert → MP3 per zone (MAIN PIPELINE)
-│   │   ├── county_rss_fetcher.py   # NWS alerts by FL county FIPS code
-│   │   ├── ai_classifier.py        # LiteLLM severity classification + text rewrite
-│   │   ├── ai_client.py            # UF LiteLLM client (llama-3.3-70b-instruct)
-│   │   ├── ai_playlist.py          # AI-driven playlist decisions
-│   │   ├── broadcast_generator.py  # AI broadcast script → TTS audio
-│   │   ├── elevenlabs_tts.py       # ElevenLabs TTS for critical alerts
-│   │   ├── icecast_streamer.py     # FFmpeg → Icecast stream feeder
-│   │   └── daily_report.py         # Daily alert report emailer
-│   ├── config/
-│   │   ├── settings.py             # All config (Icecast, paths, zone streams)
-│   │   └── .env                    # API keys (not in git)
-│   ├── voices/
-│   │   └── en_US-amy-medium.onnx   # Piper TTS voice model
-│   └── audio/
-│       ├── content/                # Shared content library (uploaded via dashboard)
-│       │   ├── top_of_hour/
-│       │   ├── imaging/
-│       │   ├── music/
-│       │   ├── educational/
-│       │   └── weather_report/
-│       └── zones/                  # Generated alert audio per zone
-│           ├── all_florida/
-│           ├── north_florida/
-│           ├── central_florida/
-│           ├── south_florida/
-│           ├── tampa/
-│           ├── miami/
-│           ├── orlando/
-│           ├── jacksonville/
-│           └── gainesville/
-│
+│   └── web/
+│       ├── CLAUDE.md               ← Flask admin app details
+│       └── app.py                  # Flask admin dashboard (port 5000)
+├── weather_station/                # Broadcast engine
+│   ├── CLAUDE.md                   ← Broadcast engine details
+│   ├── main.py                     # Entry point → beacon-station-engine
+│   ├── core/                       # Station loop, audio, playlist
+│   └── services/                   # TTS, Icecast, AI, zone alert pipeline
 ├── shiny_dashboard/
-│   └── app.R                       # Shiny dashboard source (deploy to /srv/shiny-server/fpren/)
-│
-├── mongo_tts/                      # MongoDB TTS monitor (ACTIVE - beacon-mongo-tts)
-│   └── app.py                      # Flask app
-│
-├── scripts/
-│   ├── seed_zone_definitions.py    # Seeds 9 FL zones into MongoDB
-│   ├── fetch_weather_rss.py        # Manual RSS fetch utility
-│   ├── stream_monitor.py           # Stream health monitor
-│   └── network_monitor.py          # Network interface monitor
-│
-├── systemd/                        # Systemd service file templates
-├── reports/                        # R report generation scripts
-├── archive/                        # Archived/deprecated files
-├── logs/                           # Log files
-└── CLAUDE.md                       # This file
+│   ├── CLAUDE.md                   ← Dashboard deploy instructions
+│   └── app.R                       # Deploy to /srv/shiny-server/fpren/
+├── mongo_tts/
+│   └── app.py                      # MongoDB TTS monitor (beacon-mongo-tts)
+├── scripts/                        # One-off utilities (seed, monitor)
+├── systemd/                        # Systemd unit templates
+├── reports/                        # R report generation
+└── logs/                           # Runtime log files
 ```
 
 ---
@@ -110,35 +66,39 @@ Fpren-main/
 | Collection | Purpose |
 |------------|---------|
 | `nws_alerts` | All active NWS/IPAWS/county alerts |
-| `zone_alert_wavs` | Tracking record for generated audio files |
-| `zone_definitions` | 9 zone configs with county lists + cleanup rules |
+| `zone_alert_wavs` | Tracking records for generated audio files |
+| `zone_definitions` | 9 zone configs (county lists + cleanup rules) |
 | `fl_traffic` | FL511 traffic incidents |
-| `users` | Dashboard user accounts (bcrypt hashed passwords) |
+| `users` | Dashboard user accounts (bcrypt hashed) |
 | `feed_status` | RSS feed health status |
 
 ---
 
-## Zone Definitions (9 zones)
+## Zone Map (9 zones)
 
-| Zone ID | Coverage | Cleanup |
-|---------|----------|---------|
-| `all_florida` | Catch-all (filtered: thunderstorm/hurricane/flood only) | 24h / max 10 files |
-| `north_florida` | Counties north of Marion | 72h |
-| `central_florida` | Marion → Palm Beach (Tampa, Daytona) | 72h |
-| `south_florida` | Palm Beach south | 72h |
-| `tampa` | Hillsborough + Pinellas | 72h |
-| `miami` | Miami-Dade + Broward | 72h |
-| `orlando` | Orange + Osceola + Seminole | 72h |
-| `jacksonville` | Duval + Clay + St. Johns | 72h |
-| `gainesville` | Alachua | 72h |
+| Zone ID | Coverage | Audio cleanup |
+|---------|----------|---------------|
+| `all_florida` | Catch-all (thunderstorm/hurricane/flood filtered) | 24 h / max 10 files |
+| `north_florida` | Counties north of Marion | 72 h |
+| `central_florida` | Marion → Palm Beach (Tampa, Daytona) | 72 h |
+| `south_florida` | Palm Beach south | 72 h |
+| `tampa` | Hillsborough + Pinellas | 72 h |
+| `miami` | Miami-Dade + Broward | 72 h |
+| `orlando` | Orange + Osceola + Seminole | 72 h |
+| `jacksonville` | Duval + Clay + St. Johns | 72 h |
+| `gainesville` | Alachua | 72 h |
+
+Audio lives at: `weather_station/audio/zones/<zone_id>/`
 
 ---
 
 ## TTS Stack
 
-- **Piper** (primary) — local, free, no rate limits. Voice: `en_US-amy-medium`
-- **ElevenLabs** — critical alerts only (tornado warning, hurricane warning, etc.)
-- **gTTS** — removed as primary, no longer used
+| Engine | Use case | Notes |
+|--------|----------|-------|
+| **Piper** | Primary — all regular alerts | Local, no rate limits. Voice: `en_US-amy-medium.onnx` |
+| **ElevenLabs** | Critical alerts only | Tornado warning, hurricane warning, etc. |
+| gTTS | Removed | No longer used |
 
 ---
 
@@ -146,53 +106,70 @@ Fpren-main/
 
 - **Endpoint:** `https://api.ai.it.ufl.edu`
 - **Model:** `llama-3.3-70b-instruct`
-- **Key env var:** `UF_LITELLM_API_KEY` (in `weather_station/.env`)
+- **Key:** `UF_LITELLM_API_KEY` in `weather_station/config/.env`
 - **Uses:** alert severity classification, broadcast script generation, playlist decisions
+
+---
+
+## Ports
+
+| Port | Service | Status |
+|------|---------|--------|
+| 80 | Nginx → Shiny | Pending UF IT firewall approval |
+| 443 | Nginx HTTPS | Pending UF IT firewall approval |
+| 3838 | Shiny Server | Active |
+| 5000 | Flask admin | Active |
+| 8000 | Icecast `/fpren` (All Florida) | Active |
+| 8001–8010 | Multi-zone Icecast streams | Pending UF IT approval |
+| 8787 | RStudio Server | Active |
+| 27017 | MongoDB | Internal only |
 
 ---
 
 ## Common Commands
 
 ```bash
-# Activate virtualenv
+# Always activate venv first
 cd ~/Fpren-main && source venv/bin/activate
 
-# Service management
-sudo systemctl status zone-alert-tts.service
-sudo systemctl restart beacon-web-dashboard.service
+# --- Service management ---
+sudo systemctl status beacon-station-engine
+sudo systemctl restart beacon-web-dashboard
+sudo systemctl restart zone-alert-tts
 sudo systemctl restart shiny-server
 
-# Deploy Shiny dashboard changes
+# Show all FPREN-related services at once
+sudo systemctl list-units | grep -E "beacon|zone-alert|icecast|shiny|mongo"
+
+# --- Deploy Shiny dashboard ---
 sudo cp shiny_dashboard/app.R /srv/shiny-server/fpren/app.R
 sudo chown shiny:shiny /srv/shiny-server/fpren/app.R
 sudo systemctl restart shiny-server
 
-# Check Icecast stream
+# --- Stream health ---
 curl -s http://localhost:8000/status-json.xsl | python3 -m json.tool
 
-# MongoDB quick checks
-mongosh weather_rss --eval "print('Alerts:', db.nws_alerts.countDocuments())"
-mongosh weather_rss --eval "print('Zones:', db.zone_definitions.countDocuments())"
-mongosh weather_rss --eval "print('Audio records:', db.zone_alert_wavs.countDocuments())"
+# --- MongoDB quick checks ---
+mongosh weather_rss --eval "db.nws_alerts.countDocuments()"
+mongosh weather_rss --eval "db.zone_definitions.countDocuments()"
+mongosh weather_rss --eval "db.zone_alert_wavs.countDocuments()"
 
-# Seed zones (run once or after reset)
-python3 scripts/seed_zone_definitions.py
-
-# Test Piper TTS
-python3 -c "from weather_station.core.tts_service import TTSService; TTSService().say('Test', output_file='/tmp/t.mp3')"
-
-# Check running services
-sudo systemctl list-units | grep -E "fpren|beacon|zone|icecast|shiny|mongo"
-
-# View logs
+# --- Logs ---
 sudo journalctl -u zone-alert-tts.service -f
 sudo journalctl -u beacon-station-engine.service -f
+sudo journalctl -u beacon-web-dashboard.service -f
 sudo tail -f weather_rss/logs/web_dashboard.log
+
+# --- Test Piper TTS ---
+python3 -c "from weather_station.core.tts_service import TTSService; TTSService().say('Test', output_file='/tmp/t.mp3')"
+
+# --- Seed zone definitions (run once or after DB reset) ---
+python3 scripts/seed_zone_definitions.py
 ```
 
 ---
 
-## Environment Variables (weather_station/.env)
+## Environment Variables (`weather_station/config/.env`)
 
 ```
 MONGO_URI=mongodb://localhost:27017/
@@ -207,38 +184,54 @@ ICECAST_SOURCE_PASSWORD=fpren_source
 
 ---
 
-## Ports
+## File Ownership Map
 
-| Port | Service |
-|------|---------|
-| 80 | Nginx (pending UF IT approval) |
-| 443 | Nginx HTTPS (pending UF IT approval) |
-| 3838 | Shiny Server (primary dashboard) |
-| 5000 | Flask admin dashboard |
-| 8000 | Icecast `/fpren` — All Florida stream |
-| 8787 | RStudio Server |
-| 27017 | MongoDB (internal only) |
+| Component | Primary owner files |
+|-----------|-------------------|
+| Alert ingestion | `weather_rss/ipaws_fetcher.py`, `weather_rss/weather_rss.py` |
+| Alert → audio | `weather_station/services/zone_alert_tts.py` |
+| Audio playback | `weather_station/core/audio_engine.py`, `icecast_streamer.py` |
+| Playlist logic | `weather_station/core/playlist_engine.py`, `services/ai_playlist.py` |
+| AI rewrite/classify | `weather_station/services/ai_classifier.py`, `ai_client.py` |
+| Broadcast scripts | `weather_station/services/broadcast_generator.py` |
+| Flask admin | `weather_rss/web/app.py` |
+| Shiny dashboard | `shiny_dashboard/app.R` → deployed to `/srv/shiny-server/fpren/app.R` |
+| Zone config | `weather_station/config/settings.py`, `scripts/seed_zone_definitions.py` |
+
+---
+
+## Gotchas
+
+- **Shiny edits** must be copied to `/srv/shiny-server/fpren/app.R` — editing `shiny_dashboard/app.R` alone does nothing until deployed.
+- **Zone audio** is generated by `zone-alert-tts` service, not by `beacon-station-engine`. They are separate services.
+- **Multi-zone streams** (ports 8001–8010) are stubbed in `multi_zone_streamer.py` but blocked by UF IT firewall — do not try to start them.
+- **venv** must be active for all Python commands. Located at `~/Fpren-main/venv/`.
+- **Flask login** uses MongoDB `users` collection with bcrypt. No default admin — seed via `mongosh` if locked out.
+- **Piper binary** must be on PATH. It is installed system-wide, not in venv.
+- **ElevenLabs** is only triggered for tornado/hurricane warnings. Never use it for routine obs — it costs money.
+- **`ai_classifier.py`** is implemented but not yet wired into `zone_alert_tts.py` — it is called separately.
 
 ---
 
 ## Known Issues / TODO
 
 - [ ] Port 80/443 pending UF IT firewall approval
-- [ ] Ports 8001-8010 pending UF IT approval (multi-zone streams)
-- [ ] Wire `ai_classifier` into `zone_alert_tts.py`
-- [ ] Multi-zone Icecast streaming (one FFmpeg per zone)
-- [ ] Systemd unit files for `broadcast_generator`
+- [ ] Ports 8001–8010 pending UF IT approval (multi-zone streams)
+- [ ] Wire `ai_classifier` into `zone_alert_tts.py` main pipeline
+- [ ] Multi-zone Icecast streaming (one FFmpeg process per zone)
+- [ ] Systemd unit file for `broadcast_generator`
 - [ ] Fix Flask dashboard tab loading issue
 - [ ] Desktop app (`weather_rss/web/fpren_desktop.py`) tab sync
 
 ---
 
-## Git Workflow
+## Subdirectory CLAUDE.md Files
 
-```bash
-git add -A
-git commit -m "Description of change"
-git push origin main
-```
+Each major subdirectory has its own CLAUDE.md with component-specific context:
 
-Repo: `https://github.com/lbornacelli-lgtm/FPREN.git`
+- [`weather_rss/CLAUDE.md`](weather_rss/CLAUDE.md) — fetcher pipeline, data sources, MongoDB writes
+- [`weather_station/CLAUDE.md`](weather_station/CLAUDE.md) — broadcast engine, TTS, zone audio, Icecast
+- [`shiny_dashboard/CLAUDE.md`](shiny_dashboard/CLAUDE.md) — Shiny app, deploy workflow
+- [`weather_rss/web/CLAUDE.md`](weather_rss/web/CLAUDE.md) — Flask admin, auth, all API routes
+
+> **Rule:** Every new feature added to this project must include a corresponding update to the relevant subdirectory CLAUDE.md file.
