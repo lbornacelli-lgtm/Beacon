@@ -340,17 +340,18 @@ ui <- dashboardPage(
 
   dashboardSidebar(
     sidebarMenu(
-      menuItem("Overview",        tabName = "overview",  icon = icon("tachometer-alt")),
-      menuItem("FL Alerts",       tabName = "alerts",    icon = icon("exclamation-triangle")),
-      menuItem("County Alerts",    tabName = "county_alerts", icon = icon("map-marker-alt")),
-      menuItem("Airport Delays",  tabName = "airports",  icon = icon("plane")),
-      menuItem("Station Health",  tabName = "health",    icon = icon("heartbeat")),
-      menuItem("Feed Status",     tabName = "feeds",     icon = icon("rss")),
-      menuItem("Reports",         tabName = "reports",       icon = icon("file-pdf")),
-      menuItem("Stream Alerts",   tabName = "stream_alerts", icon = icon("bell")),
-      menuItem("Config",          tabName = "config",        icon = icon("cog")),
-      menuItem("Upload Content",   tabName = "upload",        icon = icon("upload")),
-      menuItem("Zones",            tabName = "zones",         icon = icon("map"))
+      menuItem("Overview",              tabName = "overview",       icon = icon("tachometer-alt")),
+      menuItem("Weather Conditions",    tabName = "wx_cities",      icon = icon("cloud-sun")),
+      menuItem("FL Alerts",             tabName = "alerts",         icon = icon("exclamation-triangle")),
+      menuItem("Traffic Alerts",        tabName = "traffic_alerts", icon = icon("car-crash")),
+      menuItem("County Alerts",         tabName = "county_alerts",  icon = icon("map-marker-alt")),
+      menuItem("Airport Delays & Weather", tabName = "airports",   icon = icon("plane")),
+      menuItem("Upload Content",        tabName = "upload",         icon = icon("upload")),
+      menuItem("Reports",               tabName = "reports",        icon = icon("file-pdf")),
+      menuItem("Station Health",        tabName = "health",         icon = icon("heartbeat")),
+      menuItem("Feed Status",           tabName = "feeds",          icon = icon("rss")),
+      menuItem("Zones",                 tabName = "zones",          icon = icon("map")),
+      menuItem("Config",                tabName = "config",         icon = icon("cog"))
     )
   ),
 
@@ -360,6 +361,22 @@ ui <- dashboardPage(
       .small-box .icon { font-size: 60px; }
       .alert-extreme { background-color: #f56954 !important; color: white !important; }
       .alert-severe  { background-color: #f39c12 !important; color: white !important; }
+      .wx-card { border-radius: 8px; padding: 14px; margin-bottom: 14px;
+                 color: white; min-height: 180px; }
+      .wx-card.vfr  { background-color: #1a6bb5; }
+      .wx-card.mvfr { background-color: #b5860a; }
+      .wx-card.ifr  { background-color: #c0460a; }
+      .wx-card.lifr { background-color: #8b0000; }
+      .wx-card.unknown { background-color: #5a5a5a; }
+      .wx-city { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+      .wx-temp  { font-size: 36px; font-weight: bold; line-height: 1.1; }
+      .wx-feels { font-size: 13px; opacity: 0.85; margin-bottom: 6px; }
+      .wx-desc  { font-size: 13px; font-style: italic; margin-bottom: 6px; }
+      .wx-detail { font-size: 12px; opacity: 0.9; }
+      .wx-cat   { font-size: 11px; font-weight: bold; letter-spacing: 1px;
+                  background: rgba(255,255,255,0.25); border-radius: 4px;
+                  padding: 1px 6px; display: inline-block; margin-bottom: 4px; }
+      .wx-time  { font-size: 11px; opacity: 0.7; margin-top: 6px; }
     "))),
 
     tabItems(
@@ -408,6 +425,58 @@ ui <- dashboardPage(
                   class = "btn-primary"))
               ),
               DTOutput("tbl_alerts"))
+        )
+      ),
+
+      # ── Weather Conditions ───────────────────────────────────────────────────
+      tabItem(tabName = "wx_cities",
+        fluidRow(
+          box(title = "Florida City Weather Conditions", width = 12, status = "primary",
+              solidHeader = TRUE,
+              fluidRow(
+                column(6, h5(icon("info-circle"),
+                  " Current conditions from ASOS stations — auto-refreshes every 15 minutes")),
+                column(6, align = "right",
+                  actionButton("btn_wx_refresh", "Refresh Now",
+                               class = "btn-sm btn-default", icon = icon("sync")))
+              )
+          )
+        ),
+        uiOutput("wx_cities_grid")
+      ),
+
+      # ── Traffic Alerts ───────────────────────────────────────────────────────
+      tabItem(tabName = "traffic_alerts",
+        fluidRow(
+          valueBoxOutput("box_traffic_total",    width = 3),
+          valueBoxOutput("box_traffic_major",    width = 3),
+          valueBoxOutput("box_traffic_closures", width = 3),
+          valueBoxOutput("box_traffic_counties", width = 3)
+        ),
+        fluidRow(
+          box(title = "Filters", width = 12, status = "primary", solidHeader = TRUE,
+              fluidRow(
+                column(3, selectInput("traffic_county", "County",
+                  choices = c("All Counties" = ""), selected = "")),
+                column(3, selectInput("traffic_severity", "Severity",
+                  choices = c("All" = "", "Major" = "Major", "Minor" = "Minor"),
+                  selected = "")),
+                column(3, selectInput("traffic_type", "Incident Type",
+                  choices = c("All Types" = ""), selected = "")),
+                column(3, br(),
+                  actionButton("btn_traffic_refresh", "Refresh",
+                               class = "btn-primary", icon = icon("sync")))
+              )
+          )
+        ),
+        fluidRow(
+          box(title = "Active FL511 Traffic Incidents", width = 12, status = "warning",
+              solidHeader = TRUE, DTOutput("tbl_traffic"))
+        ),
+        fluidRow(
+          box(title = "Interactive Map", width = 12, status = "info", solidHeader = TRUE,
+              p(icon("map"), " Interactive map coming soon — will show incident pins
+                colour-coded by severity across Florida highway network."))
         )
       ),
 
@@ -759,6 +828,62 @@ server <- function(input, output, session) {
     }, error = function(e) data.frame())
   })
 
+  # ── wx_cities: ICAO → city name map ─────────────────────────────────────────
+  WX_CITIES <- data.frame(
+    icao = c("KJAX","KTLH","KGNV","KOCF","KMCO","KDAB",
+             "KTPA","KSPG","KSRQ","KRSW","KMIA","KFLL",
+             "KPBI","KEYW","KPNS","KECP"),
+    city = c("Jacksonville","Tallahassee","Gainesville","Ocala","Orlando","Daytona Beach",
+             "Tampa","St. Petersburg","Sarasota","Fort Myers","Miami","Fort Lauderdale",
+             "West Palm Beach","Key West","Pensacola","Panama City"),
+    stringsAsFactors = FALSE
+  )
+
+  wx_cities_timer <- reactiveTimer(900000)  # 15 minutes
+
+  wx_cities_data <- reactive({
+    wx_cities_timer()
+    input$btn_wx_refresh
+    icao_list <- paste0('["', paste(WX_CITIES$icao, collapse='","'), '"]')
+    query <- paste0('{"icaoId":{"$in":', icao_list, '}}')
+    col <- get_col("airport_metar")
+    if (is.null(col)) return(data.frame())
+    tryCatch({
+      df <- col$find(query, fields = '{"icaoId":1,"name":1,"temp":1,"dewp":1,
+        "wspd":1,"wdir":1,"visib":1,"fltCat":1,"obsTime":1,
+        "wxString":1,"clouds":1,"rhum":1,"_id":0}')
+      col$disconnect()
+      if (nrow(df) == 0) return(data.frame())
+      # Merge with city names
+      df <- df %>% rename(icao = icaoId) %>%
+        left_join(WX_CITIES, by = "icao")
+      # Use city name if available, fall back to station name
+      df$display_name <- ifelse(!is.na(df$city), df$city, df$name)
+      # Ensure fltCat is character
+      df$fltCat <- as.character(df$fltCat)
+      df$fltCat[is.na(df$fltCat) | df$fltCat == ""] <- "UNK"
+      df
+    }, error = function(e) data.frame())
+  })
+
+  # ── traffic data ─────────────────────────────────────────────────────────────
+  traffic_timer <- reactiveTimer(120000)  # 2 minutes
+
+  traffic_data <- reactive({
+    traffic_timer()
+    input$btn_traffic_refresh
+    col <- get_col("fl_traffic")
+    if (is.null(col)) return(data.frame())
+    tryCatch({
+      df <- col$find('{}', fields = '{"incident_id":1,"county":1,"road":1,
+        "direction":1,"type":1,"event_subtype":1,"description":1,
+        "severity":1,"is_full_closure":1,"major_event":1,
+        "last_updated":1,"_id":0}')
+      col$disconnect()
+      df
+    }, error = function(e) data.frame())
+  })
+
   wav_data <- reactive({
     if (input$auto_refresh) timer()
     col <- get_col("zone_alert_wavs")
@@ -866,6 +991,186 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$btn_refresh_alerts, { alerts_data() })
+
+  # ── Weather Conditions tab ──────────────────────────────────────────────────
+
+  output$wx_cities_grid <- renderUI({
+    df <- wx_cities_data()
+    if (nrow(df) == 0) {
+      return(fluidRow(column(12,
+        div(style = "padding: 30px; text-align: center; color: #666;",
+            icon("exclamation-circle"), " No METAR data available — ASOS stations may not have reported yet."))))
+    }
+
+    # Helper: feels-like temperature (heat index / wind chill approximation)
+    feels_like <- function(temp_c, dewp_c, wspd_kt) {
+      if (is.na(temp_c)) return(NA_real_)
+      temp_f <- temp_c * 9/5 + 32
+      # Wind chill when cold
+      if (!is.na(wspd_kt) && temp_f <= 50 && wspd_kt > 3) {
+        wspd_mph <- wspd_kt * 1.15078
+        wc <- 35.74 + 0.6215*temp_f - 35.75*(wspd_mph^0.16) + 0.4275*temp_f*(wspd_mph^0.16)
+        return(round(wc))
+      }
+      # Heat index when warm and humid
+      if (!is.na(dewp_c) && temp_f >= 80) {
+        rh <- 100 * exp((17.625 * dewp_c) / (243.04 + dewp_c)) /
+                   exp((17.625 * temp_c) / (243.04 + temp_c))
+        hi <- -42.379 + 2.04901523*temp_f + 10.14333127*rh -
+              0.22475541*temp_f*rh - 0.00683783*temp_f^2 -
+              0.05481717*rh^2 + 0.00122874*temp_f^2*rh +
+              0.00085282*temp_f*rh^2 - 0.00000199*temp_f^2*rh^2
+        return(round(hi))
+      }
+      round(temp_f)
+    }
+
+    cat_class <- function(cat) {
+      switch(toupper(trimws(cat)),
+        "VFR"  = "vfr",
+        "MVFR" = "mvfr",
+        "IFR"  = "ifr",
+        "LIFR" = "lifr",
+        "unknown"
+      )
+    }
+
+    # Order cities by WX_CITIES order
+    order_map <- setNames(seq_len(nrow(WX_CITIES)), WX_CITIES$icao)
+    df$sort_order <- order_map[df$icao]
+    df <- df[order(df$sort_order, na.last = TRUE), ]
+
+    cards <- lapply(seq_len(nrow(df)), function(i) {
+      row <- df[i, ]
+      temp_f <- if (!is.na(row$temp)) paste0(round(row$temp * 9/5 + 32), "\u00b0F") else "\u2014"
+      fl_f <- feels_like(row$temp, if ("dewp" %in% names(row)) row$dewp else NA,
+                         if (!is.na(row$wspd)) row$wspd else NA)
+      feels_str <- if (!is.na(fl_f)) paste0("Feels like ", fl_f, "\u00b0F") else ""
+      wind_str <- if (!is.na(row$wspd) && row$wspd > 0)
+        paste0(row$wspd, " kt / ", row$wdir, "\u00b0")
+      else if (!is.na(row$wspd) && row$wspd == 0) "Calm" else "\u2014"
+      # Humidity from rhum field or computed from dewpoint
+      hum_str <- if ("rhum" %in% names(row) && !is.na(row$rhum)) {
+        paste0(round(row$rhum), "% RH")
+      } else if ("dewp" %in% names(row) && !is.na(row$dewp) && !is.na(row$temp)) {
+        rh <- round(100 * exp((17.625 * row$dewp) / (243.04 + row$dewp)) /
+                          exp((17.625 * row$temp) / (243.04 + row$temp)))
+        paste0(rh, "% RH")
+      } else "\u2014"
+      vis_str <- if (!is.na(row$visib)) paste0(row$visib, " mi") else "\u2014"
+      wx_desc <- if ("wxString" %in% names(row) && !is.na(row$wxString) && nchar(row$wxString) > 0)
+        row$wxString else ""
+      obs_str <- tryCatch(
+        format(as.POSIXct(row$obsTime, tz = "UTC"), "%H:%M UTC"),
+        error = function(e) "\u2014"
+      )
+      cat <- if (!is.na(row$fltCat)) row$fltCat else "UNK"
+      css_class <- cat_class(cat)
+
+      column(3,
+        div(class = paste("wx-card", css_class),
+          div(class = "wx-city", row$display_name),
+          div(class = "wx-cat",  cat),
+          div(class = "wx-temp", temp_f),
+          div(class = "wx-feels", feels_str),
+          if (nchar(wx_desc) > 0) div(class = "wx-desc", wx_desc),
+          div(class = "wx-detail",
+            icon("wind"), wind_str, tags$br(),
+            icon("tint"), hum_str, tags$br(),
+            icon("eye"),  vis_str),
+          div(class = "wx-time", icon("clock"), " Obs: ", obs_str)
+        )
+      )
+    })
+
+    # Split into rows of 4
+    rows <- lapply(
+      seq(1, length(cards), by = 4),
+      function(start) {
+        chunk <- cards[start:min(start+3, length(cards))]
+        do.call(fluidRow, chunk)
+      }
+    )
+    do.call(tagList, rows)
+  })
+
+  # ── Traffic Alerts tab ──────────────────────────────────────────────────────
+
+  # Populate filter dropdowns from data
+  observe({
+    df <- traffic_data()
+    if (nrow(df) == 0) return()
+    counties <- sort(unique(df$county[!is.na(df$county)]))
+    updateSelectInput(session, "traffic_county",
+      choices = c("All Counties" = "", counties))
+    types <- sort(unique(df$type[!is.na(df$type)]))
+    updateSelectInput(session, "traffic_type",
+      choices = c("All Types" = "", types))
+  })
+
+  traffic_filtered <- reactive({
+    df <- traffic_data()
+    if (nrow(df) == 0) return(df)
+    if (!is.null(input$traffic_county) && nchar(input$traffic_county) > 0)
+      df <- df %>% filter(county == input$traffic_county)
+    if (!is.null(input$traffic_severity) && nchar(input$traffic_severity) > 0)
+      df <- df %>% filter(tolower(severity) == tolower(input$traffic_severity))
+    if (!is.null(input$traffic_type) && nchar(input$traffic_type) > 0)
+      df <- df %>% filter(type == input$traffic_type)
+    df
+  })
+
+  output$box_traffic_total <- renderValueBox({
+    n <- nrow(traffic_data())
+    valueBox(n, "Total Incidents", icon = icon("car-crash"),
+             color = if (n > 0) "orange" else "green")
+  })
+
+  output$box_traffic_major <- renderValueBox({
+    df <- traffic_data()
+    n  <- if (nrow(df) == 0) 0 else sum(tolower(df$severity) == "major", na.rm = TRUE)
+    valueBox(n, "Major Incidents", icon = icon("exclamation-triangle"),
+             color = if (n > 0) "red" else "green")
+  })
+
+  output$box_traffic_closures <- renderValueBox({
+    df <- traffic_data()
+    n  <- if (nrow(df) == 0) 0 else sum(df$is_full_closure == TRUE, na.rm = TRUE)
+    valueBox(n, "Full Closures", icon = icon("road"),
+             color = if (n > 0) "red" else "green")
+  })
+
+  output$box_traffic_counties <- renderValueBox({
+    df <- traffic_data()
+    n  <- if (nrow(df) == 0) 0 else length(unique(df$county[!is.na(df$county)]))
+    valueBox(n, "Counties Affected", icon = icon("map"),
+             color = "blue")
+  })
+
+  output$tbl_traffic <- renderDT({
+    df <- traffic_filtered()
+    if (nrow(df) == 0)
+      return(datatable(data.frame(Message = "No traffic incidents found")))
+    display <- df %>%
+      mutate(
+        Full_Closure = ifelse(is_full_closure == TRUE, "Yes", "No")
+      ) %>%
+      select(any_of(c("severity","county","road","direction",
+                       "type","description","last_updated","Full_Closure"))) %>%
+      rename_with(~ c("Severity","County","Road","Direction",
+                       "Type","Description","Last Updated","Full Closure")[
+                        seq_along(.)], everything())
+    datatable(display,
+              options = list(pageLength = 20, scrollX = TRUE,
+                             columnDefs = list(
+                               list(width = "220px", targets = 5)  # Description col
+                             )),
+              rownames = FALSE) %>%
+      formatStyle("Severity",
+        backgroundColor = styleEqual(c("Major","Minor"),
+                                     c("#c0392b","#e67e22")),
+        color = styleEqual(c("Major","Minor"), c("white","white")))
+  })
 
   # ── County Alerts tab ────────────────────────────────────────────────────────
 

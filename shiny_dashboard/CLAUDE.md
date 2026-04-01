@@ -25,15 +25,32 @@ Or use the slash command: `/deploy-shiny`
 
 ---
 
+## Tab Order and Descriptions
+
+| # | Label | tabName | Description |
+|---|-------|---------|-------------|
+| 1 | Overview | `overview` | Value boxes + active alerts summary + station status |
+| 2 | Weather Conditions | `wx_cities` | Card grid of current METAR obs for 16 FL cities |
+| 3 | FL Alerts | `alerts` | All active NWS/IPAWS alerts with severity/source filters |
+| 4 | Traffic Alerts | `traffic_alerts` | FL511 traffic incidents with county/severity/type filters |
+| 5 | County Alerts | `county_alerts` | ZIP/county search for per-county alerts + PDF/email export |
+| 6 | Airport Delays & Weather | `airports` | FAA delay status merged with METAR obs for FL airports |
+| 7 | Upload Content | `upload` | Upload MP3/WAV to broadcast content folders |
+| 8 | Reports | `reports` | Generate + email PDF alert summary reports |
+| 9 | Station Health | `health` | Recent audio files + system/MongoDB info |
+| 10 | Feed Status | `feeds` | RSS/IPAWS feed health table |
+| 11 | Zones | `zones` | Zone definitions + user management |
+| 12 | Config | `config` | SMTP settings + service status indicators |
+
 ## What the Dashboard Shows
 
 - Live NWS alert feed (reads `nws_alerts` MongoDB collection)
-- **County Alerts tab** — dynamic per-county alert search with ZIP lookup, DataTable, PDF/email export (replaces static Alachua tab)
-- Current obs for 19 FL ASOS stations (reads `feed_status`)
+- **Weather Conditions tab** — current METAR obs for 16 FL cities via `airport_metar` collection
+- **Traffic Alerts tab** — FL511 traffic incidents from `fl_traffic` collection (auto-refresh 2 min)
+- **County Alerts tab** — dynamic per-county alert search with ZIP lookup, DataTable, PDF/email export
 - Zone audio status (reads `zone_alert_wavs`)
 - Icecast stream status
 - Service health indicators
-- FL traffic incidents (reads `fl_traffic`)
 
 ---
 
@@ -75,6 +92,54 @@ sudo Rscript -e "install.packages('package_name', repos='https://cran.rstudio.co
 ```
 
 **RStudio Server** is available at `http://128.227.67.234:8787` for interactive R development.
+
+---
+
+## Weather Conditions Tab Architecture
+
+**tabName:** `wx_cities`
+
+### Data Source
+- MongoDB collection: `airport_metar`
+- Queries 16 specific ICAO stations: `KJAX KTLH KGNV KOCF KMCO KDAB KTPA KSPG KSRQ KRSW KMIA KFLL KPBI KEYW KPNS KECP`
+- Fetched fields: `icaoId`, `name`, `temp`, `dewp`, `wspd`, `wdir`, `visib`, `fltCat`, `obsTime`, `wxString`, `rhum`
+
+### Display
+- `uiOutput("wx_cities_grid")` renders a 4-column card grid via `renderUI`
+- Each card color-coded by flight category: VFR=blue, MVFR=yellow, IFR=orange, LIFR=red
+- Feels-like: wind chill (≤50°F) or heat index (≥80°F) computed inline in renderUI
+- Humidity: from `rhum` field if present, otherwise derived from dewpoint via Magnus formula
+- Auto-refreshes every 15 minutes via `reactiveTimer(900000)` + "Refresh Now" button
+
+### City → ICAO Mapping
+`WX_CITIES` data.frame defined in server section maps 16 cities to their nearest ASOS stations.
+
+---
+
+## Traffic Alerts Tab Architecture
+
+**tabName:** `traffic_alerts`
+
+### Data Source
+- MongoDB collection: `fl_traffic`
+- Populated by `weather_rss/extended_fetcher.py` from FL511 API
+- Key fields: `county`, `road`, `direction`, `type`, `severity`, `description`, `is_full_closure`, `last_updated`
+
+### Inputs
+- `traffic_county` — selectInput populated dynamically from distinct counties in data
+- `traffic_severity` — Major / Minor / All
+- `traffic_type` — incident type (Construction Zones, Accidents, etc.), populated from data
+- `btn_traffic_refresh` — manual refresh trigger
+
+### Reactives
+- `traffic_data` — full collection query, invalidates every 2 min via `reactiveTimer(120000)`
+- `traffic_filtered` — applies county/severity/type filters to `traffic_data()`
+
+### Value Boxes
+- `box_traffic_total` — total document count
+- `box_traffic_major` — count where severity == "Major"
+- `box_traffic_closures` — count where `is_full_closure == TRUE`
+- `box_traffic_counties` — distinct county count
 
 ---
 
