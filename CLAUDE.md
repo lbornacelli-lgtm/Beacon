@@ -133,6 +133,19 @@ Audio lives at: `weather_station/audio/zones/<zone_id>/`
 
 ---
 
+## NTP / Time Configuration
+
+- **Timezone:** `America/New_York` (EDT/EST)
+- **NTP service:** `systemd-timesyncd` (active, synchronized)
+- **Primary NTP:** `128.227.30.254` (UF time server, Stratum 2)
+- **Fallback NTP:** `time.nist.gov pool.ntp.org`
+- **Config file:** `/etc/systemd/timesyncd.conf`
+
+To check sync status: `timedatectl status` / `timedatectl show-timesync --all`
+To restart: `sudo systemctl restart systemd-timesyncd`
+
+---
+
 ## Common Commands
 
 ```bash
