@@ -956,6 +956,18 @@ ui <- tagList(
           box(title = tagList(icon("broadcast-tower"),
                               " Inovonics 677 EAS LP-1 Monitor — 10.245.74.39"),
               width = 12, status = "warning", solidHeader = TRUE,
+              div(style = "background:#fff8e1;border-left:4px solid #f39c12;padding:10px 14px;margin-bottom:14px;border-radius:0 4px 4px 0;font-size:13px;color:#555;",
+                tags$strong(icon("exclamation-circle"), " Compatibility Notice:"),
+                tags$span(" This monitoring interface is designed and configured exclusively for the ",
+                  tags$strong("Inovonics Model 677 EAS LP-1 Monitoring Receiver"),
+                  ". The SNMP OIDs, data fields, and status indicators displayed here are specific to the ",
+                  tags$strong("Inovonics EN677"),
+                  " and its firmware implementation. Use with any other device, manufacturer, or model is not supported and will produce incorrect or no data. ",
+                  "SNMP community string and OID assignments are drawn directly from the ",
+                  tags$strong("Inovonics BARON MIB"),
+                  " for this product line."
+                )
+              ),
               fluidRow(
                 column(6,
                   uiOutput("eas_device_status_ui")
