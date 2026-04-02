@@ -37,15 +37,28 @@ send_fpren_email <- function(to, subject, body_html) {
   smtp_port <- as.integer(if (!is.null(sc$smtp_port) && sc$smtp_port != "") sc$smtp_port else 25)
   mail_from <- sc$mail_from %||% "lawrence.bornace@ufl.edu"
   full_html  <- paste0('<html><body style="font-family:Arial,sans-serif;">', body_html, UF_BANNER_HTML, '</body></html>')
+  # Delegate to Python helper script — avoids emayili/shinyjs namespace conflicts
   tryCatch({
-    library(emayili)
-    em <- envelope() %>%
-      from(mail_from) %>% to(to) %>%
-      subject(subject) %>%
-      html(full_html)
-    server(host = smtp_host, port = smtp_port, reuse = FALSE)(em, verbose = FALSE)
-    TRUE
-  }, error = function(e) { message("Email failed: ", e$message); FALSE })
+    tmp_html <- tempfile(fileext = ".html")
+    tmp_cfg  <- tempfile(fileext = ".json")
+    writeLines(full_html, tmp_html)
+    write_json(
+      list(to = to, subject = subject, mail_from = mail_from,
+           smtp_host = smtp_host, smtp_port = smtp_port,
+           use_tls  = isTRUE(sc$use_tls),
+           use_auth = isTRUE(sc$use_auth),
+           smtp_user = sc$smtp_user %||% "",
+           smtp_pass = sc$smtp_pass %||% ""),
+      tmp_cfg, auto_unbox = TRUE)
+    py_helper <- "/home/ufuser/Fpren-main/shiny_dashboard/send_email.py"
+    result <- system2("python3", args = c(py_helper, tmp_cfg, tmp_html),
+                      stdout = TRUE, stderr = TRUE)
+    try(file.remove(tmp_html), silent = TRUE)
+    try(file.remove(tmp_cfg),  silent = TRUE)
+    if (any(grepl("^OK", result))) { TRUE } else {
+      message("Email failed: ", paste(result, collapse = " ")); FALSE
+    }
+  }, error = function(e) { message("Email error: ", e$message); FALSE })
 }
 
 send_twilio_sms <- function(to_phone, body_text) {
