@@ -949,6 +949,38 @@ ui <- tagList(
         fluidRow(
           box(title = "Feed Health Status", width = 12, status = "primary",
               solidHeader = TRUE, DTOutput("tbl_feeds"))
+        ),
+
+        # ── Inovonics 677 EAS LP-1 Monitor ────────────────────────────────────
+        fluidRow(
+          box(title = tagList(icon("broadcast-tower"),
+                              " Inovonics 677 EAS LP-1 Monitor — 10.245.74.39"),
+              width = 12, status = "warning", solidHeader = TRUE,
+              fluidRow(
+                column(6,
+                  uiOutput("eas_device_status_ui")
+                ),
+                column(6, style = "text-align:right; padding-top:6px;",
+                  tags$small(style="color:#888;", "Last poll: "),
+                  uiOutput("eas_last_poll_ui", inline = TRUE),
+                  tags$span(" "),
+                  actionButton("btn_eas_poll", "Poll Now",
+                               class = "btn-sm btn-warning", icon = icon("sync"))
+                )
+              ),
+              hr(),
+              uiOutput("eas_sources_ui"),
+              br(),
+              # Raw OID walk — collapsed by default, admin only
+              conditionalPanel(condition = "output.is_admin",
+                tags$details(
+                  tags$summary(style = "cursor:pointer; color:#888; font-size:12px;",
+                               icon("code"), " Raw SNMP OID Walk (Admin)"),
+                  br(),
+                  DT::dataTableOutput("tbl_eas_raw_oids")
+                )
+              )
+          )
         )
       ),
 
@@ -3232,6 +3264,155 @@ server <- function(input, output, session) {
       formatStyle("status",
         color      = styleEqual(c("OK","ERROR"), c("green","red")),
         fontWeight = styleEqual("ERROR", "bold"))
+  })
+
+  # ── Inovonics 677 EAS Monitor ────────────────────────────────────────────────
+  eas_rv         <- reactiveVal(NULL)
+  eas_poll_timer <- reactiveTimer(300000)  # auto-refresh every 5 minutes
+
+  # Load from MongoDB on tab visit or timer tick
+  eas_data <- reactive({
+    eas_poll_timer()
+    eas_rv()   # also invalidates on manual poll
+    col <- tryCatch(mongo(collection="eas_monitor", db="weather_rss", url=MONGO_URI), error=function(e) NULL)
+    if (is.null(col)) return(NULL)
+    tryCatch({
+      r <- col$find('{"_id":"singleton"}')
+      col$disconnect()
+      if (nrow(r) == 0) NULL else r[1, ]
+    }, error=function(e) { tryCatch(col$disconnect(), error=function(e2) NULL); NULL })
+  })
+
+  # Poll Now button — runs the Python poller script
+  observeEvent(input$btn_eas_poll, {
+    showNotification("Polling Inovonics 677...", type="message", duration=3)
+    result <- tryCatch(
+      system2("python3",
+              args = c("/home/ufuser/Fpren-main/scripts/inovonics_poller.py",
+                       "--host", "10.245.74.39", "--community", "public"),
+              stdout=TRUE, stderr=TRUE, timeout=20),
+      error=function(e) paste("ERROR:", e$message)
+    )
+    eas_rv(Sys.time())   # trigger reactive refresh
+    if (any(grepl("Reachable: True", result)))
+      showNotification("Device online — data updated.", type="message")
+    else
+      showNotification("Device unreachable. Showing last known data.", type="warning")
+  })
+
+  # Device status badge
+  output$eas_device_status_ui <- renderUI({
+    d <- eas_data()
+    if (is.null(d)) {
+      return(tags$span(class="label label-default", "No data"))
+    }
+    if (isTRUE(d$reachable)) {
+      tagList(
+        tags$span(class="label label-success", style="font-size:14px;padding:6px 12px;",
+                  icon("check-circle"), " ONLINE"),
+        tags$span(style="margin-left:10px; color:#555;",
+                  if (!is.null(d$device_info) && !is.null(d$device_info$sysDescr))
+                    as.character(d$device_info$sysDescr) else "Inovonics 677")
+      )
+    } else {
+      tags$span(class="label label-danger", style="font-size:14px;padding:6px 12px;",
+                icon("times-circle"), " OFFLINE / UNREACHABLE")
+    }
+  })
+
+  # Last poll timestamp
+  output$eas_last_poll_ui <- renderUI({
+    d <- eas_data()
+    if (is.null(d) || is.null(d$polled_at)) return(tags$span(style="color:#888;", "Never"))
+    ts <- tryCatch(lubridate::ymd_hms(as.character(d$polled_at)), error=function(e) NULL)
+    if (is.null(ts)) return(tags$span(style="color:#888;", as.character(d$polled_at)))
+    local_ts <- format(ts, "%Y-%m-%d %H:%M:%S", tz="America/New_York")
+    tags$span(style="color:#888; font-size:12px;", local_ts, " ET")
+  })
+
+  # Station cards for the 3 sources
+  output$eas_sources_ui <- renderUI({
+    d <- eas_data()
+    if (is.null(d) || is.null(d$sources)) {
+      return(p(style="color:#888;", "No source data. Click Poll Now to query the device."))
+    }
+
+    # d$sources is a list (mongolite returns nested lists)
+    sources <- tryCatch(d$sources[[1]], error=function(e) d$sources)
+    if (is.data.frame(sources)) {
+      src_list <- lapply(seq_len(nrow(sources)), function(i) as.list(sources[i, ]))
+    } else if (is.list(sources)) {
+      src_list <- sources
+    } else {
+      return(p("Could not parse source data."))
+    }
+
+    cards <- lapply(src_list, function(src) {
+      eas_active <- as.character(src$eas_active %||% "Unknown")
+      card_color <- if (eas_active == "ALERT") "#c0392b" else if (eas_active == "Normal") "#27ae60" else "#888"
+      card_bg    <- if (eas_active == "ALERT") "#fdf2f2" else "#f9f9f9"
+      eas_badge  <- if (eas_active == "ALERT")
+        tags$span(class="label label-danger",  style="font-size:13px;", icon("exclamation-triangle"), " EAS ALERT ACTIVE")
+      else if (eas_active == "Normal")
+        tags$span(class="label label-success", style="font-size:12px;", icon("check"), " Normal")
+      else
+        tags$span(class="label label-default", style="font-size:12px;", "Unknown")
+
+      column(4,
+        div(style=paste0("background:", card_bg, ";border:2px solid ", card_color,
+                         ";border-radius:8px;padding:14px;margin-bottom:12px;"),
+          h4(style=paste0("margin-top:0;color:", card_color, ";"),
+             icon("radio"), " Source ", src$source_num %||% "?",
+             tags$small(style="font-weight:normal;margin-left:8px;color:#555;",
+                        as.character(src$label %||% ""))),
+          tags$table(style="width:100%;font-size:13px;",
+            tags$tr(
+              tags$td(style="color:#666;padding:2px 8px 2px 0;", "Frequency:"),
+              tags$td(style="font-weight:bold;", as.character(src$frequency %||% "Unknown"))
+            ),
+            tags$tr(
+              tags$td(style="color:#666;padding:2px 8px 2px 0;", "Signal (RSSI):"),
+              tags$td(as.character(src$rssi_dbm %||% "Unknown"))
+            ),
+            tags$tr(
+              tags$td(style="color:#666;padding:2px 8px 2px 0;", "Stereo:"),
+              tags$td(as.character(src$stereo %||% "Unknown"))
+            ),
+            tags$tr(
+              tags$td(style="color:#666;padding:2px 8px 2px 0;", "Audio:"),
+              tags$td(as.character(src$audio %||% "Unknown"))
+            ),
+            tags$tr(
+              tags$td(style="color:#666;padding:2px 8px 2px 0;", "RDS:"),
+              tags$td(as.character(src$rds %||% "Unknown"))
+            )
+          ),
+          hr(style="margin:8px 0;"),
+          div(style="text-align:center;", eas_badge),
+          if (nchar(as.character(src$eas_msg %||% "")) > 0)
+            div(style="margin-top:6px;font-size:11px;color:#555;background:#fff;padding:6px;border-radius:4px;word-break:break-all;",
+                icon("info-circle"), " ", as.character(src$eas_msg))
+        )
+      )
+    })
+    fluidRow(cards)
+  })
+
+  # Raw OID walk table (admin only)
+  output$tbl_eas_raw_oids <- DT::renderDataTable({
+    d <- eas_data()
+    if (is.null(d) || is.null(d$raw_oid_walk)) return(data.frame(OID="No walk data yet"))
+    walk <- d$raw_oid_walk
+    if (length(walk) == 0) return(data.frame(Message="Device was unreachable — no OID walk available"))
+    # walk may come back as a nested list from mongolite
+    if (is.data.frame(walk)) {
+      df <- walk
+    } else {
+      oids <- names(walk)
+      vals <- unlist(walk)
+      df <- data.frame(OID = oids, Value = vals, stringsAsFactors = FALSE)
+    }
+    DT::datatable(df, options = list(pageLength=20, scrollX=TRUE), rownames=FALSE)
   })
 
   # ── Icecast tab ─────────────────────────────────────────────────────────────
