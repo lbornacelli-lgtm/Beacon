@@ -1370,8 +1370,9 @@ server <- function(input, output, session) {
       }
     }
 
-    # Verify password
-    pw_ok <- tryCatch(bcrypt::checkpw(pword, user$password), error = function(e) FALSE)
+    # Verify password — normalize $2b$ → $2a$ for R bcrypt compatibility
+    stored_hash <- gsub("^\\$2b\\$", "$2a$", user$password)
+    pw_ok <- tryCatch(bcrypt::checkpw(pword, stored_hash), error = function(e) FALSE)
     if (!pw_ok) {
       fa <- if (!is.null(user$failed_attempts) && !is.na(user$failed_attempts)) as.integer(user$failed_attempts) else 0L
       fa <- fa + 1L
