@@ -1,0 +1,2015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FPREN | Florida Public Radio Emergency Network</title>
+  <meta name="description" content="FPREN delivers 24/7 automated emergency weather broadcasts powered by AI, NWS/IPAWS integration, and real-time monitoring across 9 Florida zones.">
+  <meta property="og:title" content="FPREN | Florida Public Radio Emergency Network">
+  <meta property="og:description" content="AI-powered emergency broadcasting across all 67 Florida counties. Real-time NWS/IPAWS integration, automated TTS, and zone-targeted delivery.">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    /* ── CSS Variables ── */
+    :root {
+      --blue:    #003087;
+      --blue-lt: #0057b8;
+      --sky:     #00a8e8;
+      --orange:  #e05a10;
+      --dark:    #060e1f;
+      --dark2:   #0d1b2e;
+      --card-bg: #0f2040;
+      --text:    #e8edf5;
+      --muted:   #8fa3bc;
+      --border:  rgba(0,160,232,0.18);
+      --radius:  12px;
+      --nav-h:   68px;
+    }
+
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--dark);
+      color: var(--text);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+    ul { list-style: none; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--dark); }
+    ::-webkit-scrollbar-thumb { background: var(--blue-lt); border-radius: 3px; }
+
+    /* ── Utilities ── */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .section-label {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--sky);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 620px;
+      line-height: 1.7;
+    }
+    .sky { color: var(--sky); }
+    .orange { color: var(--orange); }
+
+    /* ── Reveal Animations ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ════════════════════════════════════════
+       NAVBAR
+    ════════════════════════════════════════ */
+    #navbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--nav-h);
+      z-index: 1000;
+      transition: background 0.35s ease, box-shadow 0.35s ease, backdrop-filter 0.35s ease;
+    }
+    #navbar.scrolled {
+      background: rgba(6,14,31,0.96);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 1px 0 var(--border);
+    }
+    .nav-inner {
+      height: var(--nav-h);
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    /* Logo */
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .logo-square {
+      width: 40px;
+      height: 40px;
+      background: var(--blue);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #fff;
+      letter-spacing: 0.03em;
+      border: 1.5px solid rgba(0,160,232,0.3);
+      flex-shrink: 0;
+    }
+    .logo-text-wrap {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+    .logo-brand {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.3rem;
+      color: var(--text);
+      letter-spacing: 0.06em;
+    }
+    .logo-subtitle {
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.13em;
+      color: var(--sky);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    /* Nav links */
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+    }
+    .nav-links a {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-links a:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.06);
+    }
+    /* Nav buttons */
+    .nav-btns {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      white-space: nowrap;
+      border: none;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--sky);
+      color: var(--sky);
+    }
+    .btn-outline:hover {
+      background: rgba(0,168,232,0.12);
+      border-color: #00c8ff;
+      color: #00c8ff;
+    }
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      border: 1.5px solid transparent;
+    }
+    .btn-primary:hover {
+      background: var(--blue-lt);
+      box-shadow: 0 4px 20px rgba(0,87,184,0.45);
+    }
+    .btn-orange {
+      background: var(--orange);
+      color: #fff;
+      border: 1.5px solid transparent;
+    }
+    .btn-orange:hover {
+      background: #f06820;
+      box-shadow: 0 4px 24px rgba(224,90,16,0.5);
+    }
+    .btn-lg {
+      padding: 14px 30px;
+      font-size: 0.95rem;
+      border-radius: 10px;
+    }
+    /* Hamburger */
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      margin-left: auto;
+      padding: 6px;
+    }
+    .hamburger span {
+      display: block;
+      width: 24px;
+      height: 2px;
+      background: var(--text);
+      border-radius: 2px;
+      transition: all 0.28s ease;
+    }
+    .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger.open span:nth-child(2) { opacity: 0; }
+    .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    /* Mobile menu */
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: var(--nav-h);
+      left: 0; right: 0;
+      background: rgba(6,14,31,0.98);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px 28px;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 999;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      padding: 12px 16px;
+      font-weight: 500;
+      color: var(--muted);
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .mobile-menu a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .mobile-menu .mobile-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .mobile-menu .btn { width: 100%; justify-content: center; }
+
+    /* ════════════════════════════════════════
+       HERO
+    ════════════════════════════════════════ */
+    #hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(0,48,135,0.45) 0%, transparent 70%),
+                  var(--dark);
+    }
+    /* Radio wave rings */
+    .waves-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .wave-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      border-radius: 50%;
+      border: 1px solid rgba(0,168,232,0.18);
+      transform: translate(-50%, -50%);
+      animation: pulse-ring 4s ease-out infinite;
+    }
+    .wave-ring:nth-child(1) { width: 280px; height: 280px; animation-delay: 0s; }
+    .wave-ring:nth-child(2) { width: 440px; height: 440px; animation-delay: 0.7s; }
+    .wave-ring:nth-child(3) { width: 620px; height: 620px; animation-delay: 1.4s; }
+    .wave-ring:nth-child(4) { width: 820px; height: 820px; animation-delay: 2.1s; }
+    .wave-ring:nth-child(5) { width: 1040px; height: 1040px; animation-delay: 2.8s; }
+    @keyframes pulse-ring {
+      0%   { opacity: 0.6; transform: translate(-50%,-50%) scale(0.85); }
+      60%  { opacity: 0.15; }
+      100% { opacity: 0; transform: translate(-50%,-50%) scale(1.08); }
+    }
+    /* Particles */
+    #particles-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .particle {
+      position: absolute;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--sky);
+      opacity: 0;
+      animation: float-particle linear infinite;
+    }
+    @keyframes float-particle {
+      0%   { opacity: 0; transform: translateY(0) scale(1); }
+      10%  { opacity: 0.6; }
+      90%  { opacity: 0.2; }
+      100% { opacity: 0; transform: translateY(-120px) scale(0.4); }
+    }
+    /* Hero content */
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: var(--nav-h) 24px 80px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0,168,232,0.1);
+      border: 1px solid rgba(0,168,232,0.28);
+      border-radius: 100px;
+      padding: 8px 18px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--sky);
+      margin-bottom: 36px;
+    }
+    .blink-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22d45a;
+      animation: blink-dot 1.4s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes blink-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,212,90,0.6); }
+      50%       { opacity: 0.6; box-shadow: 0 0 0 6px rgba(34,212,90,0); }
+    }
+    .hero-h1 {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: clamp(2.8rem, 7vw, 5.2rem);
+      line-height: 1.08;
+      letter-spacing: -0.01em;
+      margin-bottom: 28px;
+    }
+    .hero-h1 .line2 { color: var(--sky); display: block; }
+    .hero-sub {
+      font-size: clamp(1rem, 2.2vw, 1.2rem);
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto 44px;
+      line-height: 1.75;
+    }
+    .hero-btns {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 72px;
+    }
+    /* Stat strip */
+    .stat-strip {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(15,32,64,0.6);
+      backdrop-filter: blur(8px);
+      overflow: hidden;
+    }
+    .stat-item {
+      flex: 1;
+      min-width: 110px;
+      padding: 20px 16px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-item:hover { background: rgba(0,168,232,0.06); }
+    .stat-val {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.8rem;
+      color: var(--sky);
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+    .stat-lbl {
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    /* Scroll indicator */
+    .scroll-cue {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      animation: bounce-cue 2s ease-in-out infinite;
+    }
+    @keyframes bounce-cue {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50%       { transform: translateX(-50%) translateY(6px); }
+    }
+
+    /* ════════════════════════════════════════
+       LIVE STATUS BANNER
+    ════════════════════════════════════════ */
+    #live-status {
+      background: rgba(13,27,46,0.95);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 0;
+    }
+    .status-inner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(34,212,90,0.12);
+      border: 1px solid rgba(34,212,90,0.3);
+      border-radius: 100px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #22d45a;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .status-badge.offline {
+      background: rgba(224,90,16,0.1);
+      border-color: rgba(224,90,16,0.3);
+      color: var(--orange);
+    }
+    .status-info {
+      flex: 1;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .status-info strong { color: var(--text); }
+    #status-title { font-size: 0.88rem; }
+    .status-listen {
+      margin-left: auto;
+    }
+
+    /* ════════════════════════════════════════
+       ABOUT SECTION
+    ════════════════════════════════════════ */
+    #about {
+      background: var(--dark2);
+      padding: 100px 0;
+    }
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 72px;
+      align-items: center;
+    }
+    .about-text p {
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.75;
+      font-size: 1.02rem;
+    }
+    .pillars {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 36px;
+    }
+    .pillar {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .pillar:hover {
+      border-color: rgba(0,168,232,0.45);
+      box-shadow: 0 4px 32px rgba(0,168,232,0.08);
+    }
+    .pillar-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(0,48,135,0.5);
+      border: 1px solid rgba(0,168,232,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--sky);
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .pillar-body h4 {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      font-size: 1.05rem;
+      color: var(--text);
+      margin-bottom: 5px;
+    }
+    .pillar-body p {
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+    /* Signal card */
+    .signal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 36px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .signal-card::before {
+      content: '';
+      position: absolute;
+      top: -40px; left: 50%;
+      transform: translateX(-50%);
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(0,168,232,0.15), transparent 70%);
+      pointer-events: none;
+    }
+    .tower-wrap {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 28px;
+    }
+    .tower-icon {
+      font-size: 3.2rem;
+      color: var(--sky);
+      position: relative;
+      z-index: 2;
+      animation: tower-pulse 3s ease-in-out infinite;
+    }
+    @keyframes tower-pulse {
+      0%, 100% { filter: drop-shadow(0 0 6px rgba(0,168,232,0.4)); }
+      50%       { filter: drop-shadow(0 0 18px rgba(0,168,232,0.8)); }
+    }
+    /* Audio bar arcs */
+    .audio-arcs {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 5px;
+      height: 40px;
+      margin-bottom: 32px;
+    }
+    .audio-bar {
+      width: 6px;
+      border-radius: 3px;
+      background: var(--sky);
+      animation: audio-bar-anim 1.2s ease-in-out infinite alternate;
+    }
+    .audio-bar:nth-child(1) { height: 16px; animation-delay: 0s; opacity: 0.4; }
+    .audio-bar:nth-child(2) { height: 28px; animation-delay: 0.15s; opacity: 0.55; }
+    .audio-bar:nth-child(3) { height: 40px; animation-delay: 0.3s; opacity: 0.85; }
+    .audio-bar:nth-child(4) { height: 32px; animation-delay: 0.45s; opacity: 0.7; }
+    .audio-bar:nth-child(5) { height: 20px; animation-delay: 0.6s; opacity: 0.5; }
+    @keyframes audio-bar-anim {
+      from { transform: scaleY(0.4); }
+      to   { transform: scaleY(1); }
+    }
+    .signal-card-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      font-size: 1.4rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .signal-card-sub {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+    .mini-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .mini-stat {
+      background: rgba(6,14,31,0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 12px;
+      text-align: center;
+    }
+    .mini-stat .msv {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--sky);
+      line-height: 1;
+    }
+    .mini-stat .msl {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 4px;
+    }
+
+    /* ════════════════════════════════════════
+       FEATURES SECTION
+    ════════════════════════════════════════ */
+    #features {
+      padding: 100px 0;
+      background: var(--dark);
+    }
+    .features-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    .features-header .section-sub { margin: 0 auto; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 26px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+      cursor: default;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--sky));
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 16px 48px rgba(0,48,135,0.25);
+      border-color: rgba(0,168,232,0.35);
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(0,48,135,0.4);
+      border: 1px solid rgba(0,168,232,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      color: var(--sky);
+      margin-bottom: 18px;
+      transition: background 0.25s, box-shadow 0.25s;
+    }
+    .feature-card:hover .feature-icon {
+      background: rgba(0,168,232,0.15);
+      box-shadow: 0 0 20px rgba(0,168,232,0.2);
+    }
+    .feature-card h3 {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .feature-card p {
+      font-size: 0.87rem;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .feature-tag {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--sky);
+      opacity: 0.75;
+    }
+
+    /* ════════════════════════════════════════
+       COVERAGE SECTION
+    ════════════════════════════════════════ */
+    #coverage {
+      padding: 100px 0;
+      background: var(--dark2);
+    }
+    .coverage-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 36px;
+      align-items: start;
+    }
+    .zone-list-header {
+      margin-bottom: 20px;
+    }
+    .zone-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .zone-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 16px;
+      cursor: pointer;
+      transition: all 0.22s ease;
+    }
+    .zone-item:hover, .zone-item.active {
+      border-color: rgba(0,168,232,0.45);
+      background: rgba(0,168,232,0.07);
+    }
+    .zone-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .zone-info { flex: 1; min-width: 0; }
+    .zone-name {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      font-size: 0.98rem;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .zone-counties {
+      font-size: 0.73rem;
+      color: var(--muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .zone-arrow {
+      font-size: 0.75rem;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    /* Map */
+    .map-wrap {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+      height: 560px;
+      position: relative;
+    }
+    #coverage-map { width: 100%; height: 100%; }
+    .leaflet-container { background: #0d1b2e !important; }
+    .zone-popup h4 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .zone-popup p {
+      font-size: 0.78rem;
+      color: #aac;
+      margin: 0;
+    }
+    .leaflet-popup-content-wrapper {
+      background: #0f2040 !important;
+      border: 1px solid rgba(0,168,232,0.3) !important;
+      border-radius: 10px !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    }
+    .leaflet-popup-tip-container { display: none; }
+    .leaflet-popup-content { margin: 14px 16px !important; }
+
+    /* ════════════════════════════════════════
+       HOW IT WORKS
+    ════════════════════════════════════════ */
+    #how-it-works {
+      padding: 100px 0;
+      background: var(--dark);
+    }
+    .hiw-header {
+      text-align: center;
+      margin-bottom: 72px;
+    }
+    .hiw-header .section-sub { margin: 0 auto; }
+    .steps-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      position: relative;
+    }
+    .steps-row::before {
+      content: '';
+      position: absolute;
+      top: 28px;
+      left: calc(100% / 12);
+      right: calc(100% / 12);
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--border) 15%, var(--border) 85%, transparent);
+      z-index: 0;
+    }
+    .step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 0 12px;
+      position: relative;
+      z-index: 1;
+    }
+    .step-num {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--card-bg);
+      border: 2px solid var(--sky);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.3rem;
+      color: var(--sky);
+      margin-bottom: 20px;
+      position: relative;
+      transition: all 0.28s ease;
+      box-shadow: 0 0 0 4px rgba(0,168,232,0.08);
+    }
+    .step:hover .step-num {
+      background: var(--sky);
+      color: var(--dark);
+      box-shadow: 0 0 0 4px rgba(0,168,232,0.2), 0 4px 24px rgba(0,168,232,0.3);
+    }
+    .step-icon {
+      font-size: 1.6rem;
+      color: var(--sky);
+      margin-bottom: 16px;
+    }
+    .step h4 {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .step p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ════════════════════════════════════════
+       TECHNOLOGY SECTION
+    ════════════════════════════════════════ */
+    #technology {
+      padding: 100px 0;
+      background: var(--dark2);
+    }
+    .tech-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 14px;
+    }
+    .tech-badge {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 16px;
+      text-align: center;
+      transition: all 0.22s ease;
+    }
+    .tech-badge:hover {
+      border-color: rgba(0,168,232,0.4);
+      background: rgba(0,168,232,0.06);
+      transform: translateY(-2px);
+    }
+    .tech-badge i {
+      font-size: 1.6rem;
+      color: var(--sky);
+      margin-bottom: 10px;
+      display: block;
+    }
+    .tech-badge .tech-name {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+      display: block;
+      margin-bottom: 3px;
+    }
+    .tech-badge .tech-desc {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    /* ════════════════════════════════════════
+       FOOTER
+    ════════════════════════════════════════ */
+    footer {
+      background: #040b18;
+      border-top: 1px solid var(--border);
+      padding-top: 72px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px;
+      padding-bottom: 56px;
+      border-bottom: 1px solid var(--border);
+    }
+    .footer-brand .logo-brand { font-size: 1.4rem; }
+    .footer-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.75;
+      margin-top: 16px;
+      max-width: 280px;
+    }
+    .footer-col h5 {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 18px;
+    }
+    .footer-col ul li {
+      margin-bottom: 10px;
+    }
+    .footer-col ul li a {
+      font-size: 0.875rem;
+      color: var(--muted);
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .footer-col ul li a:hover { color: var(--sky); }
+    .footer-col ul li a i { font-size: 0.75rem; width: 14px; }
+    .footer-bottom {
+      padding: 24px 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-copy {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .footer-copy a { color: var(--sky); }
+    .footer-copy a:hover { text-decoration: underline; }
+    .uf-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+    .uf-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--orange);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: #fff;
+    }
+    .uf-text {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+    .uf-text strong { color: var(--text); font-size: 0.82rem; display: block; }
+
+    /* ════════════════════════════════════════
+       RESPONSIVE
+    ════════════════════════════════════════ */
+    @media (max-width: 1024px) {
+      .about-grid { grid-template-columns: 1fr; }
+      .signal-card { max-width: 480px; margin: 0 auto; }
+      .coverage-grid { grid-template-columns: 1fr; }
+      .map-wrap { height: 420px; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 768px) {
+      .nav-links, .nav-btns { display: none; }
+      .hamburger { display: flex; }
+      .steps-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 36px;
+      }
+      .steps-row::before { display: none; }
+      .step { max-width: 260px; }
+      .tech-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+      .footer-grid { grid-template-columns: 1fr; gap: 36px; }
+      .footer-bottom { flex-direction: column; align-items: flex-start; }
+      .uf-badge { margin-left: 0; }
+      .stat-strip { gap: 0; }
+      .stat-item { min-width: 90px; padding: 16px 8px; }
+    }
+    @media (max-width: 520px) {
+      .hero-btns { flex-direction: column; align-items: stretch; }
+      .hero-btns .btn { justify-content: center; }
+      .stat-strip { display: grid; grid-template-columns: repeat(3,1fr); }
+      .stat-item:nth-child(4), .stat-item:nth-child(5) { border-top: 1px solid var(--border); }
+      .stat-item:nth-child(3) { border-right: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════
+       NAVBAR
+  ═══════════════════════════════════════════ -->
+  <nav id="navbar">
+    <div class="container">
+      <div class="nav-inner">
+        <a href="#" class="nav-logo" aria-label="FPREN Home">
+          <div class="logo-square">FP</div>
+          <div class="logo-text-wrap">
+            <span class="logo-brand">FPREN</span>
+            <span class="logo-subtitle">Florida Public Radio Emergency Network</span>
+          </div>
+        </a>
+        <ul class="nav-links">
+          <li><a href="#about">About</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#coverage">Coverage</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#technology">Technology</a></li>
+        </ul>
+        <div class="nav-btns">
+          <a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener" class="btn btn-outline">
+            <i class="fa-solid fa-radio"></i> Listen Live
+          </a>
+          <a href="https://128.227.67.234/" target="_blank" rel="noopener" class="btn btn-primary">
+            <i class="fa-solid fa-gauge-high"></i> Dashboard
+          </a>
+        </div>
+        <div class="hamburger" id="hamburger" aria-label="Menu" role="button" tabindex="0">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#about"        onclick="closeMobile()">About</a>
+    <a href="#features"     onclick="closeMobile()">Features</a>
+    <a href="#coverage"     onclick="closeMobile()">Coverage</a>
+    <a href="#how-it-works" onclick="closeMobile()">How It Works</a>
+    <a href="#technology"   onclick="closeMobile()">Technology</a>
+    <div class="mobile-btns">
+      <a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener" class="btn btn-outline">
+        <i class="fa-solid fa-radio"></i> Listen Live
+      </a>
+      <a href="https://128.227.67.234/" target="_blank" rel="noopener" class="btn btn-primary">
+        <i class="fa-solid fa-gauge-high"></i> Operator Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       HERO
+  ═══════════════════════════════════════════ -->
+  <section id="hero">
+    <div class="waves-container" aria-hidden="true">
+      <div class="wave-ring"></div>
+      <div class="wave-ring"></div>
+      <div class="wave-ring"></div>
+      <div class="wave-ring"></div>
+      <div class="wave-ring"></div>
+    </div>
+    <div id="particles-container" aria-hidden="true"></div>
+
+    <div class="hero-content container">
+      <div class="hero-badge">
+        <span class="blink-dot"></span>
+        Broadcasting 24 / 7 across Florida
+      </div>
+      <h1 class="hero-h1">
+        Florida Public Radio
+        <span class="line2">Emergency Network</span>
+      </h1>
+      <p class="hero-sub">
+        AI-powered, NWS/IPAWS-integrated emergency broadcasting across all 67 Florida counties.
+        Zone-targeted delivery, automated TTS synthesis, and real-time situational awareness —
+        keeping communities informed when it matters most.
+      </p>
+      <div class="hero-btns">
+        <a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener" class="btn btn-orange btn-lg">
+          <i class="fa-solid fa-play"></i> Listen Live
+        </a>
+        <a href="#features" class="btn btn-primary btn-lg">
+          <i class="fa-solid fa-bolt"></i> Explore Features
+        </a>
+        <a href="https://128.227.67.234/" target="_blank" rel="noopener" class="btn btn-outline btn-lg">
+          <i class="fa-solid fa-gauge-high"></i> Operator Dashboard
+        </a>
+      </div>
+      <div class="stat-strip">
+        <div class="stat-item">
+          <div class="stat-val">24/7</div>
+          <div class="stat-lbl">Live Broadcast</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">9</div>
+          <div class="stat-lbl">Coverage Zones</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">67</div>
+          <div class="stat-lbl">Counties</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">19</div>
+          <div class="stat-lbl">METAR Stations</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">&lt;2m</div>
+          <div class="stat-lbl">Alert Response</div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-cue" aria-hidden="true">
+      <i class="fa-solid fa-chevron-down"></i>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       LIVE STATUS BANNER
+  ═══════════════════════════════════════════ -->
+  <div id="live-status">
+    <div class="container">
+      <div class="status-inner">
+        <div id="status-badge" class="status-badge">
+          <span class="blink-dot"></span>
+          ON AIR
+        </div>
+        <div class="status-info">
+          <strong>FPREN Main Stream</strong>
+          <span id="status-title"> &mdash; Florida Public Radio Emergency Network &bull; 128.227.67.234:8000/fpren</span>
+        </div>
+        <div class="status-listen">
+          <a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener" class="btn btn-outline" style="padding:7px 16px; font-size:0.82rem;">
+            <i class="fa-solid fa-headphones"></i> Listen
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       ABOUT
+  ═══════════════════════════════════════════ -->
+  <section id="about">
+    <div class="container">
+      <div class="about-grid">
+        <!-- Left -->
+        <div class="about-text reveal">
+          <p class="section-label">About FPREN</p>
+          <h2 class="section-title">Built for Florida's<br><span class="sky">Emergency Landscape</span></h2>
+          <p>
+            FPREN is an automated, AI-enhanced public radio emergency broadcasting platform
+            developed at the University of Florida. Designed to bridge the gap between federal alert
+            infrastructure and last-mile community delivery, FPREN monitors NWS and IPAWS feeds
+            continuously and transforms raw alert data into clear, broadcast-ready audio within minutes.
+          </p>
+          <p>
+            The platform operates across 9 geographically distinct Florida broadcast zones &mdash;
+            from the Panhandle to the Florida Keys &mdash; ensuring that emergency messaging reaches
+            the populations most directly at risk. Each zone streams independently, enabling granular
+            targeting of tornado warnings, hurricane advisories, flood alerts, and more.
+          </p>
+          <p>
+            Powered by LLaMA 3.3 70B for script generation, Piper TTS and ElevenLabs for synthesis,
+            and a full R/Shiny monitoring dashboard, FPREN represents a new standard for
+            public emergency communication infrastructure.
+          </p>
+          <div class="pillars">
+            <div class="pillar">
+              <div class="pillar-icon"><i class="fa-solid fa-bolt"></i></div>
+              <div class="pillar-body">
+                <h4>Real-Time Response</h4>
+                <p>NWS and IPAWS feeds polled every 2 minutes. Critical alerts trigger immediate TTS broadcast interruption across all affected zones.</p>
+              </div>
+            </div>
+            <div class="pillar">
+              <div class="pillar-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+              <div class="pillar-body">
+                <h4>Zone-Targeted Delivery</h4>
+                <p>9 Icecast streams mapped to Florida's distinct geographic regions. Alerts are routed only to the zones whose counties are listed in the NWS event.</p>
+              </div>
+            </div>
+            <div class="pillar">
+              <div class="pillar-icon"><i class="fa-solid fa-brain"></i></div>
+              <div class="pillar-body">
+                <h4>AI-Enhanced Broadcasting</h4>
+                <p>LLaMA 3.3 70B running on UF's LiteLLM gateway generates natural-language broadcast scripts tailored to alert severity, affected area, and population context.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Right: signal card -->
+        <div class="reveal" style="transition-delay:0.18s;">
+          <div class="signal-card">
+            <div class="tower-wrap">
+              <i class="fa-solid fa-tower-broadcast tower-icon"></i>
+            </div>
+            <div class="audio-arcs">
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+              <div class="audio-bar"></div>
+            </div>
+            <div class="signal-card-title">Live Broadcast Infrastructure</div>
+            <div class="signal-card-sub">Icecast2 &bull; Multi-zone streaming &bull; 24/7 uptime</div>
+            <div class="mini-stats">
+              <div class="mini-stat">
+                <div class="msv">9</div>
+                <div class="msl">Active Streams</div>
+              </div>
+              <div class="mini-stat">
+                <div class="msv">2m</div>
+                <div class="msl">Poll Interval</div>
+              </div>
+              <div class="mini-stat">
+                <div class="msv">19</div>
+                <div class="msl">METAR Stations</div>
+              </div>
+              <div class="mini-stat">
+                <div class="msv">67</div>
+                <div class="msl">FL Counties</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       FEATURES
+  ═══════════════════════════════════════════ -->
+  <section id="features">
+    <div class="container">
+      <div class="features-header reveal">
+        <p class="section-label">Platform Capabilities</p>
+        <h2 class="section-title">Everything Emergency<br><span class="sky">Broadcasting Demands</span></h2>
+        <p class="section-sub">
+          FPREN integrates federal alert infrastructure, AI language models, census analytics,
+          traffic data, and automated reporting into a single cohesive platform.
+        </p>
+      </div>
+      <div class="features-grid">
+
+        <div class="feature-card reveal">
+          <div class="feature-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+          <h3>NWS &amp; IPAWS Integration</h3>
+          <p>Continuously polls National Weather Service CAP feeds and IPAWS for tornado warnings, hurricane advisories, flood alerts, and all-hazard events. Sub-2-minute ingestion latency.</p>
+          <span class="feature-tag">Core Infrastructure</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.05s;">
+          <div class="feature-icon"><i class="fa-solid fa-microphone-lines"></i></div>
+          <h3>Automated TTS Broadcasting</h3>
+          <p>Alert scripts are synthesized to audio using Piper TTS (offline) and ElevenLabs (cloud) and automatically injected into the active Icecast stream playlist for immediate broadcast.</p>
+          <span class="feature-tag">Audio Engine</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.10s;">
+          <div class="feature-icon"><i class="fa-solid fa-brain"></i></div>
+          <h3>AI Broadcast Scripting</h3>
+          <p>LLaMA 3.3 70B running on UF's LiteLLM gateway generates professional, severity-calibrated broadcast scripts from raw NWS alert data — contextualizing impact for affected populations.</p>
+          <span class="feature-tag">LLaMA 3.3 70B</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.15s;">
+          <div class="feature-icon"><i class="fa-solid fa-tower-cell"></i></div>
+          <h3>Multi-Zone Streaming</h3>
+          <p>9 independent Icecast streams covering Florida's geographic regions: Gainesville, Jacksonville, Orlando, Tampa, Miami, North Florida, Central Florida, South Florida, and All Florida.</p>
+          <span class="feature-tag">9 Streams</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.20s;">
+          <div class="feature-icon"><i class="fa-solid fa-chart-bar"></i></div>
+          <h3>Real-Time Monitoring Dashboard</h3>
+          <p>Full-featured R/Shiny operator dashboard with live alert feeds, stream health monitoring, METAR weather data, airport delay status, Waze traffic maps, and census analytics.</p>
+          <span class="feature-tag">R / Shiny</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.25s;">
+          <div class="feature-icon"><i class="fa-solid fa-people-group"></i></div>
+          <h3>Population Impact Analysis</h3>
+          <p>US Census ACS integration provides real-time demographic context for active alerts — total population, vulnerable groups, and community characteristics for affected counties.</p>
+          <span class="feature-tag">US Census ACS</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.05s;">
+          <div class="feature-icon"><i class="fa-solid fa-file-shield"></i></div>
+          <h3>Business Continuity Planning</h3>
+          <p>Automated PDF Business Continuity Plan generation tailored to operator profession — County Emergency Manager, City Administrator, EOC Coordinator, FEMA Liaison, and more.</p>
+          <span class="feature-tag">PDF Reports</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.10s;">
+          <div class="feature-icon"><i class="fa-solid fa-car-burst"></i></div>
+          <h3>Waze Traffic Integration</h3>
+          <p>Live Waze CCP traffic incident data mapped by county, with severity classification, incident type analysis, and evacuation route monitoring during active emergency events.</p>
+          <span class="feature-tag">Waze CCP</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.15s;">
+          <div class="feature-icon"><i class="fa-solid fa-cloud-sun"></i></div>
+          <h3>19-Station METAR Network</h3>
+          <p>Real-time aviation weather observations from 19 Florida METAR stations including KJAX, KTLH, KGNV, KMCO, KTPA, KMIA, KRSW, KEYW, KPNS, and more — parsed and displayed live.</p>
+          <span class="feature-tag">ASOS / AWOS</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.20s;">
+          <div class="feature-icon"><i class="fa-solid fa-lock"></i></div>
+          <h3>Secure Operator Access</h3>
+          <p>Role-based access control with three tiers: Viewer (read-only), Operator (full platform access), and Administrator. Credential management with secure session handling via Nginx/R Shiny.</p>
+          <span class="feature-tag">RBAC</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.25s;">
+          <div class="feature-icon"><i class="fa-solid fa-file-pdf"></i></div>
+          <h3>Automated PDF Reporting</h3>
+          <p>R Markdown / TinyTeX pipeline generates professional PDF reports for NWS alert summaries, county alert histories, weather trends, and census impact assessments on demand or via email.</p>
+          <span class="feature-tag">R Markdown</span>
+        </div>
+
+        <div class="feature-card reveal" style="transition-delay:0.30s;">
+          <div class="feature-icon"><i class="fa-solid fa-route"></i></div>
+          <h3>Evacuation Route Intelligence</h3>
+          <p>Automated identification and status tracking of primary evacuation corridors using Waze incident data — flagging blockages, delays, and alternative routes in real time during declared emergencies.</p>
+          <span class="feature-tag">Situational Awareness</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       COVERAGE
+  ═══════════════════════════════════════════ -->
+  <section id="coverage">
+    <div class="container">
+      <div class="reveal" style="text-align:center; margin-bottom:56px;">
+        <p class="section-label">Geographic Reach</p>
+        <h2 class="section-title">9 Broadcast Zones<br><span class="sky">Covering All of Florida</span></h2>
+        <p class="section-sub" style="margin:0 auto;">
+          FPREN divides Florida into 9 targeted broadcast zones, each with its own independent
+          Icecast stream. Click any zone to explore its coverage area on the map.
+        </p>
+      </div>
+      <div class="coverage-grid">
+        <!-- Zone List -->
+        <div class="reveal">
+          <div class="zone-list-header">
+            <p style="font-size:0.8rem; color:var(--muted); margin-bottom:8px;">
+              <i class="fa-solid fa-hand-pointer" style="color:var(--sky);"></i>&nbsp; Click a zone to zoom the map
+            </p>
+          </div>
+          <div class="zone-list" id="zone-list">
+            <div class="zone-item active" data-zone="gainesville" onclick="flyToZone('gainesville', this)">
+              <span class="zone-dot" style="background:#00c8ff;"></span>
+              <div class="zone-info">
+                <div class="zone-name">Gainesville / North Central</div>
+                <div class="zone-counties">Alachua, Bradford, Gilchrist, Levy, Union</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="jacksonville" onclick="flyToZone('jacksonville', this)">
+              <span class="zone-dot" style="background:#22d45a;"></span>
+              <div class="zone-info">
+                <div class="zone-name">Jacksonville / NE Florida</div>
+                <div class="zone-counties">Duval, Clay, Nassau, St. Johns, Baker</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="orlando" onclick="flyToZone('orlando', this)">
+              <span class="zone-dot" style="background:#f5c518;"></span>
+              <div class="zone-info">
+                <div class="zone-name">Orlando / East Central</div>
+                <div class="zone-counties">Orange, Seminole, Osceola, Brevard, Volusia</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="tampa" onclick="flyToZone('tampa', this)">
+              <span class="zone-dot" style="background:#ff7e47;"></span>
+              <div class="zone-info">
+                <div class="zone-name">Tampa Bay</div>
+                <div class="zone-counties">Hillsborough, Pinellas, Pasco, Hernando</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="miami" onclick="flyToZone('miami', this)">
+              <span class="zone-dot" style="background:#e05a10;"></span>
+              <div class="zone-info">
+                <div class="zone-name">Miami / Southeast</div>
+                <div class="zone-counties">Miami-Dade, Broward, Monroe, Palm Beach</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="north_florida" onclick="flyToZone('north_florida', this)">
+              <span class="zone-dot" style="background:#b47dff;"></span>
+              <div class="zone-info">
+                <div class="zone-name">North Florida / Panhandle</div>
+                <div class="zone-counties">Escambia, Santa Rosa, Okaloosa, Leon, Gadsden</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="central_florida" onclick="flyToZone('central_florida', this)">
+              <span class="zone-dot" style="background:#00e5c8;"></span>
+              <div class="zone-info">
+                <div class="zone-name">Central Florida</div>
+                <div class="zone-counties">Lake, Marion, Citrus, Sumter, Polk, Highlands</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="south_florida" onclick="flyToZone('south_florida', this)">
+              <span class="zone-dot" style="background:#ff4d6d;"></span>
+              <div class="zone-info">
+                <div class="zone-name">South Florida / Southwest</div>
+                <div class="zone-counties">Lee, Collier, Charlotte, Hendry, Glades</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+            <div class="zone-item" data-zone="all_florida" onclick="flyToZone('all_florida', this)">
+              <span class="zone-dot" style="background:#8fa3bc;"></span>
+              <div class="zone-info">
+                <div class="zone-name">All Florida (Statewide)</div>
+                <div class="zone-counties">All 67 counties — major events &amp; state emergencies</div>
+              </div>
+              <span class="zone-arrow"><i class="fa-solid fa-location-crosshairs"></i></span>
+            </div>
+          </div>
+        </div>
+        <!-- Map -->
+        <div class="reveal" style="transition-delay:0.18s;">
+          <div class="map-wrap">
+            <div id="coverage-map"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       HOW IT WORKS
+  ═══════════════════════════════════════════ -->
+  <section id="how-it-works">
+    <div class="container">
+      <div class="hiw-header reveal">
+        <p class="section-label">Workflow</p>
+        <h2 class="section-title">From Alert to Airwaves<br><span class="sky">in Under Two Minutes</span></h2>
+        <p class="section-sub">
+          FPREN's fully automated pipeline ingests federal alert data, classifies it with AI,
+          synthesizes audio, and routes it to the appropriate zone streams — with zero manual intervention.
+        </p>
+      </div>
+      <div class="steps-row">
+        <div class="step reveal">
+          <div class="step-num">1</div>
+          <div class="step-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+          <h4>Alert Ingestion</h4>
+          <p>NWS CAP &amp; IPAWS feeds polled every 2 minutes. New alerts extracted and queued for processing.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:0.1s;">
+          <div class="step-num">2</div>
+          <div class="step-icon"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+          <h4>AI Classification</h4>
+          <p>LLaMA 3.3 70B classifies alert severity, identifies affected counties, and assesses population impact.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:0.2s;">
+          <div class="step-num">3</div>
+          <div class="step-icon"><i class="fa-solid fa-pen-fancy"></i></div>
+          <h4>Script Generation</h4>
+          <p>AI drafts a clear, professional broadcast script calibrated to alert type, severity, and audience.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:0.3s;">
+          <div class="step-num">4</div>
+          <div class="step-icon"><i class="fa-solid fa-waveform-lines"></i></div>
+          <h4>TTS Synthesis</h4>
+          <p>Piper TTS or ElevenLabs converts the script to broadcast-quality audio and saves to the zone queue.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:0.4s;">
+          <div class="step-num">5</div>
+          <div class="step-icon"><i class="fa-solid fa-code-branch"></i></div>
+          <h4>Zone Routing</h4>
+          <p>Alert-affected counties are mapped to Icecast zones. Audio is queued at Priority 1 for immediate playback.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:0.5s;">
+          <div class="step-num">6</div>
+          <div class="step-icon"><i class="fa-solid fa-radio"></i></div>
+          <h4>Live Broadcast</h4>
+          <p>Icecast serves the alert audio to all listeners in affected zones. Dashboard confirms broadcast completion.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       TECHNOLOGY
+  ═══════════════════════════════════════════ -->
+  <section id="technology">
+    <div class="container">
+      <div class="tech-header reveal">
+        <p class="section-label">Technology Stack</p>
+        <h2 class="section-title">Built on Battle-Tested<br><span class="sky">Open Infrastructure</span></h2>
+        <p class="section-sub" style="margin:0 auto;">
+          FPREN integrates a carefully chosen stack of open-source, federal, and academic tools
+          to deliver reliable, scalable emergency broadcasting.
+        </p>
+      </div>
+      <div class="tech-grid">
+        <div class="tech-badge reveal">
+          <i class="fa-brands fa-python"></i>
+          <span class="tech-name">Python 3</span>
+          <span class="tech-desc">Alert processing &amp; automation</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.05s;">
+          <i class="fa-solid fa-chart-simple"></i>
+          <span class="tech-name">R / Shiny</span>
+          <span class="tech-desc">Operator monitoring dashboard</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.10s;">
+          <i class="fa-solid fa-database"></i>
+          <span class="tech-name">MongoDB</span>
+          <span class="tech-desc">Alert &amp; event persistence</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.15s;">
+          <i class="fa-solid fa-tower-broadcast"></i>
+          <span class="tech-name">Icecast2</span>
+          <span class="tech-desc">Multi-zone audio streaming</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.20s;">
+          <i class="fa-solid fa-microphone"></i>
+          <span class="tech-name">Piper TTS</span>
+          <span class="tech-desc">Offline neural TTS engine</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.25s;">
+          <i class="fa-solid fa-waveform-lines"></i>
+          <span class="tech-name">ElevenLabs</span>
+          <span class="tech-desc">Cloud TTS synthesis</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.05s;">
+          <i class="fa-solid fa-brain"></i>
+          <span class="tech-name">LLaMA 3.3 70B</span>
+          <span class="tech-desc">AI broadcast scripting</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.10s;">
+          <i class="fa-solid fa-flask"></i>
+          <span class="tech-name">Flask</span>
+          <span class="tech-desc">Internal API &amp; webhooks</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.15s;">
+          <i class="fa-solid fa-file-pdf"></i>
+          <span class="tech-name">R Markdown / TinyTeX</span>
+          <span class="tech-desc">Automated PDF reporting</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.20s;">
+          <i class="fa-solid fa-gears"></i>
+          <span class="tech-name">systemd</span>
+          <span class="tech-desc">Service management &amp; watchdog</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.25s;">
+          <i class="fa-solid fa-server"></i>
+          <span class="tech-name">Nginx</span>
+          <span class="tech-desc">Reverse proxy &amp; SSL termination</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.05s;">
+          <i class="fa-solid fa-cloud-bolt"></i>
+          <span class="tech-name">NWS / IPAWS API</span>
+          <span class="tech-desc">Federal alert data feeds</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.10s;">
+          <i class="fa-solid fa-car"></i>
+          <span class="tech-name">Waze CCP</span>
+          <span class="tech-desc">Live traffic &amp; incident data</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.15s;">
+          <i class="fa-solid fa-people-roof"></i>
+          <span class="tech-name">US Census ACS</span>
+          <span class="tech-desc">Population impact analytics</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.20s;">
+          <i class="fa-brands fa-ubuntu"></i>
+          <span class="tech-name">Ubuntu 22.04</span>
+          <span class="tech-desc">Production server OS</span>
+        </div>
+        <div class="tech-badge reveal" style="transition-delay:0.25s;">
+          <i class="fa-solid fa-network-wired"></i>
+          <span class="tech-name">UF LiteLLM</span>
+          <span class="tech-desc">University of Florida AI gateway</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════ -->
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <!-- Brand -->
+        <div class="footer-brand">
+          <div class="nav-logo">
+            <div class="logo-square">FP</div>
+            <div class="logo-text-wrap">
+              <span class="logo-brand">FPREN</span>
+              <span class="logo-subtitle">Florida Public Radio Emergency Network</span>
+            </div>
+          </div>
+          <p class="footer-desc">
+            An AI-powered, NWS/IPAWS-integrated emergency broadcasting platform
+            covering all 67 Florida counties across 9 independent broadcast zones.
+            Developed at the University of Florida.
+          </p>
+        </div>
+        <!-- Platform -->
+        <div class="footer-col">
+          <h5>Platform</h5>
+          <ul>
+            <li><a href="#about"><i class="fa-solid fa-circle-info"></i> About FPREN</a></li>
+            <li><a href="#features"><i class="fa-solid fa-bolt"></i> Features</a></li>
+            <li><a href="#coverage"><i class="fa-solid fa-map"></i> Coverage Map</a></li>
+            <li><a href="#how-it-works"><i class="fa-solid fa-diagram-project"></i> How It Works</a></li>
+            <li><a href="#technology"><i class="fa-solid fa-microchip"></i> Technology Stack</a></li>
+          </ul>
+        </div>
+        <!-- Live Streams -->
+        <div class="footer-col">
+          <h5>Live Streams</h5>
+          <ul>
+            <li><a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener"><i class="fa-solid fa-radio"></i> All Florida</a></li>
+            <li><a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener"><i class="fa-solid fa-location-dot"></i> Gainesville</a></li>
+            <li><a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener"><i class="fa-solid fa-location-dot"></i> Jacksonville</a></li>
+            <li><a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener"><i class="fa-solid fa-location-dot"></i> Tampa Bay</a></li>
+            <li><a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener"><i class="fa-solid fa-location-dot"></i> Miami / SE Florida</a></li>
+          </ul>
+        </div>
+        <!-- Operator -->
+        <div class="footer-col">
+          <h5>Operators</h5>
+          <ul>
+            <li><a href="https://128.227.67.234/" target="_blank" rel="noopener"><i class="fa-solid fa-gauge-high"></i> Operator Dashboard</a></li>
+            <li><a href="https://128.227.67.234/" target="_blank" rel="noopener"><i class="fa-solid fa-map-location"></i> Coverage &amp; Zones</a></li>
+            <li><a href="https://128.227.67.234/" target="_blank" rel="noopener"><i class="fa-solid fa-file-pdf"></i> Generate Reports</a></li>
+            <li><a href="https://128.227.67.234/" target="_blank" rel="noopener"><i class="fa-solid fa-satellite-dish"></i> Stream Status</a></li>
+            <li><a href="https://128.227.67.234/" target="_blank" rel="noopener"><i class="fa-solid fa-key"></i> Secure Login</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p class="footer-copy">
+          &copy; 2025&ndash;2026 FPREN &mdash; Florida Public Radio Emergency Network.
+          Developed at the <a href="https://www.ufl.edu" target="_blank" rel="noopener">University of Florida</a>.
+          Emergency information is supplementary only &mdash; always follow official directives.
+        </p>
+        <div class="uf-badge">
+          <div class="uf-circle">UF</div>
+          <div class="uf-text">
+            <strong>University of Florida</strong>
+            IFAS / College of Journalism
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════
+       SCRIPTS
+  ═══════════════════════════════════════════ -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  // ── Particles ──────────────────────────────────────────────────────────────
+  (function generateParticles() {
+    const container = document.getElementById('particles-container');
+    for (let i = 0; i < 28; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random() * 3 + 1.5;
+      const left = Math.random() * 100;
+      const bottom = Math.random() * 60;
+      const duration = Math.random() * 12 + 8;
+      const delay = Math.random() * 10;
+      const opacity = Math.random() * 0.5 + 0.2;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${left}%; bottom:${bottom}%;
+        opacity:0;
+        animation-duration:${duration}s;
+        animation-delay:${delay}s;
+      `;
+      // Vary color between sky blue and a slightly lighter tone
+      if (i % 3 === 0) p.style.background = '#00c8ff';
+      else if (i % 5 === 0) p.style.background = 'rgba(0,168,232,0.7)';
+      container.appendChild(p);
+    }
+  })();
+
+  // ── IntersectionObserver for .reveal ──────────────────────────────────────
+  (function initReveal() {
+    const els = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    els.forEach(el => observer.observe(el));
+  })();
+
+  // ── Navbar scroll ─────────────────────────────────────────────────────────
+  (function initNavbar() {
+    const nav = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 40);
+    }, { passive: true });
+  })();
+
+  // ── Hamburger menu ────────────────────────────────────────────────────────
+  const hamburger  = document.getElementById('hamburger');
+  const mobileMenu = document.getElementById('mobile-menu');
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('open');
+    mobileMenu.classList.toggle('open');
+    document.body.style.overflow = mobileMenu.classList.contains('open') ? 'hidden' : '';
+  });
+  hamburger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') hamburger.click(); });
+  function closeMobile() {
+    hamburger.classList.remove('open');
+    mobileMenu.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ── Stream status polling ─────────────────────────────────────────────────
+  function updateStreamStatus(data) {
+    const badge = document.getElementById('status-badge');
+    const title = document.getElementById('status-title');
+    if (data && data.online) {
+      badge.className = 'status-badge';
+      badge.innerHTML = '<span class="blink-dot"></span> ON AIR';
+      const info = data.title || 'Florida Public Radio Emergency Network';
+      title.textContent = ' \u2014 ' + info + ' \u2022 128.227.67.234:8000/fpren';
+    } else {
+      badge.className = 'status-badge offline';
+      badge.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> STREAM OFFLINE';
+      title.textContent = ' \u2014 Stream temporarily unavailable. Reconnecting\u2026';
+    }
+  }
+  function pollStreamStatus() {
+    fetch('/stream-status', { cache: 'no-store', signal: AbortSignal.timeout(8000) })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => updateStreamStatus(d))
+      .catch(() => { /* keep last known state */ });
+  }
+  pollStreamStatus();
+  setInterval(pollStreamStatus, 30000);
+
+  // ── Leaflet Map ───────────────────────────────────────────────────────────
+  const map = L.map('coverage-map', {
+    center: [27.9, -81.7],
+    zoom: 6,
+    zoomControl: true,
+    attributionControl: true,
+    scrollWheelZoom: false
+  });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Zone data: approximate bounding polygons for visual overlay
+  const ZONES = {
+    gainesville: {
+      name: 'Gainesville / North Central',
+      color: '#00c8ff',
+      center: [29.65, -82.33],
+      zoom: 9,
+      bounds: [[29.1,-83.2],[29.1,-81.6],[30.4,-81.6],[30.4,-83.2]]
+    },
+    jacksonville: {
+      name: 'Jacksonville / NE Florida',
+      color: '#22d45a',
+      center: [30.33, -81.66],
+      zoom: 9,
+      bounds: [[29.8,-82.4],[29.8,-81.0],[30.9,-81.0],[30.9,-82.4]]
+    },
+    orlando: {
+      name: 'Orlando / East Central',
+      color: '#f5c518',
+      center: [28.38, -81.28],
+      zoom: 8,
+      bounds: [[27.5,-81.9],[27.5,-80.5],[29.2,-80.5],[29.2,-81.9]]
+    },
+    tampa: {
+      name: 'Tampa Bay',
+      color: '#ff7e47',
+      center: [27.95, -82.45],
+      zoom: 9,
+      bounds: [[27.4,-83.0],[27.4,-82.0],[28.5,-82.0],[28.5,-83.0]]
+    },
+    miami: {
+      name: 'Miami / Southeast',
+      color: '#e05a10',
+      center: [25.77, -80.19],
+      zoom: 8,
+      bounds: [[24.4,-81.9],[24.4,-80.0],[26.8,-80.0],[26.8,-81.9]]
+    },
+    north_florida: {
+      name: 'North Florida / Panhandle',
+      color: '#b47dff',
+      center: [30.45, -86.2],
+      zoom: 7,
+      bounds: [[29.9,-87.7],[29.9,-84.0],[31.0,-84.0],[31.0,-87.7]]
+    },
+    central_florida: {
+      name: 'Central Florida',
+      color: '#00e5c8',
+      center: [28.6, -82.1],
+      zoom: 8,
+      bounds: [[27.8,-82.8],[27.8,-81.2],[29.3,-81.2],[29.3,-82.8]]
+    },
+    south_florida: {
+      name: 'South Florida / Southwest',
+      color: '#ff4d6d',
+      center: [26.5, -81.5],
+      zoom: 8,
+      bounds: [[25.8,-82.4],[25.8,-80.8],[27.2,-80.8],[27.2,-82.4]]
+    },
+    all_florida: {
+      name: 'All Florida (Statewide)',
+      color: '#8fa3bc',
+      center: [27.9, -81.7],
+      zoom: 6,
+      bounds: [[24.3,-87.7],[24.3,-79.9],[31.1,-79.9],[31.1,-87.7]]
+    }
+  };
+
+  const zonePolygons = {};
+
+  Object.entries(ZONES).forEach(([key, z]) => {
+    const coords = z.bounds.map(b => [b[0], b[1]]);
+    const poly = L.polygon(coords, {
+      color: z.color,
+      fillColor: z.color,
+      fillOpacity: 0.08,
+      weight: 1.5,
+      opacity: 0.55
+    }).addTo(map);
+    poly.bindPopup(`<div class="zone-popup"><h4>${z.name}</h4><p>Click the zone list to zoom to this area.</p></div>`);
+    poly.on('mouseover', function() {
+      this.setStyle({ fillOpacity: 0.18, weight: 2.2, opacity: 0.9 });
+    });
+    poly.on('mouseout', function() {
+      this.setStyle({ fillOpacity: 0.08, weight: 1.5, opacity: 0.55 });
+    });
+    zonePolygons[key] = poly;
+  });
+
+  // City markers
+  const cities = [
+    { name: 'Jacksonville',  lat: 30.33, lon: -81.66, zone: 'jacksonville' },
+    { name: 'Tallahassee',   lat: 30.44, lon: -84.28, zone: 'north_florida' },
+    { name: 'Gainesville',   lat: 29.65, lon: -82.33, zone: 'gainesville' },
+    { name: 'Orlando',       lat: 28.54, lon: -81.38, zone: 'orlando' },
+    { name: 'Tampa',         lat: 27.95, lon: -82.46, zone: 'tampa' },
+    { name: 'Miami',         lat: 25.77, lon: -80.19, zone: 'miami' },
+    { name: 'Fort Myers',    lat: 26.64, lon: -81.87, zone: 'south_florida' },
+    { name: 'Key West',      lat: 24.56, lon: -81.78, zone: 'miami' },
+    { name: 'Pensacola',     lat: 30.42, lon: -87.22, zone: 'north_florida' }
+  ];
+
+  cities.forEach(c => {
+    const zone = ZONES[c.zone];
+    const color = zone ? zone.color : '#00a8e8';
+    const html = `<div style="
+      width:10px; height:10px; border-radius:50%;
+      background:${color};
+      border:2px solid rgba(255,255,255,0.6);
+      box-shadow:0 0 8px ${color};
+    "></div>`;
+    const icon = L.divIcon({ html, className: '', iconSize: [10,10], iconAnchor: [5,5] });
+    L.marker([c.lat, c.lon], { icon })
+      .addTo(map)
+      .bindTooltip(c.name, { permanent: false, className: 'leaflet-tooltip-dark', direction: 'top', offset: [0,-8] });
+  });
+
+  // Zone list click handler
+  function flyToZone(zoneKey, el) {
+    const zone = ZONES[zoneKey];
+    if (!zone) return;
+    // Update active class
+    document.querySelectorAll('.zone-item').forEach(i => i.classList.remove('active'));
+    if (el) el.classList.add('active');
+    // Fly map
+    if (zoneKey === 'all_florida') {
+      map.flyTo([27.9, -81.7], 6, { duration: 1.2, easeLinearity: 0.4 });
+    } else {
+      map.flyTo(zone.center, zone.zoom, { duration: 1.2, easeLinearity: 0.4 });
+    }
+    // Highlight polygon
+    Object.values(zonePolygons).forEach(p => p.setStyle({ fillOpacity: 0.06, weight: 1.5, opacity: 0.4 }));
+    if (zonePolygons[zoneKey]) {
+      zonePolygons[zoneKey].setStyle({ fillOpacity: 0.22, weight: 2.5, opacity: 1 });
+    }
+  }
+
+  // Ensure map renders correctly after layout
+  setTimeout(() => map.invalidateSize(), 400);
+
+  </script>
+</body>
+</html>
