@@ -1312,8 +1312,16 @@ ui <- tagList(
                 DT::dataTableOutput("user_assets_table"),
                 br(),
                 fluidRow(
-                  column(6,
-                    actionButton("btn_delete_asset", "Remove Selected Asset",
+                  column(3,
+                    actionButton("btn_asset_move_up", icon("arrow-up"), " Move Up",
+                                 class = "btn-default btn-sm")
+                  ),
+                  column(3,
+                    actionButton("btn_asset_move_down", icon("arrow-down"), " Move Down",
+                                 class = "btn-default btn-sm")
+                  ),
+                  column(3,
+                    actionButton("btn_delete_asset", "Remove Selected",
                                  class = "btn-warning btn-sm", icon = icon("trash"))
                   )
                 ),
@@ -5183,28 +5191,66 @@ server <- function(input, output, session) {
   })
 
   # Load assets table when user is selected or refresh triggered
+  # Helper: load assets for a user from MongoDB, sorted by priority
+  .load_user_assets <- function(uname) {
+    col <- tryCatch(mongo(collection="users", db="weather_rss", url=MONGO_URI), error=function(e) NULL)
+    if (is.null(col)) return(NULL)
+    tryCatch({
+      u <- col$find(sprintf('{"username":"%s"}', uname), fields='{"assets":1,"_id":0}')
+      col$disconnect()
+      if (nrow(u) == 0 || is.null(u$assets) || length(u$assets[[1]]) == 0) return(data.frame())
+      assets <- u$assets[[1]]
+      if (!is.data.frame(assets)) assets <- as.data.frame(do.call(rbind, lapply(assets, as.data.frame)))
+      # Ensure priority column exists; default to row order
+      if (!"priority" %in% names(assets))
+        assets$priority <- seq_len(nrow(assets))
+      else
+        assets$priority <- as.integer(assets$priority)
+      assets[order(assets$priority), ]
+    }, error=function(e) {
+      tryCatch(col$disconnect(), error=function(e2) NULL)
+      NULL
+    })
+  }
+
+  # Helper: save full assets array back to MongoDB (used after reordering)
+  .save_user_assets <- function(uname, assets_df) {
+    col <- tryCatch(mongo(collection="users", db="weather_rss", url=MONGO_URI), error=function(e) NULL)
+    if (is.null(col)) return(FALSE)
+    tryCatch({
+      assets_list <- lapply(seq_len(nrow(assets_df)), function(i) as.list(assets_df[i, ]))
+      col$update(
+        sprintf('{"username":"%s"}', uname),
+        sprintf('{"$set":{"assets":%s}}', jsonlite::toJSON(assets_list, auto_unbox=TRUE))
+      )
+      col$disconnect()
+      TRUE
+    }, error=function(e) {
+      tryCatch(col$disconnect(), error=function(e2) NULL)
+      FALSE
+    })
+  }
+
   output$user_assets_table <- DT::renderDataTable({
     asset_mgmt_rv()
     uname <- input$asset_mgmt_user
     if (is.null(uname) || nchar(uname) == 0)
       return(data.frame(Message="Select a user above to view their assets"))
-    col <- tryCatch(mongo(collection="users", db="weather_rss", url=MONGO_URI), error=function(e) NULL)
-    if (is.null(col)) return(data.frame(Error="DB unavailable"))
-    tryCatch({
-      u <- col$find(sprintf('{"username":"%s"}', uname), fields='{"assets":1,"_id":0}')
-      col$disconnect()
-      if (nrow(u) == 0 || is.null(u$assets) || length(u$assets[[1]]) == 0)
-        return(data.frame(Message="No assets registered for this user"))
-      assets <- u$assets[[1]]
-      if (!is.data.frame(assets)) assets <- as.data.frame(do.call(rbind, assets))
-      keep <- intersect(c("asset_name","address","city","zip","asset_type",
-                          "lat","lon","nearest_airport_icao","notes","asset_id"), names(assets))
-      assets[, keep, drop=FALSE]
-    }, error=function(e) {
-      tryCatch(col$disconnect(), error=function(e2) NULL)
-      data.frame(Error=conditionMessage(e))
-    })
-  }, selection="single", options=list(pageLength=10, scrollX=TRUE), rownames=FALSE)
+    assets <- .load_user_assets(uname)
+    if (is.null(assets) || nrow(assets) == 0)
+      return(data.frame(Message="No assets registered for this user"))
+    keep <- intersect(c("priority","asset_name","asset_type","city","address",
+                        "nearest_airport_icao","notes","asset_id"), names(assets))
+    df <- assets[, keep, drop=FALSE]
+    # Rename priority column for display
+    names(df)[names(df)=="priority"] <- "Priority"
+    names(df)[names(df)=="asset_name"] <- "Name"
+    names(df)[names(df)=="asset_type"] <- "Type"
+    names(df)[names(df)=="city"] <- "City"
+    DT::datatable(df, selection="single",
+                  options=list(pageLength=10, scrollX=TRUE, order=list(list(0,"asc"))),
+                  rownames=FALSE)
+  })
 
   # Shared geocode helper — calls /api/lookup/geocode with address + zip
   .do_geocode <- function(address, zip) {
@@ -5310,6 +5356,10 @@ server <- function(input, output, session) {
       }, error = function(e) nearby)
     }
 
+    # Priority = one after last existing asset
+    existing <- .load_user_assets(uname)
+    next_priority <- if (!is.null(existing) && nrow(existing) > 0) max(existing$priority, na.rm=TRUE) + 1L else 1L
+
     new_asset <- list(
       asset_id             = paste0(sample(c(letters, LETTERS, 0:9), 16, replace=TRUE), collapse=""),
       asset_name           = aname,
@@ -5322,6 +5372,7 @@ server <- function(input, output, session) {
       nearest_airport_name = apt_name,
       asset_type           = input$new_asset_type %||% "Facility",
       notes                = trimws(input$new_asset_notes %||% ""),
+      priority             = next_priority,
       nearby_fire_stations = nearby$fire_stations,
       nearby_hospitals     = nearby$hospitals,
       nearby_supermarkets  = nearby$supermarkets,
@@ -5383,6 +5434,41 @@ server <- function(input, output, session) {
       tryCatch(col$disconnect(), error=function(e2) NULL)
       asset_mgmt_msg(paste("Error:", conditionMessage(e)))
     })
+  })
+
+  # Move asset up/down in priority order
+  .move_asset <- function(uname, sel_row, direction) {
+    if (is.null(uname) || nchar(uname) == 0 || is.null(sel_row) || length(sel_row) == 0) {
+      asset_mgmt_msg("Select a user and an asset row first."); return()
+    }
+    assets <- .load_user_assets(uname)  # already sorted by priority
+    if (is.null(assets) || nrow(assets) < 2) { asset_mgmt_msg("Nothing to reorder."); return() }
+    n <- nrow(assets)
+    swap_with <- sel_row + direction
+    if (swap_with < 1 || swap_with > n) { asset_mgmt_msg("Already at the top/bottom."); return() }
+    # Swap priorities
+    tmp <- assets$priority[sel_row]
+    assets$priority[sel_row]    <- assets$priority[swap_with]
+    assets$priority[swap_with]  <- tmp
+    # Re-sort and normalise to 1..n
+    assets <- assets[order(assets$priority), ]
+    assets$priority <- seq_len(n)
+    if (.save_user_assets(uname, assets)) {
+      asset_mgmt_rv(asset_mgmt_rv() + 1)
+      asset_mgmt_msg(paste0("Asset priority updated."))
+    } else {
+      asset_mgmt_msg("DB error saving priority.")
+    }
+  }
+
+  observeEvent(input$btn_asset_move_up, {
+    if (!isTRUE(auth_rv$role == "admin")) return()
+    .move_asset(input$asset_mgmt_user, input$user_assets_table_rows_selected, -1L)
+  })
+
+  observeEvent(input$btn_asset_move_down, {
+    if (!isTRUE(auth_rv$role == "admin")) return()
+    .move_asset(input$asset_mgmt_user, input$user_assets_table_rows_selected, +1L)
   })
 
   # Nearby resources panel — shown when a row is selected in the assets table
@@ -5728,7 +5814,8 @@ server <- function(input, output, session) {
   })
 
   # Helper: render one BCP PDF for a single asset
-  .render_one_bcp <- function(uname, asset, tmpl_key, output_dir, timestamp) {
+  # all_assets: data frame of all user assets (sorted by priority); used for cross-asset section
+  .render_one_bcp <- function(uname, asset, tmpl_key, output_dir, timestamp, all_assets = NULL) {
     template_map <- list(
       general       = "/home/ufuser/Fpren-main/reports/business_continuity_report.Rmd",
       broadcast     = "/home/ufuser/Fpren-main/reports/bcp_broadcast_facility.Rmd",
@@ -5745,6 +5832,16 @@ server <- function(input, output, session) {
     lon <- tryCatch(as.numeric(asset$lon), error=function(e) -82.33)
     if (is.na(lat)) lat <- 29.65
     if (is.na(lon)) lon <- -82.33
+
+    # Build JSON of all other assets (excluding this one) for the cross-asset section
+    other_assets_json <- tryCatch({
+      this_id <- as.character(asset$asset_id %||% "")
+      if (!is.null(all_assets) && is.data.frame(all_assets) && nrow(all_assets) > 0) {
+        others <- all_assets[as.character(all_assets$asset_id) != this_id, , drop=FALSE]
+        if (nrow(others) > 0) jsonlite::toJSON(others, auto_unbox=TRUE) else "[]"
+      } else "[]"
+    }, error=function(e) "[]")
+
     tmp <- file.path(tempdir(), paste0("bcp_", safe_name, "_", format(Sys.time(),"%H%M%S")))
     dir.create(tmp, showWarnings=FALSE)
     withr::with_dir(tmp, rmarkdown::render(
@@ -5762,6 +5859,7 @@ server <- function(input, output, session) {
         nearest_airport_name = asset$nearest_airport_name %||% "Gainesville Regional",
         asset_type           = asset$asset_type          %||% "Facility",
         notes                = asset$notes               %||% "",
+        other_assets_json    = other_assets_json,
         mongo_uri            = MONGO_URI, days_back = 30L
       ), quiet = TRUE
     ))
@@ -5800,13 +5898,20 @@ server <- function(input, output, session) {
           assets_i <- if (!is.null(row$assets)) row$assets[[1]] else NULL
           if (is.null(assets_i) || (is.data.frame(assets_i) && nrow(assets_i) == 0)) next
 
+          # Sort by priority if available
+          if (is.data.frame(assets_i) && "priority" %in% names(assets_i))
+            assets_i <- assets_i[order(as.integer(assets_i$priority)), ]
+
+          all_assets_i <- assets_i  # pass full sorted set to each render call
+
           asset_list <- if (is.data.frame(assets_i)) {
             lapply(seq_len(nrow(assets_i)), function(j) as.list(assets_i[j, ]))
           } else as.list(assets_i)
 
           for (asset in asset_list) {
             tryCatch({
-              f <- .render_one_bcp(uname_i, asset, tmpl_i, output_dir, timestamp)
+              f <- .render_one_bcp(uname_i, asset, tmpl_i, output_dir, timestamp,
+                                   all_assets = all_assets_i)
               generated <- c(generated, basename(f))
               if (isTRUE(input$bcp_email) && !is.null(row$email) && nchar(as.character(row$email)) > 0) {
                 send_fpren_email(as.character(row$email),
@@ -5854,13 +5959,15 @@ server <- function(input, output, session) {
 
     if (is.null(asset)) { bcp_status_msg("Asset not found."); return() }
 
-    output_dir <- rpt_output_dir
+    output_dir  <- rpt_output_dir
     dir.create(output_dir, showWarnings=FALSE, recursive=TRUE)
-    timestamp  <- format(Sys.time(), "%Y%m%d_%H%M")
-    tmpl_key   <- input$bcp_template %||% "general"
+    timestamp   <- format(Sys.time(), "%Y%m%d_%H%M")
+    tmpl_key    <- input$bcp_template %||% "general"
+    all_assets  <- .load_user_assets(uname)  # sorted by priority
 
     tryCatch({
-      output_file <- .render_one_bcp(uname, asset, tmpl_key, output_dir, timestamp)
+      output_file <- .render_one_bcp(uname, asset, tmpl_key, output_dir, timestamp,
+                                     all_assets = all_assets)
       msg <- paste0("BCP saved: ", basename(output_file))
       if (isTRUE(input$bcp_email)) {
         u_email <- tryCatch({

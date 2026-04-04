@@ -25,6 +25,7 @@ params:
   notes: ""
   mongo_uri: "mongodb://localhost:27017/"
   days_back: 30
+  other_assets_json: "[]"
 ---
 
 ```{r setup, include=FALSE}
@@ -509,6 +510,91 @@ kable(contacts, col.names=c("Role / Agency","Contact"),
   kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, color=POLICE_NAVY, width="6.5cm") %>%
   column_spec(2, width="8.5cm")
+```
+
+
+\newpage
+
+# Asset Network & Backup Sites
+
+```{r asset-network, results='asis'}
+library(jsonlite)
+other_assets <- tryCatch(
+  jsonlite::fromJSON(params$other_assets_json, simplifyDataFrame=TRUE),
+  error = function(e) data.frame()
+)
+
+# Haversine distance in miles
+.haversine_mi <- function(lat1, lon1, lat2, lon2) {
+  R <- 3958.8
+  d_lat <- (lat2 - lat1) * pi / 180
+  d_lon <- (lon2 - lon1) * pi / 180
+  a <- sin(d_lat/2)^2 + cos(lat1*pi/180)*cos(lat2*pi/180)*sin(d_lon/2)^2
+  round(R * 2 * atan2(sqrt(a), sqrt(1-a)), 1)
+}
+
+if (!is.data.frame(other_assets) || nrow(other_assets) == 0) {
+  cat("> No additional assets registered for this user. Add assets in the Config tab to include backup/alternate site analysis.\n")
+} else {
+  this_lat <- params$lat
+  this_lon <- params$lon
+
+  # Build display table
+  tbl <- do.call(rbind, lapply(seq_len(nrow(other_assets)), function(i) {
+    a <- other_assets[i, ]
+    lat2 <- tryCatch(as.numeric(a$lat), error=function(e) NA)
+    lon2 <- tryCatch(as.numeric(a$lon), error=function(e) NA)
+    dist <- if (!is.na(lat2) && !is.na(lon2)) .haversine_mi(this_lat, this_lon, lat2, lon2) else NA
+    pri  <- if ("priority" %in% names(a) && !is.na(a$priority)) as.integer(a$priority) else i
+    data.frame(
+      Priority   = pri,
+      Name       = as.character(a$asset_name %||% "—"),
+      Type       = as.character(a$asset_type %||% "—"),
+      Location   = paste0(as.character(a$city %||% ""), ", ", as.character(a$zip %||% "")),
+      Airport    = as.character(a$nearest_airport_icao %||% "—"),
+      `Dist (mi)` = ifelse(is.na(dist), "—", as.character(dist)),
+      Notes      = as.character(a$notes %||% ""),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  }))
+  tbl <- tbl[order(tbl$Priority), ]
+
+  cat(paste0("This BCP covers **", params$asset_name, "** (Priority ", 
+    if ("priority" %in% names(other_assets)) "1" else "—",
+    "). The user has **", nrow(other_assets),
+    "** additional registered asset(s) that serve as backup or alternate sites.\n\n"))
+
+  knitr::kable(tbl, booktabs=TRUE, row.names=FALSE,
+    caption="User's other registered assets — potential backup/alternate sites") %>%
+    kableExtra::kable_styling(
+      latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
+    kableExtra::column_spec(2, bold=TRUE) %>%
+    kableExtra::column_spec(6, bold=TRUE)
+}
+```
+
+```{r asset-network-detail, results='asis'}
+if (is.data.frame(other_assets) && nrow(other_assets) > 0) {
+  cat("## Site Details\n\n")
+  for (i in seq_len(nrow(other_assets))) {
+    a <- other_assets[i, ]
+    lat2 <- tryCatch(as.numeric(a$lat), error=function(e) NA)
+    lon2 <- tryCatch(as.numeric(a$lon), error=function(e) NA)
+    dist <- if (!is.na(lat2) && !is.na(lon2)) .haversine_mi(params$lat, params$lon, lat2, lon2) else NA
+    dist_str <- if (is.na(dist)) "distance unknown" else paste0(dist, " miles from this facility")
+    cat(paste0(
+      "**", as.character(a$asset_name %||% "Unknown"), "**",
+      " (", as.character(a$asset_type %||% "Facility"), ")",
+      " — ", dist_str, "\\\\\n",
+      "Address: ", as.character(a$address %||% "—"), "\\\\\n",
+      "Nearest Airport: ", as.character(a$nearest_airport_icao %||% "—"),
+      " — ", as.character(a$nearest_airport_name %||% ""), "\\\\\n"
+    ))
+    if (!is.null(a$notes) && nchar(as.character(a$notes %||% "")) > 0)
+      cat(paste0("Notes: *", as.character(a$notes), "*\\\\\n"))
+    cat("\n")
+  }
+}
 ```
 
 \vspace{16pt}
