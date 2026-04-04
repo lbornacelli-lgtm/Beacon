@@ -1585,6 +1585,32 @@ ui <- tagList(
               code("Rscript reports/generate_and_email.R 7")
           )
         ),
+        fluidRow(
+          box(title = tagList(icon("shield-alt"), " Past BCP Reports"), width = 12,
+              status = "warning", solidHeader = TRUE,
+              p(tags$small(
+                "Business Continuity Plan reports generated for your profile. ",
+                "Admins see all users' reports. Select a row, then download or email."
+              )),
+              div(style = "overflow-x:auto; max-width:100%;",
+                DTOutput("tbl_past_bcp_reports")
+              ),
+              br(),
+              fluidRow(
+                column(3,
+                  downloadButton("dl_past_bcp_report", "Download Selected",
+                                 class = "btn-sm btn-default", icon = icon("download"))
+                ),
+                column(3,
+                  actionButton("btn_email_past_bcp_report", "Email Selected to Me",
+                               class = "btn-sm btn-info", icon = icon("envelope"))
+                ),
+                column(6,
+                  verbatimTextOutput("past_bcp_action_status")
+                )
+              )
+          )
+        ),
         hr(),
         h3(icon("chart-line"), " Weather Trends Reports"),
         fluidRow(
@@ -1681,10 +1707,24 @@ ui <- tagList(
           ),
           box(title = "Recent BCP Reports", width = 6, status = "info",
               solidHeader = TRUE,
-              p(tags$small("Click a filename to download.")),
-              DTOutput("tbl_bcp_reports"),
+              p(tags$small("Select a report row, then download or email it to your registered address.")),
+              div(style = "overflow-x:auto; max-width:100%;",
+                DTOutput("tbl_bcp_reports")
+              ),
               br(),
-              uiOutput("bcp_download_links")
+              fluidRow(
+                column(4,
+                  downloadButton("dl_bcp_report", "Download", class = "btn-sm btn-default",
+                                 icon = icon("download"))
+                ),
+                column(4,
+                  actionButton("btn_email_bcp_report", "Email Me", class = "btn-sm btn-info",
+                               icon = icon("envelope"))
+                ),
+                column(4,
+                  verbatimTextOutput("bcp_report_action_status")
+                )
+              )
           )
         )
       )
@@ -5532,12 +5572,159 @@ server <- function(input, output, session) {
     div(style="margin:-6px 0 8px 0;", desc)
   })
 
-  output$tbl_bcp_reports <- renderDT({
+  # ── BCP report helpers ────────────────────────────────────────────────────────
+
+  # Parse a bcp_Label_uname_asset_date_time.pdf filename into a data frame row
+  .parse_bcp_filename <- function(fn) {
+    base  <- gsub("\\.pdf$", "", fn)
+    parts <- strsplit(base, "_")[[1]]
+    # parts: [1]="bcp" [2]=Label [3]=username [4..n-2]=asset words [n-1]=date [n]=time
+    n     <- length(parts)
+    tmpl  <- if (n >= 2) parts[2] else "?"
+    user  <- if (n >= 3) parts[3] else "?"
+    asset <- if (n >= 6) paste(parts[4:(n-2)], collapse = " ") else if (n >= 4) parts[4] else "?"
+    ts    <- if (n >= 2) {
+      d <- parts[n-1]; t <- parts[n]
+      paste0(
+        if (nchar(d) == 8) paste0(substr(d,1,4),"-",substr(d,5,6),"-",substr(d,7,8)) else d,
+        " ",
+        if (nchar(t) >= 4) paste0(substr(t,1,2),":",substr(t,3,4)) else t
+      )
+    } else "?"
+    data.frame(Template=tmpl, User=user, Asset=asset, Generated=ts,
+               File=fn, stringsAsFactors=FALSE)
+  }
+
+  # Reactive: list of BCP files visible to the current user
+  .bcp_files_for_user <- function(trigger=NULL) {
+    force(trigger)
+    uname <- auth_rv$username %||% ""
+    role  <- auth_rv$role  %||% ""
+    all_f <- list.files(rpt_output_dir, pattern="^bcp_.*\\.pdf$", full.names=FALSE)
+    if (role != "admin" && nchar(uname) > 0) {
+      pat   <- paste0("^bcp_[^_]+_", uname, "_")
+      all_f <- all_f[grepl(pat, all_f)]
+    }
+    sort(all_f, decreasing=TRUE)
+  }
+
+  # Shared reactive for BCP file list (invalidates when BCP is generated)
+  bcp_files_rv <- reactive({
     input$btn_gen_bcp
-    files <- list.files(rpt_output_dir, pattern="^bcp_.*\\.pdf$", full.names=FALSE)
-    if (length(files) == 0) return(datatable(data.frame(Message="No BCP reports yet")))
-    df <- data.frame(File=sort(files, decreasing=TRUE), stringsAsFactors=FALSE)
-    datatable(df, options=list(pageLength=10), rownames=FALSE, selection="none")
+    .bcp_files_for_user()
+  })
+
+  # Helper: build datatable from file list
+  .bcp_datatable <- function(files, label="No BCP reports yet.") {
+    if (length(files) == 0)
+      return(datatable(data.frame(Message=label), options=list(dom="t"), rownames=FALSE))
+    df <- do.call(rbind, lapply(files, .parse_bcp_filename))
+    datatable(
+      df[, c("Template","User","Asset","Generated","File")],
+      options = list(
+        pageLength = 8, scrollX = TRUE, dom = "ftp",
+        columnDefs = list(list(targets = 4, visible = FALSE))  # hide File col
+      ),
+      rownames  = FALSE,
+      selection = "single"
+    )
+  }
+
+  # ── BCP section table (Reports > BCP section) ─────────────────────────────
+  selected_bcp_file      <- reactiveVal(NULL)
+  bcp_report_action_status_rv <- reactiveVal("")
+  output$bcp_report_action_status <- renderText(bcp_report_action_status_rv())
+
+  output$tbl_bcp_reports <- renderDT({
+    .bcp_datatable(bcp_files_rv())
+  }, server = FALSE)
+
+  observeEvent(input$tbl_bcp_reports_rows_selected, {
+    idx <- input$tbl_bcp_reports_rows_selected
+    files <- bcp_files_rv()
+    if (!is.null(idx) && length(idx) > 0 && idx <= length(files))
+      selected_bcp_file(files[idx])
+    else
+      selected_bcp_file(NULL)
+  })
+
+  output$dl_bcp_report <- downloadHandler(
+    filename = function() selected_bcp_file() %||% "bcp_report.pdf",
+    content  = function(file) {
+      src <- file.path(rpt_output_dir, selected_bcp_file() %||% "")
+      if (file.exists(src)) file.copy(src, file)
+    }
+  )
+
+  observeEvent(input$btn_email_bcp_report, {
+    fn <- selected_bcp_file()
+    if (is.null(fn)) { bcp_report_action_status_rv("Select a report row first."); return() }
+    src <- file.path(rpt_output_dir, fn)
+    u_email <- tryCatch({
+      col2 <- mongo(collection="users", db="weather_rss", url=MONGO_URI)
+      ue   <- col2$find(sprintf('{"username":"%s"}', auth_rv$username),
+                        fields='{"email":1,"_id":0}')
+      col2$disconnect()
+      if (nrow(ue) > 0 && !is.null(ue$email)) as.character(ue$email[1]) else ""
+    }, error=function(e) "")
+    if (nchar(u_email) == 0) { bcp_report_action_status_rv("No email on file for your account."); return() }
+    tryCatch({
+      send_fpren_email(u_email,
+        paste0("FPREN BCP Report: ", fn),
+        paste0("<h3>Business Continuity Plan</h3>",
+               "<p>Your requested BCP report (<strong>", fn, "</strong>) is attached.</p>"),
+        attachment_path = src)
+      bcp_report_action_status_rv(paste0("Sent to ", u_email))
+    }, error=function(e) bcp_report_action_status_rv(paste0("Error: ", conditionMessage(e))))
+  })
+
+  # ── Past BCP Reports box (Reports tab) ────────────────────────────────────
+  selected_past_bcp_file      <- reactiveVal(NULL)
+  past_bcp_action_status_rv   <- reactiveVal("")
+  output$past_bcp_action_status <- renderText(past_bcp_action_status_rv())
+
+  output$tbl_past_bcp_reports <- renderDT({
+    input$btn_gen_bcp  # refresh when a new BCP is generated
+    .bcp_datatable(.bcp_files_for_user(), "No BCP reports associated with your profile yet.")
+  }, server = FALSE)
+
+  observeEvent(input$tbl_past_bcp_reports_rows_selected, {
+    idx   <- input$tbl_past_bcp_reports_rows_selected
+    files <- .bcp_files_for_user()
+    if (!is.null(idx) && length(idx) > 0 && idx <= length(files))
+      selected_past_bcp_file(files[idx])
+    else
+      selected_past_bcp_file(NULL)
+  })
+
+  output$dl_past_bcp_report <- downloadHandler(
+    filename = function() selected_past_bcp_file() %||% "bcp_report.pdf",
+    content  = function(file) {
+      src <- file.path(rpt_output_dir, selected_past_bcp_file() %||% "")
+      if (file.exists(src)) file.copy(src, file)
+    }
+  )
+
+  observeEvent(input$btn_email_past_bcp_report, {
+    fn <- selected_past_bcp_file()
+    if (is.null(fn)) { past_bcp_action_status_rv("Select a report row first."); return() }
+    src <- file.path(rpt_output_dir, fn)
+    u_email <- tryCatch({
+      col2 <- mongo(collection="users", db="weather_rss", url=MONGO_URI)
+      ue   <- col2$find(sprintf('{"username":"%s"}', auth_rv$username),
+                        fields='{"email":1,"_id":0}')
+      col2$disconnect()
+      if (nrow(ue) > 0 && !is.null(ue$email)) as.character(ue$email[1]) else ""
+    }, error=function(e) "")
+    if (nchar(u_email) == 0) { past_bcp_action_status_rv("No email on file for your account."); return() }
+    tryCatch({
+      send_fpren_email(u_email,
+        paste0("FPREN BCP Report: ", fn),
+        paste0("<h3>Business Continuity Plan</h3>",
+               "<p>Your requested BCP report (<strong>", fn, "</strong>) is attached.</p>"),
+        attachment_path = src)
+      past_bcp_action_status_rv(paste0("Sent to ", u_email))
+    }, error=function(e) past_bcp_action_status_rv(paste0("Error: ", conditionMessage(e))))
   })
 
   # Helper: render one BCP PDF for a single asset
