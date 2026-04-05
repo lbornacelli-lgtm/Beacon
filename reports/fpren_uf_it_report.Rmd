@@ -1,0 +1,1600 @@
+---
+title: |
+  | FPREN Infrastructure Access Request
+  | University of Florida Information Technology
+subtitle: |
+  | Firewall Rules, SSL Certificate, and GatorLink SSO Integration
+  | Florida Public Radio Emergency Network
+author: |
+  | Lawrence Bornacelli
+  | College of Journalism and Communications / WUFT
+  | University of Florida
+  | lawrence.bornace@ufl.edu
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    keep_tex: false
+    includes:
+      in_header: null
+geometry: "margin=1in"
+fontsize: 11pt
+linestretch: 1.2
+header-includes:
+  - \usepackage{xcolor}
+  - \usepackage{fancyhdr}
+  - \usepackage{graphicx}
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{hyperref}
+  - \definecolor{ufblue}{RGB}{0, 33, 99}
+  - \definecolor{uforange}{RGB}{250, 70, 22}
+  - \definecolor{alertred}{RGB}{180, 30, 30}
+  - \definecolor{statusgreen}{RGB}{30, 130, 50}
+  - \definecolor{lightgray}{RGB}{245, 245, 245}
+  - \definecolor{midgray}{RGB}{200, 200, 200}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[L]{\textcolor{ufblue}{\small FPREN --- UF IT Infrastructure Access Request}}
+  - \fancyhead[R]{\textcolor{ufblue}{\small \today}}
+  - \fancyfoot[C]{\textcolor{midgray}{\small --- \thepage\ ---}}
+  - \fancyfoot[L]{\textcolor{midgray}{\small CONFIDENTIAL --- UF Internal Use Only}}
+  - \renewcommand{\headrulewidth}{0.4pt}
+  - \renewcommand{\footrulewidth}{0.4pt}
+  - \hypersetup{colorlinks=true, linkcolor=ufblue, urlcolor=ufblue, citecolor=ufblue}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.pos = "H"
+)
+
+# Load libraries
+library(knitr)
+library(kableExtra)
+
+# Optional: read live connectivity data if available
+live_data <- NULL
+if (file.exists("/tmp/fpren_access_check.json")) {
+  tryCatch({
+    live_data <- jsonlite::fromJSON("/tmp/fpren_access_check.json")
+  }, error = function(e) {
+    live_data <- NULL
+  })
+}
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  COVER BANNER                                                -->
+<!-- ============================================================ -->
+
+\vspace*{0.5cm}
+
+\begin{center}
+\colorbox{ufblue}{\parbox{\textwidth}{
+  \vspace{0.6cm}
+  \begin{center}
+  \textcolor{white}{\Huge \textbf{FPREN}}\\[0.3cm]
+  \textcolor{uforange}{\large \textbf{Florida Public Radio Emergency Network}}\\[0.2cm]
+  \textcolor{white}{\normalsize University of Florida --- College of Journalism and Communications / WUFT}\\[0.2cm]
+  \textcolor{white}{\normalsize UF VM: \texttt{128.227.67.234} \quad|\quad Ubuntu 24.04 LTS}\\[0.4cm]
+  \textcolor{white}{\small \textbf{Infrastructure Access Request}}\\[0.1cm]
+  \textcolor{uforange}{\small Firewall Rules \textbullet{} SSL Certificate \textbullet{} GatorLink SSO Integration}
+  \vspace{0.6cm}
+  \end{center}
+}}
+\end{center}
+
+\vspace{0.8cm}
+
+\begin{center}
+\begin{tabular}{ll}
+\textbf{Prepared by:}  & Lawrence Bornacelli \\
+\textbf{Email:}        & \href{mailto:lawrence.bornace@ufl.edu}{lawrence.bornace@ufl.edu} \\
+\textbf{Department:}   & College of Journalism and Communications / WUFT \\
+\textbf{Institution:}  & University of Florida \\
+\textbf{Report Date:}  & \today \\
+\textbf{Submitted to:} & UF Information Technology (UF IT) \\
+\textbf{Classification:} & \textcolor{alertred}{\textbf{CONFIDENTIAL --- UF Internal Use Only}} \\
+\end{tabular}
+\end{center}
+
+\vspace{0.8cm}
+
+\begin{center}
+\colorbox{lightgray}{\parbox{0.92\textwidth}{
+  \vspace{0.3cm}
+  \textbf{Executive Summary}\\[0.2cm]
+  The Florida Public Radio Emergency Network (FPREN) is a 24/7 automated emergency broadcast
+  system hosted on a UF virtual machine. FPREN ingests National Weather Service and IPAWS alerts,
+  converts them to speech, and streams emergency audio to broadcasters across nine Florida zones.
+  A real-time Shiny R monitoring dashboard and Flask administrative interface support operations.
+  This document formally requests three infrastructure changes from UF IT: (1) inbound firewall
+  rules to open ports 80, 443, and 8000; (2) a CA-signed SSL certificate for the FPREN domain;
+  and (3) GatorLink Shibboleth SSO integration to replace the current custom authentication system.
+  These changes are required for FPREN to fulfill its public-safety mission, enable secure
+  off-campus access, and align with UF IT security standards.
+  \vspace{0.3cm}
+}}
+\end{center}
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 1: PROJECT OVERVIEW                                 -->
+<!-- ============================================================ -->
+
+# Project Overview
+
+## Mission and Purpose
+
+The **Florida Public Radio Emergency Network (FPREN)** is a University of Florida project under
+the College of Journalism and Communications / WUFT. Its mission is to provide automated,
+continuous emergency weather broadcast capability for the state of Florida, serving emergency
+management agencies, public broadcasters, and citizens.
+
+FPREN operates as a 24/7 system that:
+
+- Ingests live alerts from the **National Weather Service (NWS)** and **IPAWS** (Integrated
+  Public Alert and Warning System) via official federal APIs
+- Classifies and prioritizes alerts using UF's LiteLLM AI infrastructure
+  (`api.ai.it.ufl.edu`)
+- Converts alert text to spoken audio using Piper TTS and ElevenLabs for critical events
+- Manages broadcast playlists per zone and streams audio over **Icecast2** to downstream
+  broadcasters and the public
+- Provides a **Shiny R real-time monitoring dashboard** with 14+ operational tabs
+- Offers a **Flask administrative interface** for stream control, user management, and
+  business continuity planning
+
+FPREN is not a research prototype. It is an operational system providing public-safety
+infrastructure for the state of Florida.
+
+## Server Infrastructure
+
+```{r server-table}
+server_info <- data.frame(
+  Component = c(
+    "Host", "IP Address", "Operating System", "Hypervisor / Hosting",
+    "Primary PI / Developer", "Department", "Institution",
+    "Server Role"
+  ),
+  Detail = c(
+    "UF Virtual Machine",
+    "128.227.67.234",
+    "Ubuntu 24.04 LTS",
+    "UF Research Computing VM",
+    "Lawrence Bornacelli (lawrence.bornace@ufl.edu)",
+    "College of Journalism and Communications / WUFT",
+    "University of Florida",
+    "Production emergency broadcast server"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  server_info,
+  booktabs = TRUE,
+  col.names = c("Component", "Detail"),
+  caption = "FPREN Server Infrastructure Summary"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2)
+```
+
+## Current Project Statistics
+
+As of the date of this report, FPREN is live and actively serving operational data.
+
+```{r stats-table}
+stats <- data.frame(
+  Metric = c(
+    "Active NWS Alert Records",
+    "Broadcast Zones (FL)",
+    "FPREN-Specific Systemd Services",
+    "Total Running Services",
+    "Active User Accounts",
+    "Registered Broadcast Assets",
+    "USGS River Gauge Stations Monitored",
+    "Florida Airport ASOS Stations Monitored",
+    "Florida Cities with Weather History",
+    "Weather History Retention Period"
+  ),
+  Value = c(
+    "288",
+    "9",
+    "11",
+    "17",
+    "2 (admin + viewer)",
+    "1",
+    "513",
+    "19",
+    "16",
+    "90 days"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  stats,
+  booktabs = TRUE,
+  col.names = c("Metric", "Value"),
+  caption = "FPREN Live System Statistics"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE
+  ) %>%
+  column_spec(1) %>%
+  column_spec(2, bold = TRUE)
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 2: RUNNING SERVICES                                 -->
+<!-- ============================================================ -->
+
+# Active Services and Architecture
+
+## Running Systemd Services
+
+All 17 services listed below were confirmed running at the time this report was prepared.
+Eleven are FPREN-specific; six are standard system services.
+
+```{r services-table}
+services <- data.frame(
+  Service = c(
+    "beacon-airport-delays",
+    "beacon-extended-fetcher",
+    "beacon-ipaws-fetcher",
+    "beacon-mongo-tts",
+    "beacon-obs-fetcher",
+    "beacon-rivers-agent",
+    "beacon-rivers-fetcher",
+    "beacon-station-engine",
+    "beacon-weather-service",
+    "beacon-web-dashboard",
+    "fpren-broadcast-generator",
+    "fpren-multi-zone-streamer",
+    "icecast2",
+    "mongod",
+    "nginx",
+    "shiny-server",
+    "zone-alert-tts"
+  ),
+  Type = c(
+    "FPREN", "FPREN", "FPREN", "FPREN", "FPREN",
+    "FPREN", "FPREN", "FPREN", "FPREN", "FPREN",
+    "FPREN", "FPREN",
+    "System", "System", "System", "System", "FPREN"
+  ),
+  Description = c(
+    "Fetches FAA ATCSCC airport delay programs (outbound blocked --- see Section 4)",
+    "Extended NWS forecast and zone data fetcher",
+    "IPAWS/NWS alert ingestion, 2-minute polling interval",
+    "MongoDB-to-TTS pipeline; queues alert audio conversion jobs",
+    "Surface observation (METAR) data fetcher for 19 FL ASOS stations",
+    "LiteLLM AI agent for USGS river gauge flood analysis",
+    "USGS river gauge data fetcher for 513 FL gauges",
+    "Core broadcast station engine; manages zone playlists",
+    "Weather data aggregation and hourly snapshot service",
+    "Shiny web dashboard backend process manager",
+    "Multi-zone broadcast script and playlist generator",
+    "Multi-zone Icecast2 stream manager (9 zone mounts)",
+    "Icecast2 audio streaming server",
+    "MongoDB document database (internal only, port 27017)",
+    "Nginx reverse proxy (ports 80/443)",
+    "Shiny R web application server (port 3838)",
+    "Zone-specific TTS audio generation and queue processor"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  services,
+  booktabs = TRUE,
+  col.names = c("Service Name", "Type", "Description"),
+  caption = "All 17 Active FPREN Systemd Services",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE, monospace = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3) %>%
+  row_spec(which(services$Type == "System"), background = "#f0f0f0")
+```
+
+## Internal Connectivity Status
+
+All internal services are confirmed reachable on localhost. The table below documents the full
+connectivity check results, including notes on protocols where TCP probes differ from actual
+service behavior.
+
+```{r connectivity-table}
+conn <- data.frame(
+  Target = c(
+    "Shiny Server (localhost:3838)",
+    "Flask Admin (localhost:5000)",
+    "Icecast2 (localhost:8000)",
+    "MongoDB (localhost:27017)",
+    "RStudio Server (localhost:8787)",
+    "SNMP Agent (localhost:161)",
+    "Nginx port 80 (localhost)",
+    "Nginx port 443 (localhost)",
+    "UF NTP Server (128.227.30.254:123)",
+    "UF LiteLLM API (api.ai.it.ufl.edu)",
+    "UF DNS Primary (128.227.36.36:53)",
+    "UF DNS Secondary (128.227.100.100:53)",
+    "NWS Alerts API (api.weather.gov)",
+    "NWS Points API (api.weather.gov)",
+    "FAA ATCSCC API (soa.smext.faa.gov:443)",
+    "Twilio API (api.twilio.com)",
+    "ElevenLabs TTS (api.elevenlabs.io)",
+    "US Census API (api.census.gov)",
+    "NHC RSS (www.nhc.noaa.gov)"
+  ),
+  Status = c(
+    "REACHABLE", "REACHABLE", "REACHABLE", "REACHABLE",
+    "REACHABLE", "REFUSED", "REACHABLE", "REACHABLE",
+    "TIMEOUT", "REACHABLE", "REFUSED", "TIMEOUT",
+    "REACHABLE", "REACHABLE", "UNREACHABLE",
+    "REACHABLE", "REACHABLE", "REACHABLE", "REACHABLE"
+  ),
+  Note = c(
+    "Internal; not exposed externally",
+    "Internal admin only",
+    "Internal; port 8000 blocked externally by UF firewall",
+    "Internal only; port 27017 not exposed",
+    "Internal only",
+    "Service not listening on TCP; SNMP uses UDP/161",
+    "Nginx listening; port 80 blocked externally by UF firewall",
+    "Nginx listening; port 443 blocked externally by UF firewall",
+    "TCP probe only; NTP uses UDP/123 --- functionally OK",
+    "Operational --- UF AI infrastructure",
+    "DNS uses UDP; TCP refused is expected behavior",
+    "DNS uses UDP; TCP probe timeout is expected behavior",
+    "Operational",
+    "Operational",
+    "BLOCKED by UF IT outbound firewall --- see Section 4",
+    "Operational --- SMS 2FA and alerts",
+    "Operational --- TTS for critical alerts",
+    "Operational --- Census demographics pipeline",
+    "Operational --- NHC hurricane feed"
+  ),
+  stringsAsFactors = FALSE
+)
+
+status_colors <- ifelse(conn$Status == "REACHABLE", "statusgreen",
+                 ifelse(conn$Status == "UNREACHABLE", "alertred", "uforange"))
+
+kbl(
+  conn,
+  booktabs = TRUE,
+  col.names = c("Target / Endpoint", "Status", "Notes"),
+  caption = "FPREN Internal and External Connectivity Check Results",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1) %>%
+  column_spec(2, bold = TRUE) %>%
+  column_spec(3) %>%
+  row_spec(which(conn$Status == "UNREACHABLE"), background = "#fde8e8") %>%
+  row_spec(which(conn$Status == "REFUSED"), background = "#fff8e1") %>%
+  row_spec(which(conn$Status == "TIMEOUT"), background = "#fff8e1")
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 3: COMPLETED FEATURES                               -->
+<!-- ============================================================ -->
+
+# Completed System Features
+
+FPREN is a fully operational system. The following capabilities are currently implemented and
+running in production.
+
+```{r features-table}
+features <- data.frame(
+  N = 1:16,
+  Feature = c(
+    "Multi-Zone Broadcast System",
+    "NWS / IPAWS Alert Ingestion",
+    "Shiny R Monitoring Dashboard",
+    "Flask Administrative Interface",
+    "Business Continuity Planning (BCP)",
+    "SNMP Monitoring Agent",
+    "Emergency SMS Blast System",
+    "Weather History Archive",
+    "FL Rivers Monitoring",
+    "Census and Demographics Pipeline",
+    "FL511 Traffic Alerts",
+    "Waze for Cities Integration",
+    "Invite-Only Access Control",
+    "Comprehensive Authentication",
+    "Automated Daily Reports",
+    "Airport Weather / Delay Monitoring"
+  ),
+  Description = c(
+    "9 Florida broadcast zones, 11 systemd services, Piper TTS + ElevenLabs for critical alerts",
+    "2-minute polling of NWS/IPAWS APIs; severity classification via UF LiteLLM AI",
+    "Invite-only authentication; role-based access (admin/operator/viewer); 14+ operational tabs",
+    "Stream control, user management, asset management, BCP report generation",
+    "R Markdown PDFs per user/asset: evacuation routes, Waze overlays, weather risk, agency contacts, SMS checklists",
+    "OID tree 1.3.6.1.4.1.64533, pass_persist agent, service status, user asset OID map",
+    "Twilio-based role/phase to-do SMS with before/during/after emergency checklists",
+    "Hourly METAR snapshots for 16 FL cities, 90-day retention policy",
+    "513 USGS gauges monitored; LiteLLM AI flood analysis; flood stage alerts",
+    "ACS 5-year Census data; vulnerability scoring; AI-generated impact analysis",
+    "Statewide FL511 incident monitoring with county and severity filters",
+    "Accident and jam hotspot proximity alerts near registered assets (awaiting UF CCP registration)",
+    "No public login; token-based activation; 72-hour expiry with automatic account deletion",
+    "bcrypt (cost 12), account lockout, inactivity auto-disable, SMS/email 2FA, full audit log",
+    "Automated 2 PM daily weather, alerts, and BCP PDF generation",
+    "METAR observations for 19 FL ASOS stations; FAA ATCSCC delay data currently blocked"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  features,
+  booktabs = TRUE,
+  col.names = c("#", "Feature", "Description"),
+  caption = "FPREN Completed and Operational Features",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1) %>%
+  column_spec(2, bold = TRUE) %>%
+  column_spec(3)
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 4: FIREWALL REQUEST                                 -->
+<!-- ============================================================ -->
+
+# Firewall Access Request
+
+## Summary of Requested Changes
+
+FPREN requires the following firewall rule changes to fulfill its operational mission. The UF
+external firewall currently blocks inbound access to ports 80, 443, and 8000 from off-campus,
+and blocks one outbound connection to a federal API (`soa.smext.faa.gov:443`). These blocks
+are the primary technical barrier preventing FPREN from serving its public-safety mission
+outside the UF network.
+
+```{r firewall-table}
+fw <- data.frame(
+  Port = c("80", "443", "8000", "161", "123", "443"),
+  Proto = c("TCP", "TCP", "TCP", "UDP", "UDP", "TCP"),
+  Direction = c(
+    "Inbound",
+    "Inbound",
+    "Inbound",
+    "Inbound",
+    "Outbound",
+    "Outbound to soa.smext.faa.gov"
+  ),
+  Current = c(
+    "BLOCKED",
+    "BLOCKED",
+    "BLOCKED",
+    "BLOCKED",
+    "Open (assumed)",
+    "BLOCKED"
+  ),
+  Requested = c(
+    "OPEN",
+    "OPEN",
+    "OPEN (limited)",
+    "OPEN (mgmt IP only)",
+    "Confirm open",
+    "OPEN"
+  ),
+  Service = c(
+    "Nginx HTTP",
+    "Nginx HTTPS",
+    "Icecast2 Audio",
+    "SNMP Agent",
+    "NTP Sync",
+    "FAA ATCSCC API"
+  ),
+  Justification = c(
+    "Public dashboard access; redirect to 443. Required for Shibboleth HTTP challenges and Let's Encrypt ACME validation.",
+    "Secure dashboard HTTPS. Required for Shibboleth SSO. Blocks all off-campus users currently.",
+    "Public emergency audio streams. The /fpren main mount and all 9 zone mounts are inaccessible externally.",
+    "Off-site SNMP polling from UF management station (PRTG/Nagios/Zabbix). Management IP restriction acceptable.",
+    "System time accuracy for alert timestamps. NTP is UDP; TCP probe timeout was observed but service may be functional.",
+    "FAA airport delay program data for emergency evacuation route planning. Federal public API."
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  fw,
+  booktabs = TRUE,
+  col.names = c("Port", "Proto", "Direction", "Current", "Requested", "Service", "Justification"),
+  caption = "FPREN Firewall Rule Change Requests",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "scale_down", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 8
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3) %>%
+  column_spec(4, bold = TRUE) %>%
+  column_spec(5, bold = TRUE) %>%
+  column_spec(6) %>%
+  column_spec(7) %>%
+  row_spec(which(fw$Current == "BLOCKED"), background = "#fde8e8")
+```
+
+## Detailed Justification by Port
+
+### Port 80 (TCP Inbound) --- HTTP / Nginx
+
+Port 80 is required for:
+
+1. **HTTP-to-HTTPS redirect.** Nginx listens on port 80 and issues a 301 redirect to port 443
+   for all requests. Without port 80 open, users who type the FPREN URL without specifying
+   HTTPS will receive a connection timeout rather than being redirected securely.
+2. **ACME certificate validation.** If UF IT approves the use of Let's Encrypt alongside or
+   instead of the UF InCommon certificate, the ACME HTTP-01 challenge requires that port 80
+   be reachable from the internet for automated certificate renewal.
+3. **Shibboleth SP pre-authentication flows.** Some Shibboleth SP configurations require
+   HTTP reachability during initial handshake phases.
+
+### Port 443 (TCP Inbound) --- HTTPS / Nginx / Shibboleth
+
+This is the highest-priority firewall change. Port 443 being blocked means:
+
+- **No off-campus dashboard access.** All FPREN monitoring must currently be performed on-campus
+  or via VPN. Emergency managers, partner broadcasters, and UF staff who are in the field during
+  a weather event cannot reach the dashboard.
+- **Invite links do not work off-campus.** When administrators invite new users, the activation
+  link points to the FPREN server on port 443. If the recipient is off-campus, the link times out
+  and they cannot activate their account.
+- **Shibboleth is impossible.** GatorLink SSO requires HTTPS. Without port 443 open, Phase 2 of
+  the Shibboleth integration (Section 6) cannot proceed.
+- **SSL certificate testing is blocked.** Even if a CA-signed certificate is installed, it cannot
+  be verified from outside because the port is firewalled.
+
+### Port 8000 (TCP Inbound) --- Icecast2 Audio Streaming
+
+FPREN's primary mission is emergency audio broadcasting. Icecast2 serves the following mounts:
+
+- `/fpren` --- main statewide emergency broadcast mount (public)
+- `/north-florida`, `/central-florida`, `/south-florida` (and 6 additional zone mounts)
+
+All nine zone streams are currently inaccessible to anyone outside the UF network. Emergency
+broadcasters, partner radio stations, and public listeners cannot tune in to FPREN streams without
+being on the UF campus network or VPN. This is a critical operational gap.
+
+**Request:** Open port 8000 inbound, with consideration for rate limiting or IP allowlisting if
+UF IT prefers a restricted initial deployment.
+
+### Port 161 (UDP Inbound) --- SNMP Monitoring
+
+FPREN includes a custom SNMP agent (OID tree `1.3.6.1.4.1.64533`) that exposes service health,
+broadcast status, and user asset OIDs. Off-site SNMP management systems (PRTG, Nagios, Zabbix)
+cannot poll these OIDs because UDP/161 is blocked.
+
+**Request:** Open UDP/161 inbound from a specific UF management IP range only. We are prepared
+to provide the management station IP(s) for allowlisting.
+
+### Port 443 Outbound to soa.smext.faa.gov --- FAA ATCSCC API
+
+The FAA Air Traffic Control System Command Center (ATCSCC) provides airport delay program data
+via a public SOAP/REST API at `soa.smext.faa.gov:443`. FPREN fetches this data for the
+`beacon-airport-delays` service to include airport delay information in emergency planning
+(evacuation route impact, ground stop programs during severe weather, etc.).
+
+This outbound connection is currently blocked by the UF firewall. The `beacon-airport-delays`
+service runs but returns no data. This is a federal public API with no authentication requirement.
+
+**Request:** Open outbound TCP/443 to `soa.smext.faa.gov`.
+
+## Features Currently Blocked by Firewall
+
+The following capabilities are fully implemented in FPREN code but non-functional due to the
+firewall restrictions described above.
+
+```{r blocked-features}
+blocked <- data.frame(
+  N = 1:6,
+  Feature = c(
+    "FAA Airport Delay Data",
+    "Public Dashboard Access",
+    "External Icecast Streams",
+    "External SNMP Monitoring",
+    "Waze CCP Feed",
+    "Invite Links from Off-Campus"
+  ),
+  BlockedBy = c(
+    "Outbound 443 to soa.smext.faa.gov blocked",
+    "Inbound ports 80/443 blocked",
+    "Inbound port 8000 blocked",
+    "Inbound UDP 161 blocked",
+    "UF not registered as Waze Connected Cities Partner",
+    "Inbound port 443 blocked"
+  ),
+  Impact = c(
+    "Airport delay programs unavailable; service runs but returns no data. Affects evacuation route planning during severe weather events.",
+    "Dashboard inaccessible off-campus. Emergency managers and field staff cannot monitor FPREN during events. VPN required.",
+    "All 9 zone emergency audio streams are internal-only. External broadcasters and public cannot receive audio.",
+    "Cannot poll FPREN service health OIDs from off-site management systems.",
+    "Traffic incident data (accidents and jams near evacuation routes) not populating. Feed URL is a placeholder.",
+    "New users receiving invite emails cannot activate accounts if they are off-campus."
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  blocked,
+  booktabs = TRUE,
+  col.names = c("#", "Blocked Feature", "Blocked By", "Operational Impact"),
+  caption = "FPREN Features Currently Non-Functional Due to Access Restrictions",
+) %>%
+  kable_styling(
+    latex_options = c("hold_position", "repeat_header"),
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1) %>%
+  column_spec(2, bold = TRUE) %>%
+  column_spec(3) %>%
+  column_spec(4) %>%
+  row_spec(0, background = "ufblue", color = "white") %>%
+  row_spec(seq(1, nrow(blocked), 2), background = "#fde8e8") %>%
+  row_spec(seq(2, nrow(blocked), 2), background = "#fff8e1")
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 5: SSL CERTIFICATE REQUEST                          -->
+<!-- ============================================================ -->
+
+# SSL Certificate Request
+
+## Current Status
+
+Nginx is configured to serve HTTPS on port 443. However, the current certificate is either
+self-signed or not yet installed at the system level. Because port 443 is firewalled externally,
+browser validation of the certificate has not been possible from off-campus. Before port 443 is
+opened, a CA-signed certificate must be in place.
+
+## Certificate Requirements
+
+FPREN requires a CA-signed SSL/TLS certificate for the following reasons:
+
+1. **Browser trust.** Self-signed certificates generate browser warnings that are unacceptable
+   for a public-safety dashboard.
+2. **Shibboleth SSO prerequisite.** The UF Shibboleth IdP (`login.ufl.edu`) will not release
+   attributes to a Service Provider using a self-signed certificate. A CA-signed certificate is
+   a hard requirement for GatorLink SSO integration.
+3. **UF InCommon compliance.** UF participates in the InCommon Federation. FPREN's SP registration
+   will require a certificate from a trusted CA, ideally issued under the UF InCommon subscription.
+4. **User trust.** Emergency managers and partner organizations who access the FPREN dashboard
+   must be able to verify they are connecting to a legitimate UF-hosted service.
+
+## Requested Certificate Options
+
+The following options are presented in order of preference. We request UF IT guidance on which
+is most appropriate.
+
+```{r cert-options}
+cert <- data.frame(
+  Option = c(
+    "UF InCommon SSL Certificate",
+    "Let's Encrypt (ACME)",
+    "UF Internal CA Certificate"
+  ),
+  Pros = c(
+    "UF-managed; InCommon trusted by all major browsers and IdPs; ideal for Shibboleth SP; aligns with UF IT policy",
+    "Free; automated renewal via Certbot; widely trusted; renewal requires port 80 open (ACME HTTP-01)",
+    "Managed internally; no dependency on external CA; fast issuance"
+  ),
+  Cons = c(
+    "Requires UF IT involvement for issuance; may require a fpren.ufl.edu DNS entry first",
+    "Requires port 80 open for renewal; 90-day certificate requires automation; less preferred for Shibboleth",
+    "May not be trusted by external Shibboleth federations; not ideal for public-facing dashboard"
+  ),
+  Preference = c("First choice", "Acceptable alternative", "Last resort"),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  cert,
+  booktabs = TRUE,
+  col.names = c("Certificate Option", "Advantages", "Disadvantages", "Preference"),
+  caption = "SSL Certificate Options for FPREN"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3) %>%
+  column_spec(4, bold = TRUE)
+```
+
+## DNS Hostname Request
+
+A dedicated DNS hostname is needed for the certificate and for Shibboleth SP registration. We
+request that UF IT assign a DNS A record pointing to `128.227.67.234`.
+
+**Requested hostname:** `fpren.ufl.edu`
+
+If `fpren.ufl.edu` is not available or not appropriate, alternative hostnames we would accept:
+
+- `fpren-dashboard.ufl.edu`
+- `emergency-broadcast.ufl.edu`
+- `wuft-fpren.ufl.edu`
+
+The DNS record should resolve to `128.227.67.234` (the UF VM). The Nginx configuration will be
+updated to use the assigned hostname in the server block and in the Shibboleth SP configuration.
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 6: SHIBBOLETH SSO REQUEST                          -->
+<!-- ============================================================ -->
+
+# GatorLink Shibboleth SSO Integration
+
+## Current Authentication System
+
+FPREN currently uses a custom authentication system built in Shiny R with MongoDB as the user
+store. The system is functional and includes enterprise-grade security controls. Full details
+of the current authentication implementation are provided in Section 7 (Security and Data
+Classification).
+
+While the current system is secure, migrating to GatorLink SSO offers the following advantages:
+
+- Eliminates password management for UF-affiliated users
+- Provides UF-enforced multi-factor authentication (DUO)
+- Aligns with UF IT security policies for systems handling sensitive data
+- Allows FPREN to auto-provision UF users without manual invite workflows
+- Reduces the authentication attack surface by delegating credential verification to UF IAM
+
+## Shibboleth Configuration Parameters
+
+```{r shib-params}
+shib <- data.frame(
+  Parameter = c(
+    "Protocol",
+    "UF Identity Provider (IdP) URL",
+    "SP Metadata URL (proposed)",
+    "SP EntityID (proposed)",
+    "Requested Attributes",
+    "Attribute for Username",
+    "Attribute for Email",
+    "Attribute for Affiliation",
+    "Default Role for New UF Users",
+    "Nginx integration method",
+    "Shibboleth SP package (Ubuntu 24.04)"
+  ),
+  Value = c(
+    "SAML 2.0",
+    "https://login.ufl.edu/idp/shibboleth",
+    "https://fpren.ufl.edu/Shibboleth.sso/Metadata",
+    "https://fpren.ufl.edu/shibboleth",
+    "EPPN, mail, eduPersonAffiliation",
+    "REMOTE_USER (set by Nginx from EPPN)",
+    "mail (username@ufl.edu)",
+    "eduPersonAffiliation (staff, faculty, member)",
+    "viewer (read-only)",
+    "Nginx FastCGI + shibd",
+    "shibboleth-sp-utils, libapache2-mod-shib2"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  shib,
+  booktabs = TRUE,
+  col.names = c("Parameter", "Value / Specification"),
+  caption = "FPREN Shibboleth SP Configuration Parameters"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, monospace = FALSE)
+```
+
+## Implementation Phases
+
+The Shibboleth integration is structured in two phases. Phase 1 has been partially completed
+without requiring UF IT involvement. Phase 2 requires UF IT action.
+
+### Phase 1 --- Pre-Work (No UF IT Required)
+
+The following tasks are completed or in progress on the FPREN server:
+
+```{r phase1-table}
+phase1 <- data.frame(
+  Task = c(
+    "Install shibboleth-sp-utils and libapache2-mod-shib2",
+    "Generate SP signing and encryption key pair",
+    "Configure shibboleth2.xml pointing to UF IdP",
+    "Configure Nginx for Shibboleth FastCGI",
+    "Build hybrid auth bridge in Shiny",
+    "Auto-provision new GatorLink users as viewer role"
+  ),
+  Status = c(
+    "Pending (awaiting port 443 open)",
+    "Pending (awaiting DNS/cert)",
+    "In progress",
+    "In progress",
+    "In progress",
+    "Designed; implementation pending"
+  ),
+  Notes = c(
+    "Package installation is straightforward on Ubuntu 24.04; no UF IT action needed",
+    "Keys will be generated locally; public cert provided to UF IAM for SP registration",
+    "EntityID and IdP URL configured; attribute mapping ready",
+    "FastCGI wrapper script and location block prepared; requires DNS to finalize",
+    "Shiny app checks REMOTE_USER header set by Nginx after Shibboleth auth",
+    "New EPPN logins auto-create viewer account in MongoDB; admin can promote to operator/admin"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  phase1,
+  booktabs = TRUE,
+  col.names = c("Task", "Status", "Notes"),
+  caption = "Shibboleth Phase 1 Tasks (FPREN-side, no UF IT required)",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3)
+```
+
+### Phase 2 --- Requires UF IT Action
+
+The following items require action or approval from UF IT / UF IAM.
+
+```{r phase2-table}
+phase2 <- data.frame(
+  Task = c(
+    "Complete UF Risk Assessment (IRM team)",
+    "Obtain CA-signed SSL certificate",
+    "Assign fpren.ufl.edu DNS A record",
+    "Register FPREN SP at UF IAM registry",
+    "Request Attribute Release Policy",
+    "Open ports 80/443 on UF firewall",
+    "Test with UF Beta IdP",
+    "Production cutover"
+  ),
+  Owner = c(
+    "UF IT / IRM",
+    "UF IT",
+    "UF IT / DNS",
+    "UF IAM",
+    "UF IAM",
+    "UF IT Networking",
+    "FPREN + UF IAM",
+    "FPREN + UF IT"
+  ),
+  Priority = c(
+    "High",
+    "High",
+    "High",
+    "High",
+    "High",
+    "Critical",
+    "Medium",
+    "Low"
+  ),
+  Notes = c(
+    "IRM review for system handling user PII (email, phone). Data classification in Section 7.",
+    "UF InCommon preferred; see Section 5.",
+    "Required before SP registration and cert issuance.",
+    "Provide SP metadata XML generated in Phase 1.",
+    "Request EPPN, mail, eduPersonAffiliation attributes.",
+    "Prerequisite for all external access; see Section 4.",
+    "Validate full login flow before production.",
+    "Switch production traffic to Shibboleth auth; retain legacy auth for non-UF users."
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  phase2,
+  booktabs = TRUE,
+  col.names = c("Task", "Owner", "Priority", "Notes"),
+  caption = "Shibboleth Phase 2 Tasks (Requires UF IT Action)",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3, bold = TRUE) %>%
+  column_spec(4) %>%
+  row_spec(which(phase2$Priority == "Critical"), background = "#fde8e8") %>%
+  row_spec(which(phase2$Priority == "High"), background = "#fff8e1")
+```
+
+## Hybrid Authentication Architecture
+
+FPREN will maintain a hybrid authentication model after Shibboleth integration. This preserves
+access for non-UF partners (emergency management agencies, partner broadcasters) who do not have
+GatorLink credentials.
+
+The authentication flow will be:
+
+1. User visits `https://fpren.ufl.edu`
+2. Nginx checks for a valid `_shibsession_*` cookie
+3. If present and valid: Nginx sets `REMOTE_USER` header; Shiny reads it and maps EPPN to
+   MongoDB user record (auto-creating if first login)
+4. If not present: Nginx presents the FPREN custom login form (legacy path for non-UF users
+   with invite tokens)
+5. Admin dashboard retains ability to create invite-only accounts for non-GatorLink users
+   (e.g., external emergency managers)
+
+```{r auth-flow-note, results='asis'}
+cat("\\vspace{0.3cm}")
+cat("\\colorbox{lightgray}{\\parbox{0.92\\textwidth}{")
+cat("\\vspace{0.2cm}")
+cat("\\textbf{Note for UF IT:} The hybrid model means Shibboleth protects the primary login path ")
+cat("but does not replace all authentication. Non-UF users will continue to use the invite-only ")
+cat("token system. The Shiny application checks \\texttt{REMOTE\\_USER} first; if not set, it ")
+cat("falls through to the legacy credential check against MongoDB. Both paths use bcrypt ")
+cat("password verification or Shibboleth session tokens respectively.")
+cat("\\vspace{0.2cm}")
+cat("}}")
+```
+
+## Questions for UF IT / UF IAM
+
+The following questions require clarification from UF IT before FPREN can complete the
+Shibboleth SP configuration.
+
+```{r shib-questions}
+questions <- data.frame(
+  N = 1:5,
+  Question = c(
+    "SP EntityID format",
+    "DNS / hostname assignment",
+    "Attribute release policy",
+    "DUO 2FA at Shibboleth level",
+    "Nginx + shibd method approval"
+  ),
+  Detail = c(
+    "Should the SP EntityID be https://fpren.ufl.edu/shibboleth (hostname-based) or IP-based (https://128.227.67.234/shibboleth)? Hostname-based is strongly preferred.",
+    "Can UF IT assign a fpren.ufl.edu DNS A record pointing to 128.227.67.234? This is required before SP registration and certificate issuance.",
+    "Which UF attributes will be released to the FPREN SP? We require at minimum: eduPersonPrincipalName (EPPN), mail, and eduPersonAffiliation.",
+    "Is DUO 2FA enforced at the Shibboleth IdP level for all SP sessions? If yes, FPREN does not need to implement its own MFA for UF users (currently uses SMS/email 2FA via Twilio).",
+    "Is Nginx with shibd FastCGI the UF-approved Shibboleth SP method for Ubuntu 24.04 LTS? Alternatively, is mod_shib with Apache preferred?"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  questions,
+  booktabs = TRUE,
+  col.names = c("#", "Question", "Detail"),
+  caption = "Open Questions for UF IT / UF IAM Regarding Shibboleth Integration"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1) %>%
+  column_spec(2, bold = TRUE) %>%
+  column_spec(3)
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 7: SECURITY AND DATA CLASSIFICATION                 -->
+<!-- ============================================================ -->
+
+# Security and Data Classification
+
+## Current Authentication Controls
+
+FPREN implements enterprise-grade authentication controls in its custom Shiny R + MongoDB system.
+These controls meet or exceed standard web application security requirements and will remain in
+place for non-Shibboleth users after SSO integration.
+
+```{r auth-controls}
+auth <- data.frame(
+  Control = c(
+    "Password hashing",
+    "Account lockout",
+    "Inactivity auto-disable",
+    "Invite token expiry",
+    "SMS phone verification",
+    "Email verification",
+    "First-login password change",
+    "Session timeout",
+    "Audit logging",
+    "Role-based access control",
+    "Group invite controls",
+    "Access model"
+  ),
+  Implementation = c(
+    "bcrypt with cost factor 12",
+    "3 failed attempts triggers 24-hour account lock",
+    "Accounts auto-disabled after 6 months of inactivity",
+    "72-hour expiry; account auto-deleted if not activated",
+    "Twilio 6-digit code; 10-minute expiry",
+    "SMTP 6-digit code; verified before account activation",
+    "Enforced on first successful login",
+    "5-minute browser inactivity triggers automatic logout (JavaScript)",
+    "Full audit log in MongoDB user_audit_log collection",
+    "admin / operator / viewer role hierarchy",
+    "Per-admin group invite enable/disable control",
+    "Invite-only; no public login form exposed"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  auth,
+  booktabs = TRUE,
+  col.names = c("Security Control", "Implementation Detail"),
+  caption = "FPREN Current Authentication Security Controls"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2)
+```
+
+## User Account Data Fields
+
+The following fields are stored per user account in MongoDB. This data is relevant to the UF IRM
+risk assessment.
+
+```{r user-fields}
+fields <- data.frame(
+  Field = c(
+    "username", "email", "phone", "role",
+    "profession", "bcrypt_hash", "email_verified",
+    "phone_verified", "last_login", "failed_attempts",
+    "locked_until", "created_at", "created_by",
+    "invite_token", "invite_expires", "auth_source"
+  ),
+  Type = c(
+    "String", "String (PII)", "String (PII)", "Enum",
+    "String", "String (hashed)", "Boolean",
+    "Boolean", "DateTime", "Integer",
+    "DateTime", "DateTime", "String",
+    "String (token)", "DateTime", "Enum"
+  ),
+  Description = c(
+    "Unique username",
+    "UF or personal email address",
+    "Mobile phone number for SMS 2FA",
+    "admin, operator, or viewer",
+    "User's professional role (e.g., Engineer, Manager)",
+    "bcrypt hash of password; plaintext never stored",
+    "Whether email address has been verified",
+    "Whether phone number has been verified via SMS",
+    "Timestamp of most recent successful login",
+    "Count of consecutive failed login attempts",
+    "Timestamp until account is locked (after 3 failures)",
+    "Account creation timestamp",
+    "Username of admin who created this account",
+    "Time-limited invite token (cleared after activation)",
+    "Expiry timestamp for invite token",
+    "local (custom auth) or shibboleth (SSO)"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  fields,
+  booktabs = TRUE,
+  col.names = c("Field", "Type / Classification", "Description"),
+  caption = "FPREN MongoDB User Account Schema",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE, monospace = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3) %>%
+  row_spec(which(grepl("PII", fields$Type)), background = "#fff8e1")
+```
+
+## Data Classification
+
+```{r data-class}
+data_class <- data.frame(
+  DataType = c(
+    "NWS / IPAWS weather alert data",
+    "Broadcast audio streams",
+    "User account records (email, phone, role)",
+    "Broadcast asset locations",
+    "MongoDB database",
+    "Audit logs",
+    "Business Continuity Plan PDFs"
+  ),
+  Classification = c(
+    "PUBLIC",
+    "PUBLIC",
+    "RESTRICTED",
+    "SENSITIVE",
+    "INTERNAL ONLY",
+    "INTERNAL ONLY",
+    "SENSITIVE"
+  ),
+  Rationale = c(
+    "Federal public domain data; no PII",
+    "Public emergency broadcast; no PII",
+    "Contains UF staff PII: email addresses and phone numbers",
+    "Physical addresses and lat/lon of UF broadcast facilities",
+    "Port 27017 not exposed; internal access only",
+    "Contains login timestamps, IP-adjacent data",
+    "Contains asset locations, agency contacts, evacuation routes"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  data_class,
+  booktabs = TRUE,
+  col.names = c("Data Type", "Classification", "Rationale"),
+  caption = "FPREN Data Classification Summary"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, bold = TRUE) %>%
+  column_spec(3) %>%
+  row_spec(which(data_class$Classification == "RESTRICTED"), background = "#fff8e1") %>%
+  row_spec(which(data_class$Classification == "SENSITIVE"), background = "#fde8e8")
+```
+
+**Regulatory compliance note:** FPREN does not process, store, or transmit FERPA-protected
+student records, HIPAA-covered health information, or PCI-DSS payment card data. The only
+sensitive data is UF staff contact information (email and phone) used for system access and
+emergency notifications.
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 8: PLANNED FEATURES                                 -->
+<!-- ============================================================ -->
+
+# Planned Features and Future Roadmap
+
+The following features are planned for future FPREN development. Several have direct dependencies
+on the infrastructure changes requested in this document.
+
+```{r roadmap-table}
+roadmap <- data.frame(
+  Feature = c(
+    "Travel Buddy",
+    "Social Media Integration",
+    "Public-Facing Alert Map",
+    "Mobile Companion App",
+    "GatorLink SSO (Phase 2)",
+    "Enhanced AI/ML Pipeline",
+    "Desktop Notification Integration",
+    "Alarms and SNMP Dashboard Tab"
+  ),
+  Status = c(
+    "Planned",
+    "Planned",
+    "Planned",
+    "Planned",
+    "Phase 1 in progress",
+    "Planned",
+    "Partially built",
+    "Placeholder exists"
+  ),
+  UF_IT_Dependency = c(
+    "Ports 80/443 (for off-campus use)",
+    "Ports 80/443 (for posting to social platforms)",
+    "Ports 80/443 (public URL required)",
+    "Shibboleth SSO + ports 80/443",
+    "All items in Section 6 Phase 2",
+    "None (internal UF LiteLLM API already operational)",
+    "None (internal enhancement)",
+    "Port 161 UDP (for SNMP polling)"
+  ),
+  Description = c(
+    "Multi-user trip coordination for broadcast crews. Route planning with NWS forecasts, FL511 alerts, and FPREN zone coverage along travel corridors.",
+    "Automated posting of FPREN alerts to X/Twitter, Facebook, RSS, and Mastodon. Admin-configurable severity thresholds for auto-post vs. approval.",
+    "Public Leaflet/Mapbox map showing live NWS alerts, river gauges, Waze incidents, and FPREN broadcast zone status. Embedded audio player for live stream.",
+    "React Native iOS/Android app for FPREN staff. Push notifications for Extreme/Severe alerts, stream monitoring, BCP checklists, GatorLink SSO auth.",
+    "Full GatorLink SSO integration per Section 6. Requires UF IT firewall, DNS, cert, SP registration, and attribute release policy.",
+    "Predictive severity escalation, NLP zone routing, automated situation reports every 6 hours during active events.",
+    "Windows/Mac system tray integration and push notifications for the existing Tkinter desktop dashboard.",
+    "Real-time SNMP OID display in Shiny Alarms tab, threshold-based alert rules, integration with external monitoring systems."
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  roadmap,
+  booktabs = TRUE,
+  col.names = c("Feature", "Status", "UF IT Dependency", "Description"),
+  caption = "FPREN Planned Features and UF IT Dependencies",
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3) %>%
+  column_spec(4)
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  SECTION 9: SUMMARY AND REQUESTS                             -->
+<!-- ============================================================ -->
+
+# Summary of Requests
+
+## Action Items for UF IT
+
+The following table consolidates all items requiring UF IT action, in priority order.
+
+```{r action-items}
+actions <- data.frame(
+  Priority = c(1, 2, 3, 4, 5, 6, 7, 8),
+  Action = c(
+    "Open inbound TCP/443 on UF firewall",
+    "Open inbound TCP/80 on UF firewall",
+    "Assign fpren.ufl.edu DNS A record to 128.227.67.234",
+    "Issue CA-signed SSL certificate (UF InCommon preferred)",
+    "Open inbound TCP/8000 on UF firewall (Icecast audio)",
+    "Register FPREN SP at UF IAM registry and configure attribute release",
+    "Open outbound TCP/443 to soa.smext.faa.gov (FAA API)",
+    "Open inbound UDP/161 for SNMP (management IP range only)"
+  ),
+  Team = c(
+    "UF IT Networking",
+    "UF IT Networking",
+    "UF IT / DNS",
+    "UF IT",
+    "UF IT Networking",
+    "UF IAM",
+    "UF IT Networking",
+    "UF IT Networking"
+  ),
+  Urgency = c(
+    "Critical",
+    "Critical",
+    "Critical",
+    "High",
+    "High",
+    "High",
+    "Medium",
+    "Low"
+  ),
+  Notes = c(
+    "Prerequisite for all external access, SSL, and Shibboleth. Highest priority.",
+    "Required for HTTP-to-HTTPS redirect and ACME cert renewal.",
+    "Required before SSL cert issuance and SP registration.",
+    "Required before port 443 is opened to avoid browser cert warnings.",
+    "Required for public emergency audio stream access.",
+    "Requires DNS and cert to be in place first.",
+    "Enables FAA airport delay data for emergency planning.",
+    "Enables off-site SNMP health monitoring."
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  actions,
+  booktabs = TRUE,
+  col.names = c("Priority", "Action Required", "UF IT Team", "Urgency", "Notes"),
+  caption = "Consolidated Action Items for UF IT --- Priority Order"
+) %>%
+  kable_styling(
+    latex_options = c("hold_position"),
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2) %>%
+  column_spec(3) %>%
+  column_spec(4, bold = TRUE) %>%
+  column_spec(5) %>%
+  row_spec(0, background = "ufblue", color = "white") %>%
+  row_spec(1:2, background = "#fde8e8") %>%
+  row_spec(3:4, background = "#fde8e8") %>%
+  row_spec(5:6, background = "#fff8e1") %>%
+  row_spec(7:8, background = "#f0f8e8")
+```
+
+## Contact Information
+
+For questions, additional documentation, or to schedule a technical walkthrough of the FPREN
+system, please contact:
+
+\vspace{0.3cm}
+
+\begin{center}
+\colorbox{lightgray}{\parbox{0.6\textwidth}{
+\vspace{0.3cm}
+\begin{center}
+\textbf{Lawrence Bornacelli}\\
+\textit{Principal Investigator / Lead Developer, FPREN}\\
+College of Journalism and Communications / WUFT\\
+University of Florida\\
+\href{mailto:lawrence.bornace@ufl.edu}{lawrence.bornace@ufl.edu}\\
+Server: \texttt{128.227.67.234}
+\end{center}
+\vspace{0.3cm}
+}}
+\end{center}
+
+\vspace{0.5cm}
+
+\begin{center}
+\colorbox{ufblue}{\parbox{0.92\textwidth}{
+\vspace{0.4cm}
+\begin{center}
+\textcolor{white}{\textbf{Thank you for your consideration.}}\\[0.2cm]
+\textcolor{uforange}{\small FPREN is an operational public-safety system serving the state of Florida.}\\[0.1cm]
+\textcolor{white}{\small The infrastructure changes requested in this document are prerequisite to FPREN}\\
+\textcolor{white}{\small fulfilling its mission of delivering emergency broadcast coverage to all Floridians,}\\
+\textcolor{white}{\small not only those with access to the UF campus network.}
+\end{center}
+\vspace{0.4cm}
+}}
+\end{center}
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  APPENDIX A: BROADCAST ZONES                                 -->
+<!-- ============================================================ -->
+
+# Appendix A: FPREN Broadcast Zones
+
+FPREN manages nine Florida broadcast zones. Each zone has a dedicated Icecast2 mount point, a
+systemd-managed streaming process, and independent alert queues.
+
+```{r zones-table}
+zones <- data.frame(
+  Zone = c(
+    "north-florida",
+    "northeast-florida",
+    "northwest-florida",
+    "central-florida",
+    "east-central-florida",
+    "west-central-florida",
+    "southwest-florida",
+    "southeast-florida",
+    "south-florida"
+  ),
+  IcecastMount = c(
+    "/north-florida",
+    "/northeast-florida",
+    "/northwest-florida",
+    "/central-florida",
+    "/east-central-florida",
+    "/west-central-florida",
+    "/southwest-florida",
+    "/southeast-florida",
+    "/south-florida"
+  ),
+  ExampleCounties = c(
+    "Alachua, Gainesville area",
+    "Duval (Jacksonville), St. Johns",
+    "Leon (Tallahassee), Escambia",
+    "Orange (Orlando), Osceola",
+    "Brevard, Indian River",
+    "Hillsborough (Tampa), Pinellas",
+    "Lee (Fort Myers), Collier",
+    "Palm Beach, Martin",
+    "Miami-Dade, Broward, Monroe"
+  ),
+  ExternalAccess = c(
+    rep("BLOCKED (port 8000)", 9)
+  ),
+  stringsAsFactors = FALSE
+)
+
+kbl(
+  zones,
+  booktabs = TRUE,
+  col.names = c("Zone Name", "Icecast Mount", "Example Counties", "External Access Status"),
+  caption = "FPREN Florida Broadcast Zones and Icecast Mount Points"
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    stripe_color = "lightgray",
+    full_width = TRUE,
+    font_size = 9
+  ) %>%
+  column_spec(1, bold = TRUE, monospace = TRUE) %>%
+  column_spec(2, monospace = TRUE) %>%
+  column_spec(3) %>%
+  column_spec(4, bold = TRUE) %>%
+  row_spec(1:9, color = "alertred")
+```
+
+The main statewide mount `/fpren` serves a consolidated emergency broadcast. All nine zone mounts
+plus the main mount are inaccessible externally until port 8000 is opened on the UF firewall.
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  APPENDIX B: NGINX CONFIGURATION OVERVIEW                   -->
+<!-- ============================================================ -->
+
+# Appendix B: Nginx Configuration Overview
+
+Nginx serves as the reverse proxy for all FPREN web services. The current configuration structure
+is summarized below. This will be extended with Shibboleth FastCGI blocks once port 443 is open
+and the SSL certificate is installed.
+
+```{r nginx-config, results='asis'}
+cat("\\begin{verbatim}\n")
+cat("# FPREN Nginx Configuration (summary)\n")
+cat("# Full configuration available on request\n\n")
+cat("server {\n")
+cat("    listen 80;                         # Inbound blocked by UF firewall\n")
+cat("    server_name fpren.ufl.edu;         # Pending DNS assignment\n")
+cat("    return 301 https://$host$request_uri;  # Redirect to HTTPS\n")
+cat("}\n\n")
+cat("server {\n")
+cat("    listen 443 ssl;                    # Inbound blocked by UF firewall\n")
+cat("    server_name fpren.ufl.edu;\n\n")
+cat("    ssl_certificate     /etc/ssl/fpren/fpren.ufl.edu.crt;  # Pending UF InCommon cert\n")
+cat("    ssl_certificate_key /etc/ssl/fpren/fpren.ufl.edu.key;\n\n")
+cat("    # Shiny R dashboard (proxy to localhost:3838)\n")
+cat("    location / {\n")
+cat("        proxy_pass http://127.0.0.1:3838;\n")
+cat("        proxy_http_version 1.1;\n")
+cat("        proxy_set_header Upgrade $http_upgrade;\n")
+cat("        proxy_set_header Connection 'upgrade';\n")
+cat("    }\n\n")
+cat("    # Flask admin interface\n")
+cat("    location /admin {\n")
+cat("        proxy_pass http://127.0.0.1:5000;\n")
+cat("    }\n\n")
+cat("    # Shibboleth FastCGI (Phase 2 --- pending UF IAM registration)\n")
+cat("    # location /Shibboleth.sso {\n")
+cat("    #     fastcgi_pass unix:/run/shibboleth/shibauthorizer.sock;\n")
+cat("    # }\n")
+cat("}\n")
+cat("\\end{verbatim}\n")
+```
+
+\newpage
+
+<!-- ============================================================ -->
+<!--  APPENDIX C: LIVE CONNECTIVITY DATA (IF AVAILABLE)          -->
+<!-- ============================================================ -->
+
+# Appendix C: Live Connectivity Data
+
+```{r live-data-section, results='asis'}
+if (!is.null(live_data)) {
+  cat("The following data was read from \\texttt{/tmp/fpren\\_access\\_check.json} at render time,\n")
+  cat("reflecting the live connectivity state of the FPREN server.\\vspace{0.3cm}\n\n")
+
+  # Try to render as a table if it has expected structure
+  tryCatch({
+    if (is.data.frame(live_data) || is.list(live_data)) {
+      df <- as.data.frame(live_data)
+      kbl(
+        df,
+        booktabs = TRUE,
+        caption = "Live FPREN Connectivity Check Results (from /tmp/fpren\\_access\\_check.json)",
+      ) %>%
+        kable_styling(
+          latex_options = c("striped", "hold_position", "scale_down"),
+          stripe_color = "lightgray",
+          full_width = TRUE,
+          font_size = 9
+        ) %>%
+        print()
+    }
+  }, error = function(e) {
+    cat("Live data was present but could not be rendered as a table. Raw structure:\\vspace{0.2cm}\n\n")
+    cat("\\begin{verbatim}\n")
+    cat(paste(capture.output(str(live_data)), collapse = "\n"))
+    cat("\n\\end{verbatim}\n")
+  })
+} else {
+  cat("\\colorbox{lightgray}{\\parbox{0.92\\textwidth}{\\vspace{0.2cm}\n")
+  cat("\\textbf{Note:} No live connectivity data file was found at \\texttt{/tmp/fpren\\_access\\_check.json}\n")
+  cat("at the time this report was rendered. The connectivity data in Section 2.2 reflects\n")
+  cat("the most recent manual check performed prior to this report generation. To include live\n")
+  cat("connectivity data, run the FPREN connectivity check script and save the output to\n")
+  cat("\\texttt{/tmp/fpren\\_access\\_check.json} before rendering this document.\n")
+  cat("\\vspace{0.2cm}}}\n")
+}
+```
+
+\vspace{1cm}
+
+---
+
+\begin{center}
+\small\textcolor{midgray}{
+This document was prepared by Lawrence Bornacelli for submission to UF Information Technology.\\
+Florida Public Radio Emergency Network (FPREN) --- College of Journalism and Communications / WUFT\\
+University of Florida --- \texttt{128.227.67.234}\\
+\textbf{CONFIDENTIAL --- UF Internal Use Only}
+}
+\end{center}

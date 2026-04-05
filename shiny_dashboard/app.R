@@ -2045,6 +2045,40 @@ ui <- tagList(
               )
           )
         ),
+        # ── UF IT Project Report ─────────────────────────────────────────────
+        conditionalPanel(
+          condition = "output.is_admin",
+          fluidRow(
+            box(
+              title  = tagList(icon("file-pdf"), " FPREN UF IT Project Report (Admin)"),
+              width  = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
+              p(tags$small(
+                icon("info-circle"),
+                " Generates the comprehensive UF IT submission PDF covering: active services,",
+                " firewall/port requests, Shibboleth SSO integration plan, data classification,",
+                " blocked features, and the future features roadmap.",
+                " Report is ~140 KB and includes live connectivity check data."
+              )),
+              fluidRow(
+                column(4,
+                  actionButton("btn_gen_ufit_report",
+                               "Generate UF IT Report PDF",
+                               class = "btn-primary", icon = icon("file-pdf"),
+                               width = "100%")
+                ),
+                column(3, br(),
+                  checkboxInput("ufit_report_email",
+                                "Email to me when done", value = FALSE)
+                ),
+                column(5,
+                  verbatimTextOutput("ufit_report_status")
+                )
+              ),
+              uiOutput("ufit_report_download_ui")
+            )
+          )
+        ),
+
         # ── Connectivity & Firewall Diagnostics ──────────────────────────────
         conditionalPanel(
           condition = "output.is_admin",
@@ -8508,6 +8542,75 @@ server <- function(input, output, session) {
                  format(Sys.time(), "%B %d, %Y at %I:%M %p %Z"), ".</p>"),
           attachment_path = out_pdf)
         access_report_status_rv(paste0("Report generated and emailed to ", auth_rv$email))
+      }
+    }
+  })
+
+  # ── UF IT Project Report ─────────────────────────────────────────────────────
+  ufit_report_status_rv <- reactiveVal("")
+  ufit_report_path_rv   <- reactiveVal(NULL)
+  output$ufit_report_status <- renderText({ ufit_report_status_rv() })
+
+  output$ufit_report_download_ui <- renderUI({
+    path <- ufit_report_path_rv()
+    if (is.null(path) || !file.exists(path)) return(NULL)
+    fname <- basename(path)
+    tags$div(style = "margin-top:8px;",
+      icon("file-pdf", style = "color:#e74c3c;"), " Report ready: ",
+      tags$a(href  = paste0("/fpren/session/", session$token,
+                            "/download/", fname),
+             target = "_blank",
+             tags$strong(fname)),
+      tags$small(style = "color:#888; margin-left:8px;",
+                 paste0("(", round(file.size(path) / 1024, 0), " KB)")),
+      tags$br(),
+      tags$small(style = "color:#666;",
+        "File saved to: ",
+        tags$code(path))
+    )
+  })
+
+  observeEvent(input$btn_gen_ufit_report, {
+    if (!isTRUE(auth_rv$role == "admin")) {
+      ufit_report_status_rv("Admin role required."); return()
+    }
+    ufit_report_status_rv("Generating report (60-90 s) ...")
+    ufit_report_path_rv(NULL)
+    ts      <- format(Sys.time(), "%Y%m%d_%H%M%S")
+    out_dir <- "/home/ufuser/Fpren-main/reports/output"
+    if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+    out_pdf <- file.path(out_dir, paste0("fpren_uf_it_report_", ts, ".pdf"))
+
+    result <- tryCatch(
+      rmarkdown::render(
+        "/home/ufuser/Fpren-main/reports/fpren_uf_it_report.Rmd",
+        output_file = out_pdf,
+        envir       = new.env(parent = globalenv()),
+        quiet       = TRUE
+      ),
+      error = function(e) {
+        ufit_report_status_rv(paste0("Render error: ", conditionMessage(e)))
+        NULL
+      }
+    )
+
+    if (!is.null(result) && file.exists(out_pdf)) {
+      ufit_report_path_rv(out_pdf)
+      size_kb <- round(file.size(out_pdf) / 1024, 0)
+      ufit_report_status_rv(paste0("Report ready: ", basename(out_pdf),
+                                   " (", size_kb, " KB)"))
+      if (isTRUE(input$ufit_report_email) && nchar(auth_rv$email) > 0) {
+        tryCatch(
+          send_fpren_email(
+            auth_rv$email,
+            paste0("[FPREN] UF IT Project Report — ", format(Sys.time(), "%Y-%m-%d")),
+            paste0("<p>Your FPREN UF IT submission report is attached.<br>",
+                   "Generated: ", format(Sys.time(), "%B %d, %Y at %I:%M %p %Z"),
+                   "</p>"),
+            attachment_path = out_pdf),
+          error = function(e) NULL
+        )
+        ufit_report_status_rv(paste0("Report ready and emailed to ", auth_rv$email))
       }
     }
   })
