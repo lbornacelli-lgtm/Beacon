@@ -5435,61 +5435,52 @@ server <- function(input, output, session) {
   })
 
   output$tbl_reports <- renderDT({
-    input$btn_gen_report  # re-render after generation
+    input$btn_unified_gen  # re-render after generation
+    input$btn_gen_bcp
+    input$btn_gen_wx_trend
+    input$btn_gen_ufit_report
+    input$btn_gen_access_report
     files <- list.files(rpt_output_dir, pattern = "\\.pdf$",
                         full.names = FALSE)
     if (length(files) == 0)
       return(datatable(data.frame(Message = "No reports generated yet")))
     df <- data.frame(
       File     = sort(files, decreasing = TRUE),
+      Size_KB  = sapply(sort(files, decreasing = TRUE), function(f)
+                   round(file.size(file.path(rpt_output_dir, f)) / 1024, 0)),
       stringsAsFactors = FALSE
     )
     datatable(df, options = list(pageLength = 10), rownames = FALSE,
-              selection = "none")
+              selection = "single")
   })
 
-  observeEvent(input$btn_gen_report, {
-    if (!isTRUE(auth_rv$role %in% c("operator","admin"))) { rpt_status_msg("Access denied."); return() }
-    rpt_status_msg("Generating report — this may take 30–60 seconds...")
-    days  <- as.integer(input$rpt_days)
-    zone  <- input$rpt_zone
-    email <- input$rpt_email
-
-    withCallingHandlers(
-      tryCatch({
-        output_dir  <- rpt_output_dir
-        dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-        timestamp   <- format(Sys.time(), "%Y%m%d_%H%M")
-        output_file <- file.path(output_dir,
-                                  paste0("fpren_alert_report_", timestamp, ".pdf"))
-        withr::with_dir(tempdir(), rmarkdown::render(
-          input             = "/home/ufuser/Fpren-main/reports/fpren_alert_report.Rmd",
-          output_file       = output_file,
-          intermediates_dir = tempdir(),
-          params            = list(days_back  = days,
-                                   zone_label = zone,
-                                   mongo_uri  = MONGO_URI),
-          quiet = TRUE
-        ))
-        msg <- paste0("Report saved: ", basename(output_file))
-        if (email) {
-          ret <- system2(
-            "/usr/bin/Rscript",
-            args = c("/home/ufuser/Fpren-main/reports/generate_and_email.R",
-                     as.character(days), shQuote(zone)),
-            stdout = TRUE, stderr = TRUE
-          )
-          if (any(grepl("Email sent", ret)))
-            msg <- paste0(msg, "\nEmail sent to lawrence.bornace@ufl.edu")
-          else
-            msg <- paste0(msg, "\nEmail failed — check logs.")
-        }
-        rpt_status_msg(msg)
-      }, error = function(e) {
-        rpt_status_msg(paste0("ERROR: ", conditionMessage(e)))
-      })
-    )
+  output$rpt_download_links <- renderUI({
+    sel <- input$tbl_reports_rows_selected
+    if (is.null(sel)) return(tags$small(style="color:#888;", "Select a row above to download."))
+    input$btn_unified_gen; input$btn_gen_bcp; input$btn_gen_wx_trend
+    files <- sort(list.files(rpt_output_dir, pattern = "\\.pdf$", full.names = FALSE), decreasing = TRUE)
+    if (length(files) == 0 || sel > length(files)) return(NULL)
+    fname <- files[sel]
+    downloadButton("dl_report_selected", paste0("Download: ", fname),
+                   class = "btn-sm btn-success", icon = icon("download"))
   })
+
+  output$dl_report_selected <- downloadHandler(
+    filename = function() {
+      sel   <- input$tbl_reports_rows_selected
+      files <- sort(list.files(rpt_output_dir, pattern = "\\.pdf$", full.names = FALSE), decreasing = TRUE)
+      if (!is.null(sel) && sel <= length(files)) files[sel] else "report.pdf"
+    },
+    content = function(file) {
+      sel   <- input$tbl_reports_rows_selected
+      files <- sort(list.files(rpt_output_dir, pattern = "\\.pdf$", full.names = FALSE), decreasing = TRUE)
+      if (!is.null(sel) && sel <= length(files)) {
+        src <- file.path(rpt_output_dir, files[sel])
+        if (file.exists(src)) file.copy(src, file)
+      }
+    },
+    contentType = "application/pdf"
+  )
 
   # ── Enhanced User Management (Admin Only) ────────────────────────────────────
   user_mgmt_msg  <- reactiveVal("")
