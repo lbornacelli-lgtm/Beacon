@@ -13,6 +13,8 @@ This directory contains all data ingestion services that pull weather data from 
 | `beacon-extended-fetcher` | `extended_fetcher.py` | Every 30 min | `fl_traffic`, extended forecast fields |
 | `beacon-airport-delays` | `airport_delays_fetcher.py` | Periodic | FAA delay data |
 | `beacon-mongo-tts` | `../mongo_tts/app.py` | Continuous | Reads `nws_alerts`, triggers TTS |
+| `beacon-rivers-fetcher` | `fl_rivers_fetcher.py` | Every 15 min | `fl_river_gauges`, `fl_river_readings` |
+| `beacon-rivers-agent` | `fl_rivers_agent.py` | Every 1 hr | `fl_river_alerts` (LiteLLM agent) |
 
 ---
 

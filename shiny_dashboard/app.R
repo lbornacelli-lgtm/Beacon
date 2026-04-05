@@ -1735,37 +1735,42 @@ ui <- tagList(
               )
           )
         )
-      )
-    )
-  )
+      ),
       # ── Florida Rivers Alerts ────────────────────────────────────────────
       tabItem(tabName = "rivers",
         fluidRow(
-          box(width = 12, status = "info", solidHeader = TRUE,
-              title = tagList(icon("water"), " Florida Rivers Alerts — Coming Soon"),
-              tags$div(style = "padding: 20px 0;",
-                tags$h4(icon("clock"), " Planned Feature", style = "color:#17a2b8; margin-bottom:16px;"),
-                tags$p("This tab will integrate a real-time data endpoint for Florida river conditions,",
-                       "flood watches, water level gauges, and navigation alerts from NOAA, USGS,",
-                       "and the Army Corps of Engineers."),
-                tags$hr(),
-                tags$h5("Planned Capabilities:", style = "margin-bottom:12px;"),
-                tags$ul(style = "color:#555; line-height:2;",
-                  tags$li("Real-time river gauge data from USGS Water Resources API (waterservices.usgs.gov)"),
-                  tags$li("NOAA Hydrological Service Area (HSA) flood warnings and watches"),
-                  tags$li("Army Corps of Engineers lake and reservoir levels (Okeechobee, Rodman, etc.)"),
-                  tags$li("NWS River Forecast Center (RFC) stage and flow forecasts"),
-                  tags$li("Navigation alerts and lock/dam status for the Intracoastal Waterway and St. Johns River"),
-                  tags$li("Flood stage threshold alerts with SMS/email notification"),
-                  tags$li("Interactive map with color-coded gauge stations across Florida"),
-                  tags$li("Historical trend charts per gauge station"),
-                  tags$li("Integration with FPREN broadcast pipeline — river flood alerts auto-broadcast to affected zones")
-                ),
-                tags$hr(),
-                tags$p(tags$em("Status: "), tags$strong("Pending development."),
-                       " The data endpoint and ingestion pipeline will be built when this tab is activated.",
-                       style = "color:#888; font-size:13px;")
+          valueBoxOutput("rv_box_total",   width = 3),
+          valueBoxOutput("rv_box_flood",   width = 3),
+          valueBoxOutput("rv_box_worst",   width = 3),
+          valueBoxOutput("rv_box_updated", width = 3)
+        ),
+        fluidRow(
+          box(title = tagList(icon("water"), " River Gauge Status"),
+              width = 8, status = "primary", solidHeader = TRUE,
+              p(tags$small("Click a row to view the 24-hour trend chart below. Color = flood category.")),
+              div(style = "overflow-x:auto;",
+                DTOutput("tbl_river_gauges")
+              ),
+              br(),
+              actionButton("btn_river_refresh", "Refresh", icon = icon("sync"),
+                           class = "btn-sm btn-default")
+          ),
+          box(title = tagList(icon("robot"), " AI River Analysis"),
+              width = 4, status = "info", solidHeader = TRUE,
+              uiOutput("rv_ai_summary"),
+              br(),
+              conditionalPanel(
+                condition = "output.is_admin",
+                actionButton("btn_river_agent_run", "Run Agent Now",
+                             icon = icon("play"), class = "btn-sm btn-warning"),
+                verbatimTextOutput("rv_agent_status")
               )
+          )
+        ),
+        fluidRow(
+          box(title = uiOutput("rv_trend_title"),
+              width = 12, status = "success", solidHeader = TRUE,
+              plotlyOutput("rv_trend_chart", height = "280px")
           )
         )
       ),
@@ -1868,6 +1873,8 @@ ui <- tagList(
           )
         )
       )
+    )
+  )
 
   ) # close dashboardPage
   ) # close div#main_dashboard
@@ -6690,6 +6697,291 @@ server <- function(input, output, session) {
         census_refresh_rv(paste0("Error: ", dat$message %||% "Unknown"))
       }
     }, error=function(e) census_refresh_rv(paste0("Request failed: ", e$message)))
+  })
+
+  # ── Florida Rivers ────────────────────────────────────────────────────────
+
+  FLOOD_CAT_COLORS <- c(
+    Normal   = "#1a6bb5",
+    Action   = "#d4a017",
+    Minor    = "#e67e22",
+    Moderate = "#c0460a",
+    Major    = "#8b0000",
+    Record   = "#6a0572",
+    Unknown  = "#888888"
+  )
+
+  rv_refresh_trigger <- reactiveVal(0)
+  rv_timer           <- reactiveTimer(120000)  # 2-minute auto-refresh
+
+  rv_gauges_data <- reactive({
+    rv_timer()
+    rv_refresh_trigger()
+    col <- tryCatch(
+      mongo(collection = "fl_river_gauges", db = "weather_rss", url = MONGO_URI),
+      error = function(e) NULL
+    )
+    if (is.null(col)) return(data.frame())
+    tryCatch({
+      d <- col$find('{}', fields = '{"_id":0}', sort = '{"flood_category":-1,"name":1}')
+      col$disconnect()
+      d
+    }, error = function(e) {
+      tryCatch(col$disconnect(), error = function(e2) NULL)
+      data.frame()
+    })
+  })
+
+  rv_latest_alert <- reactive({
+    rv_timer()
+    rv_refresh_trigger()
+    col <- tryCatch(
+      mongo(collection = "fl_river_alerts", db = "weather_rss", url = MONGO_URI),
+      error = function(e) NULL
+    )
+    if (is.null(col)) return(NULL)
+    tryCatch({
+      d <- col$find('{}', fields = '{"_id":0}', sort = '{"generated_at":-1}', limit = 1L)
+      col$disconnect()
+      if (nrow(d) == 0) NULL else d[1, ]
+    }, error = function(e) {
+      tryCatch(col$disconnect(), error = function(e2) NULL)
+      NULL
+    })
+  })
+
+  observeEvent(input$btn_river_refresh, { rv_refresh_trigger(rv_refresh_trigger() + 1) })
+
+  # ── Value boxes ─────────────────────────────────────────────────────────────
+  output$rv_box_total <- renderValueBox({
+    df <- rv_gauges_data()
+    valueBox(nrow(df), "Gauges Monitored", icon = icon("gauge"), color = "blue")
+  })
+
+  output$rv_box_flood <- renderValueBox({
+    df <- rv_gauges_data()
+    if (nrow(df) == 0) { valueBox(0, "At Flood Stage", icon = icon("house-flood-water"), color = "green"); return() }
+    n <- sum(df$flood_category %in% c("Action","Minor","Moderate","Major","Record"), na.rm = TRUE)
+    color <- if (n == 0) "green" else if (n <= 2) "yellow" else "red"
+    valueBox(n, "At Flood Stage", icon = icon("house-flood-water"), color = color)
+  })
+
+  output$rv_box_worst <- renderValueBox({
+    df <- rv_gauges_data()
+    order_map <- c(Normal=0,Unknown=0,Action=1,Minor=2,Moderate=3,Major=4,Record=5)
+    if (nrow(df) == 0 || !"flood_category" %in% colnames(df)) {
+      valueBox("Normal", "Worst Category", icon = icon("check-circle"), color = "green")
+      return()
+    }
+    worst <- df$flood_category[which.max(order_map[df$flood_category])]
+    worst <- if (is.na(worst) || length(worst)==0) "Normal" else worst
+    color <- switch(worst, Action="yellow", Minor="orange", Moderate="red", Major="red", Record="purple", "green")
+    valueBox(worst, "Worst Category", icon = icon("triangle-exclamation"), color = color)
+  })
+
+  output$rv_box_updated <- renderValueBox({
+    df <- rv_gauges_data()
+    if (nrow(df) == 0 || !"updated_at" %in% colnames(df)) {
+      valueBox("—", "Last Update", icon = icon("clock"), color = "light-blue")
+      return()
+    }
+    ts <- tryCatch(max(as.POSIXct(df$updated_at, tz="UTC"), na.rm=TRUE), error=function(e) NA)
+    label <- if (is.na(ts)) "—" else format(ts, "%H:%M UTC")
+    valueBox(label, "Last Update", icon = icon("clock"), color = "light-blue")
+  })
+
+  # ── Gauges DT ───────────────────────────────────────────────────────────────
+  output$tbl_river_gauges <- renderDT({
+    df <- rv_gauges_data()
+    if (nrow(df) == 0) {
+      return(datatable(data.frame(Message = "No river gauge data yet. Run: sudo bash systemd/install_rivers.sh"),
+                       options = list(dom = "t"), rownames = FALSE))
+    }
+    keep_cols <- intersect(
+      c("name","river","county","flood_category","current_stage_ft","action_stage_ft",
+        "minor_stage_ft","stage_trend","wfo","lid"),
+      colnames(df)
+    )
+    display <- df[, keep_cols, drop = FALSE]
+    col_labels <- c(
+      name = "Gauge Name", river = "River", county = "County",
+      flood_category = "Status", current_stage_ft = "Stage (ft)",
+      action_stage_ft = "Action (ft)", minor_stage_ft = "Minor (ft)",
+      stage_trend = "Trend", wfo = "WFO", lid = "LID"
+    )
+    colnames(display) <- col_labels[colnames(display)]
+
+    datatable(
+      display,
+      selection  = "single",
+      rownames   = FALSE,
+      extensions = "Buttons",
+      options    = list(
+        pageLength  = 20,
+        scrollX     = TRUE,
+        dom         = "Bfrtip",
+        buttons     = list("csv"),
+        columnDefs  = list(list(className = "dt-center", targets = "_all"))
+      )
+    ) %>%
+      formatStyle(
+        "Status",
+        backgroundColor = styleEqual(
+          names(FLOOD_CAT_COLORS),
+          unname(FLOOD_CAT_COLORS)
+        ),
+        color = "white",
+        fontWeight = "bold"
+      )
+  })
+
+  # ── AI Summary ──────────────────────────────────────────────────────────────
+  output$rv_ai_summary <- renderUI({
+    alert <- rv_latest_alert()
+    if (is.null(alert)) {
+      return(tags$p(tags$em("No AI analysis yet. The agent runs hourly after the fetcher populates data."),
+                    style = "color:#888; font-size:13px;"))
+    }
+    sev <- alert$severity %||% "None"
+    sev_color <- switch(sev,
+      Action="warning", Minor="warning", Moderate="danger", Major="danger", "success"
+    )
+    gen_at <- tryCatch(
+      format(as.POSIXct(alert$generated_at, tz="UTC"), "%Y-%m-%d %H:%M UTC"),
+      error = function(e) "unknown"
+    )
+    tags$div(
+      tags$div(
+        class = paste0("alert alert-", sev_color),
+        style = "font-size:13px; margin-bottom:10px;",
+        tags$strong(paste0("Severity: ", sev)),
+        tags$br(),
+        tags$span(style="font-size:11px;", paste0("Generated: ", gen_at))
+      ),
+      tags$p(alert$summary_text %||% "", style = "font-size:13px; line-height:1.6;"),
+      if (!is.null(alert$flood_gauge_count) && alert$flood_gauge_count > 0)
+        tags$p(tags$small(paste0(alert$flood_gauge_count, " gauge(s) at/above Action stage.")),
+               style="color:#888;")
+    )
+  })
+
+  # ── Agent run (admin) ────────────────────────────────────────────────────────
+  rv_agent_status_rv <- reactiveVal("")
+  output$rv_agent_status <- renderText({ rv_agent_status_rv() })
+
+  observeEvent(input$btn_river_agent_run, {
+    rv_agent_status_rv("Running agent...")
+    tryCatch({
+      r <- httr::POST(
+        "http://localhost:5000/api/rivers/agent/run",
+        httr::timeout(130)
+      )
+      if (httr::status_code(r) == 200) {
+        rv_agent_status_rv("Agent complete. Refreshing...")
+        rv_refresh_trigger(rv_refresh_trigger() + 1)
+      } else {
+        rv_agent_status_rv(paste0("Error: HTTP ", httr::status_code(r)))
+      }
+    }, error = function(e) rv_agent_status_rv(paste0("Error: ", e$message)))
+  })
+
+  # ── Trend chart ──────────────────────────────────────────────────────────────
+  rv_selected_lid <- reactiveVal(NULL)
+
+  observeEvent(input$tbl_river_gauges_rows_selected, {
+    df <- rv_gauges_data()
+    sel <- input$tbl_river_gauges_rows_selected
+    if (!is.null(sel) && length(sel) > 0 && nrow(df) >= sel) {
+      rv_selected_lid(df$lid[sel])
+    }
+  })
+
+  output$rv_trend_title <- renderUI({
+    lid <- rv_selected_lid()
+    if (is.null(lid)) return(tags$span("Gauge Trend — select a row above"))
+    df <- rv_gauges_data()
+    name <- if (nrow(df) > 0 && "name" %in% colnames(df)) {
+      nm <- df$name[df$lid == lid]
+      if (length(nm) > 0) nm[1] else lid
+    } else lid
+    tags$span(paste0("24-Hour Trend — ", name))
+  })
+
+  rv_readings_data <- reactive({
+    lid <- rv_selected_lid()
+    if (is.null(lid)) return(data.frame())
+    col <- tryCatch(
+      mongo(collection = "fl_river_readings", db = "weather_rss", url = MONGO_URI),
+      error = function(e) NULL
+    )
+    if (is.null(col)) return(data.frame())
+    query <- sprintf('{"lid":"%s","fetched_at":{"$gte":{"$date":"%s"}}}',
+                     lid, format(Sys.time() - 86400, "%Y-%m-%dT%H:%M:%SZ"))
+    tryCatch({
+      d <- col$find(query, fields = '{"_id":0,"gage_height_ft":1,"flood_category":1,"fetched_at":1}',
+                    sort = '{"fetched_at":1}', limit = 200L)
+      col$disconnect()
+      d
+    }, error = function(e) {
+      tryCatch(col$disconnect(), error = function(e2) NULL)
+      data.frame()
+    })
+  })
+
+  output$rv_trend_chart <- renderPlotly({
+    lid <- rv_selected_lid()
+    if (is.null(lid)) {
+      return(plotly_empty() %>% layout(title = "Select a gauge row to view trend"))
+    }
+    df <- rv_readings_data()
+    if (nrow(df) == 0 || !"gage_height_ft" %in% colnames(df)) {
+      return(plotly_empty() %>% layout(title = "No readings available for this gauge"))
+    }
+    df$ts <- as.POSIXct(df$fetched_at, tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ")
+    df$ts[is.na(df$ts)] <- as.POSIXct(df$fetched_at[is.na(df$ts)], tz = "UTC")
+    df <- df[!is.na(df$ts) & !is.na(df$gage_height_ft), ]
+    if (nrow(df) == 0) return(plotly_empty() %>% layout(title = "No valid readings"))
+
+    # Gauge metadata for flood stage lines
+    gdf <- rv_gauges_data()
+    action_ft <- moderate_ft <- NULL
+    if (nrow(gdf) > 0 && "lid" %in% colnames(gdf)) {
+      gr <- gdf[gdf$lid == lid, ]
+      if (nrow(gr) > 0) {
+        if ("action_stage_ft" %in% colnames(gr))   action_ft   <- gr$action_stage_ft[1]
+        if ("moderate_stage_ft" %in% colnames(gr)) moderate_ft <- gr$moderate_stage_ft[1]
+      }
+    }
+
+    p <- plot_ly(df, x = ~ts, y = ~gage_height_ft,
+                 type = "scatter", mode = "lines+markers",
+                 line = list(color = "#1a6bb5", width = 2),
+                 marker = list(size = 5, color = "#1a6bb5"),
+                 name = "Gage Height (ft)") %>%
+      layout(
+        xaxis = list(title = ""),
+        yaxis = list(title = "Gage Height (ft)"),
+        margin = list(l=50, r=20, t=20, b=40),
+        hovermode = "x unified"
+      )
+
+    if (!is.null(action_ft) && !is.na(action_ft))
+      p <- p %>% add_segments(
+        x = ~min(ts), xend = ~max(ts),
+        y = action_ft, yend = action_ft,
+        line = list(color = "#d4a017", width = 1.5, dash = "dash"),
+        name = paste0("Action Stage (", action_ft, " ft)"),
+        inherit = FALSE
+      )
+    if (!is.null(moderate_ft) && !is.na(moderate_ft))
+      p <- p %>% add_segments(
+        x = ~min(ts), xend = ~max(ts),
+        y = moderate_ft, yend = moderate_ft,
+        line = list(color = "#c0460a", width = 1.5, dash = "dash"),
+        name = paste0("Moderate Flood (", moderate_ft, " ft)"),
+        inherit = FALSE
+      )
+    p
   })
 
 }

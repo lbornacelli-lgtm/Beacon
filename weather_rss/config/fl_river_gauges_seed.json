@@ -1,0 +1,289 @@
+[
+  {
+    "lid": "JXVF1", "usgs_site_no": "02246000",
+    "name": "St. Johns River at Jacksonville",
+    "river": "St. Johns River", "county": "Duval", "wfo": "JAX",
+    "lat": 30.3272, "lon": -81.6629,
+    "action_stage_ft": 10.0, "minor_stage_ft": 12.0, "moderate_stage_ft": 16.0, "major_stage_ft": 20.0
+  },
+  {
+    "lid": "PLTF1", "usgs_site_no": "02243000",
+    "name": "St. Johns River at Palatka",
+    "river": "St. Johns River", "county": "Putnam", "wfo": "JAX",
+    "lat": 29.6477, "lon": -81.6379,
+    "action_stage_ft": 10.0, "minor_stage_ft": 12.0, "moderate_stage_ft": 14.0, "major_stage_ft": 17.0
+  },
+  {
+    "lid": "SALF1", "usgs_site_no": "02236000",
+    "name": "St. Johns River at Astor",
+    "river": "St. Johns River", "county": "Lake", "wfo": "MLB",
+    "lat": 29.1538, "lon": -81.5279,
+    "action_stage_ft": 6.0, "minor_stage_ft": 8.0, "moderate_stage_ft": 10.0, "major_stage_ft": 12.0
+  },
+  {
+    "lid": "WSFF1", "usgs_site_no": "02315000",
+    "name": "Suwannee River at White Springs",
+    "river": "Suwannee River", "county": "Hamilton", "wfo": "TAE",
+    "lat": 30.3286, "lon": -82.7568,
+    "action_stage_ft": 55.0, "minor_stage_ft": 65.0, "moderate_stage_ft": 70.0, "major_stage_ft": 75.0
+  },
+  {
+    "lid": "LCYF1", "usgs_site_no": "02319000",
+    "name": "Suwannee River at Live Oak",
+    "river": "Suwannee River", "county": "Suwannee", "wfo": "TAE",
+    "lat": 30.2927, "lon": -82.9918,
+    "action_stage_ft": 30.0, "minor_stage_ft": 40.0, "moderate_stage_ft": 50.0, "major_stage_ft": 55.0
+  },
+  {
+    "lid": "BRNF1", "usgs_site_no": "02323500",
+    "name": "Suwannee River near Branford",
+    "river": "Suwannee River", "county": "Gilchrist", "wfo": "JAX",
+    "lat": 29.9538, "lon": -82.9243,
+    "action_stage_ft": 30.0, "minor_stage_ft": 40.0, "moderate_stage_ft": 50.0, "major_stage_ft": 55.0
+  },
+  {
+    "lid": "WLDF1", "usgs_site_no": "02325000",
+    "name": "Suwannee River at Wilcox",
+    "river": "Suwannee River", "county": "Levy", "wfo": "TAE",
+    "lat": 29.5038, "lon": -82.8763,
+    "action_stage_ft": 12.0, "minor_stage_ft": 17.0, "moderate_stage_ft": 22.0, "major_stage_ft": 28.0
+  },
+  {
+    "lid": "CHTF1", "usgs_site_no": "02358000",
+    "name": "Apalachicola River at Chattahoochee",
+    "river": "Apalachicola River", "county": "Gadsden", "wfo": "TAE",
+    "lat": 30.7035, "lon": -84.8521,
+    "action_stage_ft": 50.0, "minor_stage_ft": 60.0, "moderate_stage_ft": 65.0, "major_stage_ft": 70.0
+  },
+  {
+    "lid": "BLUF1", "usgs_site_no": "02358789",
+    "name": "Apalachicola River near Blountstown",
+    "river": "Apalachicola River", "county": "Calhoun", "wfo": "TAE",
+    "lat": 30.4280, "lon": -85.0421,
+    "action_stage_ft": 45.0, "minor_stage_ft": 55.0, "moderate_stage_ft": 60.0, "major_stage_ft": 65.0
+  },
+  {
+    "lid": "WEWF1", "usgs_site_no": "02359170",
+    "name": "Apalachicola River at Wewahitchka",
+    "river": "Apalachicola River", "county": "Gulf", "wfo": "TAE",
+    "lat": 30.1071, "lon": -85.1968,
+    "action_stage_ft": 16.0, "minor_stage_ft": 20.0, "moderate_stage_ft": 24.0, "major_stage_ft": 28.0
+  },
+  {
+    "lid": "TPAF1", "usgs_site_no": "02303000",
+    "name": "Hillsborough River at Tampa",
+    "river": "Hillsborough River", "county": "Hillsborough", "wfo": "TBW",
+    "lat": 28.0147, "lon": -82.4515,
+    "action_stage_ft": 10.0, "minor_stage_ft": 12.0, "moderate_stage_ft": 16.0, "major_stage_ft": 20.0
+  },
+  {
+    "lid": "ZPYF1", "usgs_site_no": "02301990",
+    "name": "Hillsborough River at Zephyrhills",
+    "river": "Hillsborough River", "county": "Pasco", "wfo": "TBW",
+    "lat": 28.2419, "lon": -82.1784,
+    "action_stage_ft": 55.0, "minor_stage_ft": 60.0, "moderate_stage_ft": 63.0, "major_stage_ft": 66.0
+  },
+  {
+    "lid": "ARCF1", "usgs_site_no": "02296750",
+    "name": "Peace River at Arcadia",
+    "river": "Peace River", "county": "DeSoto", "wfo": "TBW",
+    "lat": 27.2155, "lon": -81.8549,
+    "action_stage_ft": 15.0, "minor_stage_ft": 20.0, "moderate_stage_ft": 23.0, "major_stage_ft": 25.0
+  },
+  {
+    "lid": "FTMF1", "usgs_site_no": "02294896",
+    "name": "Peace River at Fort Meade",
+    "river": "Peace River", "county": "Polk", "wfo": "TBW",
+    "lat": 27.7513, "lon": -81.7896,
+    "action_stage_ft": 28.0, "minor_stage_ft": 33.0, "moderate_stage_ft": 37.0, "major_stage_ft": 40.0
+  },
+  {
+    "lid": "LBFF1", "usgs_site_no": "02292900",
+    "name": "Caloosahatchee River at LaBelle",
+    "river": "Caloosahatchee River", "county": "Hendry", "wfo": "MFL",
+    "lat": 26.7654, "lon": -81.4371,
+    "action_stage_ft": 13.0, "minor_stage_ft": 15.0, "moderate_stage_ft": 17.0, "major_stage_ft": 19.0
+  },
+  {
+    "lid": "DNNF1", "usgs_site_no": "02312000",
+    "name": "Withlacoochee River at Dunnellon",
+    "river": "Withlacoochee River", "county": "Marion", "wfo": "TBW",
+    "lat": 29.0538, "lon": -82.4604,
+    "action_stage_ft": 30.0, "minor_stage_ft": 35.0, "moderate_stage_ft": 38.0, "major_stage_ft": 42.0
+  },
+  {
+    "lid": "HLDF1", "usgs_site_no": "02311500",
+    "name": "Withlacoochee River at Holder",
+    "river": "Withlacoochee River", "county": "Citrus", "wfo": "TBW",
+    "lat": 28.9752, "lon": -82.4032,
+    "action_stage_ft": 52.0, "minor_stage_ft": 57.0, "moderate_stage_ft": 61.0, "major_stage_ft": 65.0
+  },
+  {
+    "lid": "BSRF1", "usgs_site_no": "02270000",
+    "name": "Kissimmee River at Basinger",
+    "river": "Kissimmee River", "county": "Okeechobee", "wfo": "MLB",
+    "lat": 27.3819, "lon": -81.1059,
+    "action_stage_ft": 53.0, "minor_stage_ft": 54.0, "moderate_stage_ft": 55.0, "major_stage_ft": 56.0
+  },
+  {
+    "lid": "MOOH1", "usgs_site_no": "02294196",
+    "name": "Lake Okeechobee at Moore Haven",
+    "river": "Lake Okeechobee", "county": "Glades", "wfo": "MFL",
+    "lat": 26.8332, "lon": -81.0880,
+    "action_stage_ft": 15.5, "minor_stage_ft": 16.0, "moderate_stage_ft": 17.0, "major_stage_ft": 18.0
+  },
+  {
+    "lid": "OKEF1", "usgs_site_no": "02276000",
+    "name": "Lake Okeechobee at Port Mayaca",
+    "river": "Lake Okeechobee", "county": "Martin", "wfo": "MFL",
+    "lat": 26.9860, "lon": -80.6271,
+    "action_stage_ft": 15.5, "minor_stage_ft": 16.0, "moderate_stage_ft": 17.0, "major_stage_ft": 18.0
+  },
+  {
+    "lid": "OCNF1", "usgs_site_no": "02256500",
+    "name": "Ocklawaha River at Moss Bluff",
+    "river": "Ocklawaha River", "county": "Marion", "wfo": "JAX",
+    "lat": 29.2077, "lon": -81.7582,
+    "action_stage_ft": 18.0, "minor_stage_ft": 21.0, "moderate_stage_ft": 24.0, "major_stage_ft": 27.0
+  },
+  {
+    "lid": "ANOF1", "usgs_site_no": "02235000",
+    "name": "Ocklawaha River near Conner",
+    "river": "Ocklawaha River", "county": "Putnam", "wfo": "JAX",
+    "lat": 29.4727, "lon": -81.8590,
+    "action_stage_ft": 9.0, "minor_stage_ft": 12.0, "moderate_stage_ft": 15.0, "major_stage_ft": 18.0
+  },
+  {
+    "lid": "MNTF1", "usgs_site_no": "02264000",
+    "name": "Palatlakaha River at Monteverde",
+    "river": "Palatlakaha River", "county": "Lake", "wfo": "MLB",
+    "lat": 28.5588, "lon": -81.6796,
+    "action_stage_ft": 68.0, "minor_stage_ft": 70.0, "moderate_stage_ft": 72.0, "major_stage_ft": 74.0
+  },
+  {
+    "lid": "MNCF1", "usgs_site_no": "02231000",
+    "name": "St. Marys River near Macclenny",
+    "river": "St. Marys River", "county": "Baker", "wfo": "JAX",
+    "lat": 30.2827, "lon": -82.1218,
+    "action_stage_ft": 10.0, "minor_stage_ft": 12.0, "moderate_stage_ft": 15.0, "major_stage_ft": 18.0
+  },
+  {
+    "lid": "CLBF1", "usgs_site_no": "02232000",
+    "name": "St. Marys River at Callahan",
+    "river": "St. Marys River", "county": "Nassau", "wfo": "JAX",
+    "lat": 30.5627, "lon": -81.8318,
+    "action_stage_ft": 10.0, "minor_stage_ft": 12.0, "moderate_stage_ft": 15.0, "major_stage_ft": 17.0
+  },
+  {
+    "lid": "STMF1", "usgs_site_no": "02250060",
+    "name": "New River near Raiford",
+    "river": "New River", "county": "Union", "wfo": "JAX",
+    "lat": 30.0838, "lon": -82.2579,
+    "action_stage_ft": 20.0, "minor_stage_ft": 23.0, "moderate_stage_ft": 25.0, "major_stage_ft": 28.0
+  },
+  {
+    "lid": "EPTF1", "usgs_site_no": "02353000",
+    "name": "Chipola River near Marianna",
+    "river": "Chipola River", "county": "Jackson", "wfo": "TAE",
+    "lat": 30.7049, "lon": -85.2557,
+    "action_stage_ft": 30.0, "minor_stage_ft": 36.0, "moderate_stage_ft": 40.0, "major_stage_ft": 43.0
+  },
+  {
+    "lid": "BNDF1", "usgs_site_no": "02355350",
+    "name": "Chipola River at Altha",
+    "river": "Chipola River", "county": "Calhoun", "wfo": "TAE",
+    "lat": 30.5480, "lon": -85.1357,
+    "action_stage_ft": 30.0, "minor_stage_ft": 37.0, "moderate_stage_ft": 42.0, "major_stage_ft": 46.0
+  },
+  {
+    "lid": "PNSF1", "usgs_site_no": "02370000",
+    "name": "Escambia River at Century",
+    "river": "Escambia River", "county": "Escambia", "wfo": "MOB",
+    "lat": 30.9741, "lon": -87.2615,
+    "action_stage_ft": 20.0, "minor_stage_ft": 25.0, "moderate_stage_ft": 29.0, "major_stage_ft": 32.0
+  },
+  {
+    "lid": "BLVF1", "usgs_site_no": "02375000",
+    "name": "Yellow River at Milligan",
+    "river": "Yellow River", "county": "Okaloosa", "wfo": "MOB",
+    "lat": 30.7202, "lon": -86.6343,
+    "action_stage_ft": 20.0, "minor_stage_ft": 23.0, "moderate_stage_ft": 26.0, "major_stage_ft": 28.0
+  },
+  {
+    "lid": "FLAF1", "usgs_site_no": "02376000",
+    "name": "Shoal River near Mossy Head",
+    "river": "Shoal River", "county": "Walton", "wfo": "MOB",
+    "lat": 30.6949, "lon": -86.3060,
+    "action_stage_ft": 18.0, "minor_stage_ft": 22.0, "moderate_stage_ft": 25.0, "major_stage_ft": 28.0
+  },
+  {
+    "lid": "HLYF1", "usgs_site_no": "02303500",
+    "name": "Hillsborough River near Zephyrhills",
+    "river": "Hillsborough River", "county": "Pasco", "wfo": "TBW",
+    "lat": 28.1991, "lon": -82.2343,
+    "action_stage_ft": 64.0, "minor_stage_ft": 68.0, "moderate_stage_ft": 71.0, "major_stage_ft": 74.0
+  },
+  {
+    "lid": "MYMF1", "usgs_site_no": "02298202",
+    "name": "Myakka River near Sarasota",
+    "river": "Myakka River", "county": "Sarasota", "wfo": "TBW",
+    "lat": 27.2049, "lon": -82.4129,
+    "action_stage_ft": 8.0, "minor_stage_ft": 11.0, "moderate_stage_ft": 14.0, "major_stage_ft": 16.0
+  },
+  {
+    "lid": "VCBF1", "usgs_site_no": "02297100",
+    "name": "Myakka River at Myakka City",
+    "river": "Myakka River", "county": "Manatee", "wfo": "TBW",
+    "lat": 27.3719, "lon": -82.1896,
+    "action_stage_ft": 30.0, "minor_stage_ft": 35.0, "moderate_stage_ft": 38.0, "major_stage_ft": 41.0
+  },
+  {
+    "lid": "TLQF1", "usgs_site_no": "02327100",
+    "name": "Alapaha River near Jennings",
+    "river": "Alapaha River", "county": "Hamilton", "wfo": "TAE",
+    "lat": 30.5988, "lon": -83.0982,
+    "action_stage_ft": 50.0, "minor_stage_ft": 58.0, "moderate_stage_ft": 64.0, "major_stage_ft": 68.0
+  },
+  {
+    "lid": "ATAF1", "usgs_site_no": "02328000",
+    "name": "Withlacoochee River at Pinetta",
+    "river": "Withlacoochee River (North)", "county": "Madison", "wfo": "TAE",
+    "lat": 30.5571, "lon": -83.3079,
+    "action_stage_ft": 30.0, "minor_stage_ft": 35.0, "moderate_stage_ft": 38.0, "major_stage_ft": 41.0
+  },
+  {
+    "lid": "GNVF1", "usgs_site_no": "02322500",
+    "name": "Santa Fe River at Fort White",
+    "river": "Santa Fe River", "county": "Columbia", "wfo": "JAX",
+    "lat": 29.8138, "lon": -82.7240,
+    "action_stage_ft": 50.0, "minor_stage_ft": 55.0, "moderate_stage_ft": 58.0, "major_stage_ft": 62.0
+  },
+  {
+    "lid": "MDSF1", "usgs_site_no": "02281000",
+    "name": "Taylor Creek near Okeechobee",
+    "river": "Taylor Creek", "county": "Okeechobee", "wfo": "MLB",
+    "lat": 27.2549, "lon": -80.8093,
+    "action_stage_ft": 15.0, "minor_stage_ft": 17.0, "moderate_stage_ft": 19.0, "major_stage_ft": 21.0
+  },
+  {
+    "lid": "STUF1", "usgs_site_no": "02256500",
+    "name": "St. Lucie Canal near Stuart",
+    "river": "St. Lucie Canal", "county": "Martin", "wfo": "MFL",
+    "lat": 27.1849, "lon": -80.2229,
+    "action_stage_ft": 8.0, "minor_stage_ft": 10.0, "moderate_stage_ft": 12.0, "major_stage_ft": 14.0
+  },
+  {
+    "lid": "IAMF1", "usgs_site_no": "02289050",
+    "name": "Fisheating Creek at Palmdale",
+    "river": "Fisheating Creek", "county": "Glades", "wfo": "MFL",
+    "lat": 26.9319, "lon": -81.3032,
+    "action_stage_ft": 28.0, "minor_stage_ft": 32.0, "moderate_stage_ft": 35.0, "major_stage_ft": 38.0
+  },
+  {
+    "lid": "IMKF1", "usgs_site_no": "02288000",
+    "name": "Catfish Creek near Lake Wales",
+    "river": "Catfish Creek", "county": "Polk", "wfo": "TBW",
+    "lat": 27.8638, "lon": -81.5210,
+    "action_stage_ft": 65.0, "minor_stage_ft": 67.0, "moderate_stage_ft": 69.0, "major_stage_ft": 71.0
+  }
+]

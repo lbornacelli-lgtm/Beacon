@@ -1,0 +1,19 @@
+[Unit]
+Description=FPREN Florida Rivers AI Agent (LiteLLM analysis, hourly)
+After=network.target mongod.service beacon-rivers-fetcher.service
+
+[Service]
+Type=simple
+User=ufuser
+WorkingDirectory=/home/ufuser/Fpren-main
+ExecStart=/home/ufuser/Fpren-main/venv/bin/python3 /home/ufuser/Fpren-main/weather_rss/fl_rivers_agent.py --loop
+Restart=on-failure
+RestartSec=60
+Environment=MONGO_URI=mongodb://localhost:27017/
+Environment=LOG_FILE=/home/ufuser/Fpren-main/weather_rss/logs/fl_rivers_agent.log
+EnvironmentFile=-/home/ufuser/Fpren-main/weather_station/config/.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -5,7 +5,7 @@ import time as _time
 import urllib.request as _ureq
 from flask import Flask, abort, jsonify, redirect, render_template_string, request, send_file, send_from_directory, url_for
 from pymongo import MongoClient
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # -------------------- CONFIG --------------------
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
@@ -4180,6 +4180,130 @@ def api_waze_refresh():
         return jsonify({"ok": False, "message": "Waze fetch timed out (>60s)"}), 504
     except Exception as e:
         return jsonify({"ok": False, "message": str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Florida Rivers API
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/rivers/gauges")
+def api_rivers_gauges():
+    """All FL river gauges with current status. Optional ?category=Minor,Moderate,Major"""
+    category_filter = request.args.get("category", "")
+    county_filter   = request.args.get("county", "")
+    query = {}
+    if category_filter:
+        cats = [c.strip() for c in category_filter.split(",") if c.strip()]
+        query["flood_category"] = {"$in": cats}
+    if county_filter:
+        query["county"] = {"$regex": county_filter, "$options": "i"}
+    docs = list(db.fl_river_gauges.find(query, {"_id": 0}).sort("flood_category", -1).limit(500))
+    for d in docs:
+        if isinstance(d.get("updated_at"), datetime):
+            d["updated_at"] = d["updated_at"].isoformat()
+    return jsonify({"count": len(docs), "gauges": docs})
+
+
+@app.route("/api/rivers/gauge/<lid>")
+def api_rivers_gauge_detail(lid):
+    """Single gauge detail + last 24 h of readings."""
+    gauge = db.fl_river_gauges.find_one({"lid": lid}, {"_id": 0})
+    if not gauge:
+        return jsonify({"error": "Gauge not found"}), 404
+    if isinstance(gauge.get("updated_at"), datetime):
+        gauge["updated_at"] = gauge["updated_at"].isoformat()
+
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    readings = list(db.fl_river_readings.find(
+        {"lid": lid, "fetched_at": {"$gte": since}},
+        {"_id": 0, "gage_height_ft": 1, "discharge_cfs": 1,
+         "flood_category": 1, "stage_trend": 1, "fetched_at": 1},
+    ).sort("fetched_at", 1).limit(200))
+    for r in readings:
+        if isinstance(r.get("fetched_at"), datetime):
+            r["fetched_at"] = r["fetched_at"].isoformat()
+
+    return jsonify({"gauge": gauge, "readings": readings})
+
+
+@app.route("/api/rivers/flood")
+def api_rivers_flood():
+    """Gauges at or above Action stage only."""
+    docs = list(db.fl_river_gauges.find(
+        {"flood_category": {"$in": ["Action", "Minor", "Moderate", "Major", "Record"]}},
+        {"_id": 0},
+    ).sort([("flood_category", -1), ("name", 1)]))
+    for d in docs:
+        if isinstance(d.get("updated_at"), datetime):
+            d["updated_at"] = d["updated_at"].isoformat()
+    return jsonify({"flood_count": len(docs), "gauges": docs})
+
+
+@app.route("/api/rivers/alerts")
+def api_rivers_alerts():
+    """Latest AI-generated river alert summaries."""
+    limit = min(int(request.args.get("limit", 10)), 50)
+    docs = list(db.fl_river_alerts.find(
+        {}, {"_id": 0},
+    ).sort("generated_at", -1).limit(limit))
+    for d in docs:
+        if isinstance(d.get("generated_at"), datetime):
+            d["generated_at"] = d["generated_at"].isoformat()
+    return jsonify({"count": len(docs), "alerts": docs})
+
+
+@app.route("/api/rivers/status")
+def api_rivers_status():
+    """Quick dashboard status: gauge counts, last update, worst flood category."""
+    total   = db.fl_river_gauges.count_documents({})
+    at_flood = db.fl_river_gauges.count_documents(
+        {"flood_category": {"$in": ["Action", "Minor", "Moderate", "Major", "Record"]}}
+    )
+    last_gauge = db.fl_river_gauges.find_one(
+        {}, {"updated_at": 1, "_id": 0}, sort=[("updated_at", -1)]
+    )
+    last_alert = db.fl_river_alerts.find_one(
+        {}, {"severity": 1, "summary_text": 1, "generated_at": 1, "_id": 0},
+        sort=[("generated_at", -1)],
+    )
+    worst = db.fl_river_gauges.find_one(
+        {"flood_category": {"$in": ["Major", "Moderate", "Minor", "Action"]}},
+        {"flood_category": 1, "name": 1, "_id": 0},
+        sort=[("flood_category", -1)],
+    )
+    result = {
+        "total_gauges":      total,
+        "at_flood_count":    at_flood,
+        "last_fetch":        last_gauge["updated_at"].isoformat() if last_gauge and isinstance(last_gauge.get("updated_at"), datetime) else None,
+        "worst_category":    worst["flood_category"] if worst else "Normal",
+        "worst_gauge_name":  worst["name"] if worst else None,
+        "last_ai_severity":  last_alert["severity"] if last_alert else None,
+        "last_ai_summary":   last_alert["summary_text"][:200] if last_alert else None,
+        "last_ai_generated": last_alert["generated_at"].isoformat() if last_alert and isinstance(last_alert.get("generated_at"), datetime) else None,
+    }
+    return jsonify(result)
+
+
+@app.route("/api/rivers/agent/run", methods=["POST"])
+@login_required
+def api_rivers_agent_run():
+    """Trigger an immediate AI agent analysis of river conditions (admin only)."""
+    import subprocess, sys
+    try:
+        proc = subprocess.Popen(
+            [sys.executable,
+             "/home/ufuser/Fpren-main/weather_rss/fl_rivers_agent.py"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        stdout, stderr = proc.communicate(timeout=120)
+        doc = db.fl_river_alerts.find_one(
+            {}, {"_id": 0}, sort=[("generated_at", -1)]
+        )
+        if doc and isinstance(doc.get("generated_at"), datetime):
+            doc["generated_at"] = doc["generated_at"].isoformat()
+        return jsonify({"ok": True, "alert": doc})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────

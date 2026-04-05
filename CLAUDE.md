@@ -26,6 +26,8 @@ FPREN (Florida Public Radio Emergency Network) is a 24/7 automated weather radio
 | `beacon-obs-fetcher` | `weather_rss/weather_rss.py` | 19 FL ASOS station obs (15 min) |
 | `beacon-extended-fetcher` | `weather_rss/extended_fetcher.py` | Extended forecast + FL511 traffic |
 | `beacon-mongo-tts` | `mongo_tts/app.py` | MongoDB TTS monitor |
+| `beacon-rivers-fetcher` | `weather_rss/fl_rivers_fetcher.py` | USGS FL river gauge data (15 min) |
+| `beacon-rivers-agent` | `weather_rss/fl_rivers_agent.py` | LiteLLM agent river analysis (1 hr) |
 | `zone-alert-tts` | `weather_station/services/zone_alert_tts.py` | Alert → MP3 per zone (main pipeline) |
 | `fpren-broadcast-generator` | `weather_station/services/broadcast_generator.py` | AI broadcast scripts → MP3 per zone (every 30 min via timer) |
 | `fpren-multi-zone-streamer` | `weather_station/services/multi_zone_streamer.py` | One FFmpeg → Icecast streamer per zone, all on port 8000 |
@@ -80,6 +82,9 @@ Fpren-main/
 | `fl_traffic` | FL511 traffic incidents |
 | `waze_alerts` | Waze CCP point incidents (accidents, hazards, closures) with GeoJSON Point |
 | `waze_jams` | Waze CCP polyline jams with GeoJSON LineString + centroid Point |
+| `fl_river_gauges` | FL river gauge metadata + flood stage thresholds + current readings (513 gauges) |
+| `fl_river_readings` | Time-series gage height + discharge per gauge (90-day TTL) |
+| `fl_river_alerts` | LiteLLM agent-generated river condition summaries (30-day retention) |
 | `airport_metar` | Current METAR obs for 19 FL ASOS stations (updated every 15 min) |
 | `airport_delays` | FAA airport delay status |
 | `weather_history` | Hourly METAR snapshots for 16 FL cities — temp, wind, humidity, flight cat (90-day retention) |
