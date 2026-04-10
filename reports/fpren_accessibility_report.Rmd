@@ -12,6 +12,7 @@ header-includes:
   - \usepackage{booktabs}
   - \usepackage{colortbl}
   - \usepackage{xcolor}
+  - \usepackage{pdflscape}
   - \renewcommand{\arraystretch}{1.2}
 params:
   mongo_uri: "mongodb://localhost:27017/"
@@ -92,7 +93,7 @@ summary_df <- data.frame(
   stringsAsFactors = FALSE
 )
 kable(summary_df, booktabs = TRUE, col.names = c("Metric", "Count")) %>%
-  kable_styling(latex_options = c("striped", "hold_position"),
+  kable_styling(latex_options = c("striped", "hold_position","scale_down"),
                 full_width = FALSE, position = "left") %>%
   row_spec(which(summary_df$Metric %in% c("Blocked / Timeout", "Errors")),
            bold = TRUE, color = "red")
@@ -132,7 +133,8 @@ uf_df <- df %>%
 kable(uf_df, booktabs = TRUE, escape = FALSE,
       caption = "UF internal network service reachability") %>%
   kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  landscape()
 ```
 
 \newpage
@@ -150,7 +152,8 @@ ext_df <- df %>%
 kable(ext_df, booktabs = TRUE, escape = FALSE,
       caption = "External API reachability from UF VM") %>%
   kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  landscape()
 ```
 
 # Registered SNMP Devices
@@ -169,7 +172,8 @@ if (nrow(snmp_df) == 0) {
   kable(snmp_tbl, booktabs = TRUE, escape = FALSE,
         caption = "SNMP device reachability (TCP to configured IP:Port)") %>%
     kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
-                  full_width = FALSE)
+                  full_width = FALSE) %>%
+    landscape()
 }
 ```
 
@@ -192,7 +196,8 @@ if (nrow(blocked) == 0) {
         caption = "Services that are BLOCKED, timed out, or errored") %>%
     kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
                   full_width = FALSE) %>%
-    row_spec(seq_len(nrow(blocked)), color = "red")
+    row_spec(seq_len(nrow(blocked)), color = "red") %>%
+    landscape()
 }
 ```
 

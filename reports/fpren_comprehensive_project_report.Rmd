@@ -117,7 +117,7 @@ exec_df <- data.frame(
 
 kable(exec_df, booktabs=TRUE, col.names=c("Metric", "Current Value"),
       caption="Live System Statistics — Generated at Report Time") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=10) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=10) %>%
   column_spec(1, bold=TRUE, width="10cm") %>%
   column_spec(2, width="4cm")
 ```
@@ -147,7 +147,7 @@ arch_df <- data.frame(
 )
 kable(arch_df, booktabs=TRUE, col.names=c("Component","Detail"),
       caption="Infrastructure Summary") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=10) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=10) %>%
   column_spec(1, bold=TRUE, width="5.5cm") %>%
   column_spec(2, width="9cm")
 ```
@@ -162,7 +162,7 @@ port_df <- data.frame(
   Status = c("Pending UF IT","Pending UF IT","Active","Active","Active (ext. blocked)","Active","Internal only")
 )
 kable(port_df, booktabs=TRUE, caption="Port Assignments") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=10)
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=10)
 ```
 
 ## Repository Structure
@@ -222,7 +222,7 @@ svc_df <- data.frame(
 )
 kable(svc_df, booktabs=TRUE, col.names=c("Service","Purpose","Status"),
       caption="All Active Systemd Services") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="5cm") %>%
   column_spec(2, width="7.5cm") %>%
   column_spec(3, width="2cm")
@@ -256,7 +256,7 @@ timer_df <- data.frame(
 )
 kable(timer_df, booktabs=TRUE, col.names=c("Timer","Schedule","Purpose"),
       caption="Scheduled Systemd Timers") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="5.5cm") %>%
   column_spec(2, width="3.5cm") %>%
   column_spec(3, width="5.5cm")
@@ -285,7 +285,7 @@ if (!is.null(m_alerts) && m_alerts$count() > 0) {
     kable(sev_df, booktabs=TRUE, row.names=FALSE,
           col.names=c("Severity","Count"),
           caption="Current Alerts by Severity") %>%
-      kable_styling(latex_options=c("striped","hold_position"), font_size=10)
+      kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=10)
   } else {
     cat("No severity data available in current alert records.")
   }
@@ -362,7 +362,7 @@ zones_df <- data.frame(
 kable(zones_df, booktabs=TRUE,
       col.names=c("Zone ID","Coverage","Icecast Mount","Audio Files"),
       caption="9 FPREN Broadcast Zones — All Streaming on Port 8000") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="3.5cm") %>%
   column_spec(2, width="5cm")
 ```
@@ -383,7 +383,7 @@ tts_df <- data.frame(
 )
 kable(tts_df, booktabs=TRUE, col.names=c("Engine","Trigger","Notes"),
       caption="TTS Engine Stack") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="2.5cm") %>%
   column_spec(2, width="4.5cm") %>%
   column_spec(3, width="6.5cm")
@@ -459,7 +459,7 @@ tabs_df <- data.frame(
 )
 kable(tabs_df, booktabs=TRUE, col.names=c("#","Tab","Description"),
       caption="Shiny Dashboard Tab Reference") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, width="0.5cm") %>%
   column_spec(2, bold=TRUE, width="3.5cm") %>%
   column_spec(3, width="9cm")
@@ -496,7 +496,7 @@ auth_df <- data.frame(
 )
 kable(auth_df, booktabs=TRUE, col.names=c("Feature","Detail"),
       caption="Shiny Authentication Features") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="3.5cm") %>%
   column_spec(2, width="10cm")
 ```
@@ -536,7 +536,7 @@ flask_df <- data.frame(
 )
 kable(flask_df, booktabs=TRUE, col.names=c("Route Group","# Routes","Notes"),
       caption="Flask API Route Groups") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="3.5cm") %>%
   column_spec(2, width="1.5cm") %>%
   column_spec(3, width="9cm")
@@ -566,7 +566,7 @@ ai_df <- data.frame(
 )
 kable(ai_df, booktabs=TRUE, col.names=c("Item","Value"),
       caption="UF LiteLLM Configuration") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=10) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=10) %>%
   column_spec(1, bold=TRUE, width="3cm") %>%
   column_spec(2, width="11cm")
 ```
@@ -602,7 +602,7 @@ aiuse_df <- data.frame(
 )
 kable(aiuse_df, booktabs=TRUE, col.names=c("Use Case","File","Trigger"),
       caption="AI Integration Points") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="4cm") %>%
   column_spec(2, width="6cm") %>%
   column_spec(3, width="4cm")
@@ -684,7 +684,7 @@ census_df <- data.frame(
 )
 kable(census_df, booktabs=TRUE, col.names=c("Item","Value"),
       caption="Census Data Source") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=10) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=10) %>%
   column_spec(1, bold=TRUE, width="3cm") %>%
   column_spec(2, width="11cm")
 ```
@@ -717,7 +717,7 @@ if (!is.null(m_census) && m_census$count() > 0) {
           booktabs=TRUE, row.names=FALSE,
           col.names=c("County","Population","65+ %","Poverty %","Vuln. Score","Label"),
           caption="Top 10 Most Vulnerable FL Counties by Score") %>%
-      kable_styling(latex_options=c("striped","hold_position"), font_size=9)
+      kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9)
   }
 }
 ```
@@ -758,7 +758,7 @@ mongo_df <- data.frame(
 )
 kable(mongo_df, booktabs=TRUE, col.names=c("Collection","Records","Purpose"),
       caption="MongoDB Collections (database: weather\\_rss)") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="4cm") %>%
   column_spec(2, width="2.5cm") %>%
   column_spec(3, width="7cm")
@@ -799,7 +799,7 @@ rep_df <- data.frame(
 )
 kable(rep_df, booktabs=TRUE, col.names=c("Template","Output","Trigger","Parameters"),
       caption="R Markdown Report Templates") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=8) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=8) %>%
   column_spec(1, bold=TRUE, width="4cm") %>%
   column_spec(2, width="2.5cm") %>%
   column_spec(3, width="3.5cm") %>%
@@ -838,7 +838,7 @@ issues_df <- data.frame(
 )
 kable(issues_df, booktabs=TRUE, col.names=c("Priority","Issue","Status","Impact"),
       caption="Open Issues") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="1.5cm") %>%
   column_spec(2, width="4cm") %>%
   column_spec(3, width="4cm") %>%
@@ -895,7 +895,7 @@ hist_df <- data.frame(
 )
 kable(hist_df, booktabs=TRUE, col.names=c("Date","Feature Completed"),
       caption="Feature Delivery History") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="2.5cm") %>%
   column_spec(2, width="11cm")
 ```
@@ -936,7 +936,7 @@ health_df <- data.frame(
 )
 kable(health_df, booktabs=TRUE, col.names=c("Health Check","Current Value","Status"),
       caption="System Health Snapshot") %>%
-  kable_styling(latex_options=c("striped","hold_position"), font_size=9) %>%
+  kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=9) %>%
   column_spec(1, bold=TRUE, width="4cm") %>%
   column_spec(2, width="7cm") %>%
   column_spec(3, width="2cm")

@@ -1544,7 +1544,7 @@ class FPRENApp(tk.Tk):
         tk.Label(inner, text="RStudio Server — edit templates, run custom R analysis",
                  font=("Arial", 9), bg="#e8f4fd").pack(side="left")
         tk.Button(inner, text="Open RStudio Server →",
-                  command=lambda: __import__("webbrowser").open("http://128.227.67.234:8787"),
+                  command=lambda: __import__("webbrowser").open("http://cjc-fpren.ad.ufl.edu:8787"),
                   bg="#0077aa", fg="white", font=("Arial", 9),
                   relief="flat", padx=10, pady=4).pack(side="right")
 

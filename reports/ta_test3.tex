@@ -1,0 +1,531 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{array}
+\definecolor{fprenblue}{RGB}{0, 70, 127}
+\definecolor{majorred}{RGB}{192, 57, 43}
+\definecolor{intermorange}{RGB}{230, 126, 34}
+\definecolor{minoryellow}{RGB}{243, 156, 18}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead[L]{\textcolor{fprenblue}{\textbf{FPREN}}}
+\fancyhead[C]{\textcolor{fprenblue}{Traffic Analysis Report}}
+\fancyhead[R]{\textcolor{gray}{Florida Public Radio Emergency Network}}
+\renewcommand{\headrulewidth}{0.4pt}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={FPREN Traffic Analysis Report},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{FPREN Traffic Analysis Report}
+\usepackage{etoolbox}
+\makeatletter
+\providecommand{\subtitle}[1]{% add subtitle to \maketitle
+  \apptocmd{\@title}{\par {\large #1 \par}}{}{}
+}
+\makeatother
+\subtitle{Florida Public Radio Emergency Network --- FL511 Traffic
+Incidents}
+\author{}
+\date{\vspace{-2.5em}Generated April 01, 2026 at 11:08 PM}
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{2}
+\tableofcontents
+}
+\textcolor{fprenblue}{\textbf{Florida Public Radio Emergency Network}}
+\hfill \textcolor{gray}{Automated Traffic Report}
+
+\vspace{4pt}
+\hrule
+\vspace{8pt}
+
+\textbf{Active Filters:} No filters applied
+
+\textbf{Report Date:} April 01, 2026
+
+\textbf{Total Incidents in Report:} 7014
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{summary-statistics}{%
+\subsection{Summary Statistics}\label{summary-statistics}}
+
+\begin{longtable}[t]{l>{}r}
+\caption{\label{tab:summary-boxes}Incident Summary}\\
+\toprule
+Metric & Count\\
+\midrule
+Total Incidents & \textbf{7014}\\
+Major / Intermediate & \textbf{1847}\\
+Full Closures & \textbf{7}\\
+Counties Affected & \textbf{54}\\
+\bottomrule
+\end{longtable}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{incidents-by-road-top-20}{%
+\subsection{Incidents by Road (Top 20)}\label{incidents-by-road-top-20}}
+
+\includegraphics{/home/ufuser/Fpren-main/reports/ta_test3_files/ef1eb10fec9c2597a6ee3d9a651b9601cca63a39.pdf}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{incident-type-breakdown}{%
+\subsection{Incident Type Breakdown}\label{incident-type-breakdown}}
+
+\includegraphics{/home/ufuser/Fpren-main/reports/ta_test3_files/4e82b473509f0967f9183bc985be550cd504abaa.pdf}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{incidents-by-county-top-25}{%
+\subsection{Incidents by County (Top
+25)}\label{incidents-by-county-top-25}}
+
+\includegraphics{/home/ufuser/Fpren-main/reports/ta_test3_files/62ce958c876d3d2f5e7c6e5f219982153f240904.pdf}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{severity-breakdown-by-road-top-15}{%
+\subsection{Severity Breakdown by Road (Top
+15)}\label{severity-breakdown-by-road-top-15}}
+
+\includegraphics{/home/ufuser/Fpren-main/reports/ta_test3_files/9fc1e8fbb48f443d1405492c57043a099be1157d.pdf}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{full-closures}{%
+\subsection{Full Closures}\label{full-closures}}
+
+\begingroup\fontsize{8}{10}\selectfont
+
+\begin{longtabu} to \linewidth {>{\raggedright}X>{\raggedright}X>{\raggedright}X>{\raggedright}X>{\raggedright}X>{\raggedright\arraybackslash}p{5cm}>{\raggedright}X}
+\caption{\label{tab:closures-table}Full Closures (7 total)}\\
+\toprule
+Severity & County & Road & Direction & Type & Description & Last Updated\\
+\midrule
+\endfirsthead
+\caption[]{Full Closures (7 total) \textit{(continued)}}\\
+\toprule
+Severity & County & Road & Direction & Type & Description & Last Updated\\
+\midrule
+\endhead
+
+\endfoot
+\bottomrule
+\endlastfoot
+\cellcolor{gray!10}{Major} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Lox Rd} & \cellcolor{gray!10}{Both Directions} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{Scheduled Road Work on Lox Rd Both Directions from SR-7 Southbound to Parkside Dr. All lanes closed.Comments: The Florid} & \cellcolor{gray!10}{4/1/26, 9:48 AM}\\
+Intermediate & Escambia & SR-95 Northbound & Unknown & Closures & Scheduled Road Work on ramp from SR-95 Northbound to I-10 Eastbound. All lanes closed.Comments: Ramp Closed- Use Caution & 4/1/26, 2:58 PM\\
+\cellcolor{gray!10}{Major} & \cellcolor{gray!10}{Santa Rosa} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{Police Activity on I-10 Westbound at Avalon Blvd. All lanes closed.} & \cellcolor{gray!10}{3/21/26, 11:51 AM}\\
+Major & Volusia & CR-4019 & Southbound & Closures & Crash on CR-4019 Southbound near Kilgore St. All lanes closed. & 3/21/26, 3:17 PM\\
+\cellcolor{gray!10}{Major} & \cellcolor{gray!10}{Collier} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{Crash on I-75 Northbound 4.36 Mi Beyond SR-29. All lanes closed.} & \cellcolor{gray!10}{3/23/26, 1:42 PM}\\
+\addlinespace
+Major & Polk & SR-655 & Westbound & Closures & Crash on SR-655 Westbound near Spirit Lake Rd. All lanes closed. & 3/23/26, 6:15 PM\\
+\cellcolor{gray!10}{Intermediate} & \cellcolor{gray!10}{Leon} & \cellcolor{gray!10}{SR-363} & \cellcolor{gray!10}{Both Directions} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{Crash on SR-363 Both Directions near Page Rd. All lanes closed.Comments: A crash has all lanes of SR-363 blocked near Pa} & \cellcolor{gray!10}{4/1/26, 12:50 PM}\\*
+\end{longtabu}
+\endgroup{}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{incident-detail-table}{%
+\subsection{Incident Detail Table}\label{incident-detail-table}}
+
+\begingroup\fontsize{7}{9}\selectfont
+
+\begin{longtable}[t]{>{\raggedright\arraybackslash}p{1.5cm}>{\raggedright\arraybackslash}p{2cm}>{\raggedright\arraybackslash}p{3cm}>{\raggedright\arraybackslash}p{1.5cm}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{1.2cm}>{\raggedright\arraybackslash}p{1.2cm}>{\raggedright\arraybackslash}p{2.5cm}}
+\caption{\label{tab:detail-table}Incident Detail — 250 of 7014 records (top 250 shown; download CSV for full data)}\\
+\toprule
+Severity & County & Road & Direction & Type & Full Closure & District & Last Updated\\
+\midrule
+\textbf{\cellcolor{gray!10}{N/A}} & \cellcolor{gray!10}{Escambia} & \cellcolor{gray!10}{W Nine Mile Rd} & \cellcolor{gray!10}{Both Directions} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 3} & \cellcolor{gray!10}{4/1/26, 3:07 PM}\\
+\textbf{N/A} & Holmes & SR-81 Southbound & Unknown & Construction Zones & FALSE & District 3 Jax & 4/1/26, 2:58 PM\\
+\textbf{\cellcolor{gray!10}{N/A}} & \cellcolor{gray!10}{Holmes} & \cellcolor{gray!10}{SR-81 Northbound} & \cellcolor{gray!10}{Unknown} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 3 Jax} & \cellcolor{gray!10}{4/1/26, 2:58 PM}\\
+\textbf{N/A} & Manatee & SR-64 / Manatee Ave & Eastbound & Construction Zones & FALSE & District 7 & 3/19/26, 2:12 AM\\
+\textbf{\cellcolor{gray!10}{N/A}} & \cellcolor{gray!10}{Palm Beach} & \cellcolor{gray!10}{Floridas Turnpike} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/22/26, 10:10 PM}\\
+\addlinespace
+\textbf{N/A} & Pinellas & SR-687 & Southbound & Construction Zones & FALSE & District 7 & 3/24/26, 12:31 PM\\
+\textbf{\cellcolor{gray!10}{N/A}} & \cellcolor{gray!10}{Putnam} & \cellcolor{gray!10}{Roddy Rd} & \cellcolor{gray!10}{Both Directions} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{7/3/24, 11:04 AM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/20/26, 5:17 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/20/26, 6:21 AM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/20/26, 9:30 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/20/26, 10:58 PM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 1:09 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 5:45 AM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 5:54 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 7:33 AM}\\
+\addlinespace
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 7:58 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 9:35 AM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 10:30 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 6:24 PM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 7:02 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 7:08 PM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 7:36 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/22/26, 3:45 AM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Incidents & FALSE & District 2 & 3/22/26, 6:01 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/22/26, 6:01 AM}\\
+\addlinespace
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/22/26, 6:37 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/22/26, 8:30 AM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/22/26, 11:05 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/22/26, 6:22 PM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/22/26, 6:47 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/22/26, 7:57 PM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/24/26, 10:25 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/24/26, 11:29 AM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/24/26, 11:59 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/24/26, 7:50 PM}\\
+\addlinespace
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 3/25/26, 6:02 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/25/26, 12:25 PM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/25/26, 7:43 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/27/26, 6:21 AM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Incidents & FALSE & District 2 & 3/27/26, 10:31 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/27/26, 9:25 PM}\\
+\textbf{Minor} & Alachua & US-441 & Northbound & Incidents & FALSE & District 2 & 3/28/26, 8:05 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/28/26, 7:12 AM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/28/26, 9:22 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/28/26, 8:19 PM}\\
+\addlinespace
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/28/26, 8:24 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/29/26, 5:16 AM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/29/26, 8:40 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/29/26, 11:14 AM}\\
+\textbf{Minor} & Alachua & I-75 & Northbound & Disabled Vehicles & FALSE & District 2 & 3/29/26, 6:49 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/29/26, 7:17 PM}\\
+\textbf{Minor} & Alachua & I-75 & Southbound & Disabled Vehicles & FALSE & District 2 & 4/1/26, 6:16 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Alachua} & \cellcolor{gray!10}{I-75} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{4/1/26, 8:16 PM}\\
+\textbf{Minor} & Baker & I-10 & Westbound & Incidents & FALSE & District 2 & 3/18/26, 9:55 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/19/26, 7:26 PM}\\
+\addlinespace
+\textbf{Minor} & Baker & I-10 & Eastbound & Disabled Vehicles & FALSE & District 2 & 3/20/26, 11:12 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 12:32 AM}\\
+\textbf{Minor} & Baker & I-10 & Eastbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 6:56 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 7:09 AM}\\
+\textbf{Minor} & Baker & I-10 & Westbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 9:05 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 10:01 AM}\\
+\textbf{Minor} & Baker & I-10 & Eastbound & Incidents & FALSE & District 2 & 3/21/26, 10:58 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 12:56 PM}\\
+\textbf{Minor} & Baker & I-10 & Westbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 1:54 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/21/26, 8:21 PM}\\
+\addlinespace
+\textbf{Minor} & Baker & I-10 & Westbound & Disabled Vehicles & FALSE & District 2 & 3/21/26, 10:59 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/22/26, 2:33 AM}\\
+\textbf{Minor} & Baker & I-10 & Westbound & Disabled Vehicles & FALSE & District 2 & 3/22/26, 6:59 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/23/26, 7:57 AM}\\
+\textbf{Minor} & Baker & I-10 & Eastbound & Disabled Vehicles & FALSE & District 2 & 3/25/26, 2:32 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/27/26, 11:38 PM}\\
+\textbf{Minor} & Baker & I-10 & Eastbound & Disabled Vehicles & FALSE & District 2 & 3/28/26, 11:24 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Baker} & \cellcolor{gray!10}{I-10} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 2} & \cellcolor{gray!10}{3/29/26, 1:28 AM}\\
+\textbf{Minor} & Baker & I-10 & Eastbound & Disabled Vehicles & FALSE & District 2 & 3/29/26, 6:54 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Bay} & \cellcolor{gray!10}{US-231} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 3 Jax} & \cellcolor{gray!10}{3/21/26, 1:59 AM}\\
+\addlinespace
+\textbf{Minor} & Bay & US-231 & Southbound & Disabled Vehicles & FALSE & District 3 Jax & 3/24/26, 9:37 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Bay} & \cellcolor{gray!10}{US-231} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 3 Jax} & \cellcolor{gray!10}{3/24/26, 10:25 AM}\\
+\textbf{Minor} & Bay & US-98 & Westbound & Disabled Vehicles & FALSE & District 3 Jax & 3/28/26, 9:40 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Bay} & \cellcolor{gray!10}{US-231} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 3 Jax} & \cellcolor{gray!10}{3/28/26, 7:03 PM}\\
+\textbf{Minor} & Bay & US-231 & Southbound & Incidents & FALSE & District 3 Jax & 3/31/26, 6:34 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Bay} & \cellcolor{gray!10}{US-231} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 3 Jax} & \cellcolor{gray!10}{3/31/26, 3:11 PM}\\
+\textbf{Minor} & Bay & US-231 & Northbound & Construction Zones & FALSE & District 3 Jax & 4/1/26, 3:07 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/18/26, 6:18 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Construction Zones & FALSE & District 5 & 3/18/26, 9:21 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/18/26, 7:56 PM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/19/26, 7:08 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/19/26, 9:27 AM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/19/26, 12:46 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/19/26, 9:27 AM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Disabled Vehicles & FALSE & District 5 & 3/19/26, 2:09 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/19/26, 6:01 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Congestion & FALSE & District 5 & 3/19/26, 6:36 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/19/26, 7:21 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Incidents & FALSE & District 5 & 3/19/26, 7:21 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/19/26, 7:52 PM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/20/26, 1:46 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/20/26, 7:28 AM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Congestion & FALSE & District 5 & 3/20/26, 4:38 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/20/26, 4:44 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Congestion & FALSE & District 5 & 3/20/26, 4:12 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/20/26, 6:46 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/20/26, 8:36 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/20/26, 8:48 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Incidents & FALSE & District 5 & 3/20/26, 8:28 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/20/26, 8:28 PM}\\
+\addlinespace
+\textbf{Minor} & Brevard & SR-404 & Eastbound & Incidents & FALSE & District 5 & 3/21/26, 12:23 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/21/26, 7:28 AM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/21/26, 11:30 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/21/26, 12:50 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/21/26, 7:02 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/21/26, 9:47 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/22/26, 7:44 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/22/26, 8:16 AM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/22/26, 8:46 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/22/26, 3:04 PM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/22/26, 5:34 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/23/26, 1:40 \vphantom{1} PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/23/26, 1:40 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/23/26, 2:55 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/23/26, 2:56 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/23/26, 6:20 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/23/26, 6:20 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/23/26, 9:07 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Disabled Vehicles & FALSE & District 5 & 3/23/26, 7:17 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/23/26, 8:09 PM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/23/26, 7:43 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/23/26, 11:58 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/24/26, 12:31 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/24/26, 6:34 AM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/24/26, 7:59 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{SR-520} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/24/26, 11:30 AM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Construction Zones & FALSE & District 5 & 3/24/26, 3:38 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/24/26, 4:09 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Congestion & FALSE & District 5 & 3/24/26, 6:55 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/24/26, 8:17 PM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/25/26, 6:58 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/25/26, 1:22 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Disabled Vehicles & FALSE & District 5 & 3/25/26, 12:42 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/25/26, 1:11 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Disabled Vehicles & FALSE & District 5 & 3/25/26, 3:30 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/25/26, 5:27 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Disabled Vehicles & FALSE & District 5 & 3/25/26, 6:28 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/26/26, 5:36 AM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Incidents & FALSE & District 5 & 3/26/26, 5:42 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/26/26, 6:18 AM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/26/26, 1:30 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/26/26, 1:40 PM}\\
+\textbf{Minor} & Brevard & Maintenance & Eastbound & Road Condition & FALSE & District 5 & 3/27/26, 5:04 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/27/26, 6:38 AM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Incidents & FALSE & District 5 & 3/27/26, 12:22 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/27/26, 7:32 AM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/27/26, 8:21 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/27/26, 1:53 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/28/26, 11:24 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/28/26, 11:40 AM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Southbound & Incidents & FALSE & District 5 & 3/28/26, 3:07 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/28/26, 10:31 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Incidents & FALSE & District 5 & 3/28/26, 11:38 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/29/26, 5:42 AM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/29/26, 7:25 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/29/26, 8:37 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Construction Zones & FALSE & District 5 & 3/30/26, 2:13 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/30/26, 2:34 PM}\\
+\textbf{Minor} & Brevard & I-95 & Southbound & Disabled Vehicles & FALSE & District 5 & 3/30/26, 7:19 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/31/26, 12:47 AM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Incidents & FALSE & District 5 & 3/31/26, 5:44 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/31/26, 10:43 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 3/31/26, 11:49 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{3/31/26, 10:20 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 4/1/26, 2:34 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{SR-405} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{4/1/26, 6:29 PM}\\
+\textbf{Minor} & Brevard & I-95 & Northbound & Disabled Vehicles & FALSE & District 5 & 4/1/26, 7:09 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{4/1/26, 7:10 PM}\\
+\textbf{Minor} & Brevard & SR-528 & Eastbound & Congestion & FALSE & District 5 & 4/1/26, 8:24 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{SR-528} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{4/1/26, 9:02 PM}\\
+\addlinespace
+\textbf{Minor} & Brevard & I-95 & Northbound & Congestion & FALSE & District 5 & 4/1/26, 9:37 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Brevard} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 5} & \cellcolor{gray!10}{4/1/26, 9:17 PM}\\
+\textbf{Minor} & Broward & Floridas Turnpike & Southbound & Construction Zones & FALSE & District 4 & 3/18/26, 9:25 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 7:00 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/19/26, 7:00 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Floridas Turnpike} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 7:11 AM}\\
+\textbf{Minor} & Broward & I-95 & Northbound & Congestion & FALSE & District 4 & 3/19/26, 9:30 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 9:23 \vphantom{1} AM}\\
+\textbf{Minor} & Broward & Floridas Turnpike & Southbound & Disabled Vehicles & FALSE & District 4 & 3/19/26, 7:26 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 7:30 AM}\\
+\addlinespace
+\textbf{Minor} & Broward & I-95 & Southbound & Congestion & FALSE & District 4 & 3/19/26, 9:23 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 10:09 AM}\\
+\textbf{Minor} & Broward & I-95 & Northbound & Congestion & FALSE & District 4 & 3/19/26, 9:23 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{95 Express} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 10:09 AM}\\
+\textbf{Minor} & Broward & I-595 & Eastbound & Disabled Vehicles & FALSE & District 4 & 3/19/26, 2:07 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 6:52 PM}\\
+\textbf{Minor} & Broward & 95 Express & Southbound & Congestion & FALSE & District 4 & 3/19/26, 7:00 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Floridas Turnpike} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 7:29 PM}\\
+\textbf{Minor} & Broward & Floridas Turnpike & Southbound & Construction Zones & FALSE & District 4 & 3/19/26, 9:36 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Floridas Turnpike} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Construction Zones} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/19/26, 9:37 PM}\\
+\addlinespace
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/20/26, 5:29 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 5:29 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/20/26, 6:29 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 6:29 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/20/26, 7:00 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 7:00 AM}\\
+\textbf{Minor} & Broward & I-595 & Eastbound & Congestion & FALSE & District 4 & 3/20/26, 7:16 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 8:00 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/20/26, 8:00 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Floridas Turnpike} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 9:37 AM}\\
+\addlinespace
+\textbf{Minor} & Broward & I-95 & Northbound & Congestion & FALSE & District 4 & 3/20/26, 1:50 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{95 Express} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 1:50 PM}\\
+\textbf{Minor} & Broward & I-95 & Southbound & Congestion & FALSE & District 4 & 3/20/26, 12:51 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 7:05 PM}\\
+\textbf{Minor} & Broward & I-95 & Northbound & Congestion & FALSE & District 4 & 3/20/26, 7:07 PM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{95 Express} & \cellcolor{gray!10}{Northbound} & \cellcolor{gray!10}{Congestion} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 6:57 PM}\\
+\textbf{Minor} & Broward & 95 Express & Southbound & Congestion & FALSE & District 4 & 3/20/26, 7:10 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 9:30 PM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/20/26, 9:30 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Floridas Turnpike} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Disabled Vehicles} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 9:32 PM}\\
+\addlinespace
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/20/26, 10:00 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 10:00 PM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/20/26, 11:34 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/20/26, 11:34 PM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/21/26, 1:31 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 1:31 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/21/26, 6:27 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 6:28 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/21/26, 7:00 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 7:00 AM}\\
+\addlinespace
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/21/26, 7:30 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 7:30 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/21/26, 8:00 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 8:00 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Eastbound & Closures & FALSE & District 4 & 3/21/26, 8:30 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Westbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 8:30 AM}\\
+\textbf{Minor} & Broward & I-95 & Northbound & Incidents & FALSE & District 4 & 3/21/26, 8:57 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 9:00 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/21/26, 9:00 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 10:00 AM}\\
+\addlinespace
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/21/26, 10:00 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 10:33 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/21/26, 10:33 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 11:00 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/21/26, 11:00 AM\\
+\addlinespace
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 11:30 AM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/21/26, 11:30 AM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Incidents} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 2:19 PM}\\
+\textbf{Minor} & Broward & Floridas Turnpike & Northbound & Incidents & FALSE & District 4 & 3/21/26, 3:07 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{I-95} & \cellcolor{gray!10}{Southbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 5:52 PM}\\
+\addlinespace
+\textbf{Minor} & Broward & Floridas Turnpike & Southbound & Incidents & FALSE & District 4 & 3/21/26, 5:19 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 6:30 PM}\\
+\textbf{Minor} & Broward & Floridas Turnpike & Northbound & Incidents & FALSE & District 4 & 3/21/26, 6:50 PM\\
+\textbf{\cellcolor{gray!10}{Minor}} & \cellcolor{gray!10}{Broward} & \cellcolor{gray!10}{Sunrise Blvd} & \cellcolor{gray!10}{Eastbound} & \cellcolor{gray!10}{Closures} & \cellcolor{gray!10}{FALSE} & \cellcolor{gray!10}{District 4} & \cellcolor{gray!10}{3/21/26, 7:00 PM}\\
+\textbf{Minor} & Broward & Sunrise Blvd & Westbound & Closures & FALSE & District 4 & 3/21/26, 7:00 PM\\
+\bottomrule
+\end{longtable}
+\endgroup{}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\vspace{12pt}
+\hrule
+\vspace{4pt}
+
+\small\textcolor{gray}{Generated by FPREN — Florida Public Radio Emergency Network | Powered by FL511 data | 2026-04-01 23:08:11}
+
+\end{document}

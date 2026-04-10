@@ -164,7 +164,7 @@ if (n_total > 0) {
   kable(display, booktabs = TRUE, longtable = TRUE,
         caption = paste0("All active NWS alerts for ", county_label)) %>%
     kable_styling(
-      latex_options = c("striped","hold_position","repeat_header"),
+      latex_options = c("striped","hold_position","repeat_header","scale_down"),
       font_size = 8
     ) %>%
     row_spec(which(display$Severity %in% c("Extreme","Severe")),
@@ -234,7 +234,7 @@ if (n_total > 0) {
 
   kable(sev_tbl, booktabs = TRUE, align = c("l","r","r"),
         caption = "Alert count by severity") %>%
-    kable_styling(latex_options = c("striped","hold_position"), font_size = 10)
+    kable_styling(latex_options = c("striped","hold_position","scale_down"), font_size = 10)
 }
 ```
 

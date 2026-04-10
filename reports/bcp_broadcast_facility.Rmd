@@ -71,7 +71,7 @@ cover <- data.frame(
   stringsAsFactors = FALSE
 )
 kable(cover, col.names=NULL, booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options="hold_position", full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","scale_down"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, color=FPREN_BLUE, width="6cm") %>%
   column_spec(2, width="9cm")
 ```
@@ -149,7 +149,7 @@ risk_df <- data.frame(
   stringsAsFactors=FALSE
 )
 kable(risk_df, col.names=c("Risk Category","Level","Detail"), booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
   column_spec(2, bold=TRUE,
     color=ifelse(risk_df$Level=="HIGH","red",ifelse(risk_df$Level=="MODERATE","orange","#2e7d32")))
 ```
@@ -224,7 +224,7 @@ cont <- data.frame(
   stringsAsFactors=FALSE
 )
 kable(cont, booktabs=TRUE, linesep="", col.names=c("Failure Scenario","Continuity Action","Owner")) %>%
-  kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, width="4cm") %>%
   column_spec(2, width="9cm") %>%
   column_spec(3, width="3cm")
@@ -306,7 +306,7 @@ if (nrow(wx_hist) == 0) {
   )
   print(
     kable(wx_stats, col.names=c("Metric","Value"), booktabs=TRUE, linesep="") %>%
-      kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+      kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
       column_spec(1, width="7cm") %>% column_spec(2, width="5cm")
   )
 
@@ -459,7 +459,7 @@ contacts <- data.frame(
   stringsAsFactors=FALSE
 )
 kable(contacts, col.names=c("Role / Organization","Contact"), booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, color=FPREN_BLUE, width="6cm") %>%
   column_spec(2, width="9cm")
 ```

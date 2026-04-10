@@ -261,7 +261,7 @@ top_events %>%
   mutate(`% of Total` = paste0(round(Count / n_total * 100, 1), "%")) %>%
   kable(booktabs = TRUE, align = c("l","r","r"),
         caption = "Alert frequency by event type") %>%
-  kable_styling(latex_options = c("striped","hold_position"), font_size = 9)
+  kable_styling(latex_options = c("striped","hold_position","scale_down"), font_size = 9)
 ```
 
 \newpage
@@ -356,7 +356,7 @@ area_counts %>%
   rename(Area = area_desc, `Alert Count` = n) %>%
   kable(booktabs = TRUE, longtable = TRUE, align = c("l","r"),
         caption = "Top 20 most-alerted geographic areas") %>%
-  kable_styling(latex_options = c("striped","hold_position","repeat_header"),
+  kable_styling(latex_options = c("striped","hold_position","repeat_header","scale_down"),
                 font_size = 9)
 ```
 
@@ -387,7 +387,7 @@ if ("tts_generated" %in% names(alerts_raw)) {
     rename(Severity = severity, `TTS Done` = TTS_Done, `Rate` = Rate_Pct) %>%
     kable(booktabs = TRUE, align = c("l","r","r","r"),
           caption = "TTS generation rate by severity") %>%
-    kable_styling(latex_options = c("striped","hold_position"), font_size = 9)
+    kable_styling(latex_options = c("striped","hold_position","scale_down"), font_size = 9)
 }
 ```
 

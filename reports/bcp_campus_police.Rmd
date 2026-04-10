@@ -75,7 +75,7 @@ cover <- data.frame(
   stringsAsFactors=FALSE
 )
 kable(cover, col.names=NULL, booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options="hold_position", full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","scale_down"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, color=POLICE_NAVY, width="6cm") %>%
   column_spec(2, width="9cm")
 ```
@@ -177,7 +177,7 @@ risk_df <- data.frame(
   stringsAsFactors=FALSE
 )
 kable(risk_df, col.names=c("Risk Category","Level","Detail"), booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
   column_spec(2, bold=TRUE,
     color=ifelse(risk_df$Level=="HIGH","red",ifelse(risk_df$Level=="MODERATE","orange","#2e7d32")))
 ```
@@ -507,7 +507,7 @@ contacts <- data.frame(
 )
 kable(contacts, col.names=c("Role / Agency","Contact"),
       booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, color=POLICE_NAVY, width="6.5cm") %>%
   column_spec(2, width="8.5cm")
 ```

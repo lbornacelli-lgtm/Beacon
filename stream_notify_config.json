@@ -2,9 +2,9 @@
   "notify_methods": ["email"],
   "email": "lawrence.bornace@ufl.edu",
   "phone": "",
-  "twilio_sid": "",
-  "twilio_token": "",
-  "twilio_from": "",
+  "account_sid": "YOUR_TWILIO_ACCOUNT_SID"
+  "twilio_token": "1439e69a435d631f3b7f1f15bab33794",
+  "twilio_from": "+18554910391",
   "notify_on_offline": true,
   "notify_on_reboot": true
 }

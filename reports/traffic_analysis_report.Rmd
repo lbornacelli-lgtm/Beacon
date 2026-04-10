@@ -70,7 +70,7 @@ summary_df <- data.frame(
 )
 kable(summary_df, booktabs=TRUE, col.names=c("Metric","Count"),
       caption="Incident Summary") %>%
-  kable_styling(latex_options=c("hold_position"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","scale_down"), full_width=FALSE) %>%
   column_spec(2, bold=TRUE)
 ```
 
@@ -180,7 +180,7 @@ if (nrow(closures) == 0) {
 } else {
   kable(closures, booktabs=TRUE, longtable=TRUE,
         caption=paste0("Full Closures (", nrow(closures), " total)")) %>%
-    kable_styling(latex_options=c("hold_position"), font_size=8) %>%
+    kable_styling(latex_options=c("hold_position","scale_down"), font_size=8) %>%
     column_spec(1, width="1.5cm") %>%
     column_spec(2, width="2cm") %>%
     column_spec(3, width="2.5cm") %>%
@@ -210,7 +210,7 @@ cap <- paste0("Incident Detail — ", nrow(detail), " of ", nrow(detail_all), " 
               if (truncated) paste0(" (top ", MAX_ROWS, " shown; download CSV for full data)") else "")
 
 kable(detail, booktabs=TRUE, longtable=TRUE, caption=cap) %>%
-  kable_styling(latex_options=c("hold_position"), font_size=7) %>%
+  kable_styling(latex_options=c("hold_position","scale_down"), font_size=7) %>%
   column_spec(1, bold=TRUE, width="1.5cm") %>%
   column_spec(2, width="2cm") %>%
   column_spec(3, width="3cm") %>%

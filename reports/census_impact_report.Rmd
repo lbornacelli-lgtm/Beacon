@@ -115,7 +115,7 @@ if (length(counties_data) > 0 && is.list(counties_data)) {
   df <- do.call(rbind, rows)
   kable(df, booktabs=TRUE, align=c("l","r","r","r","r","l"),
         caption="Census demographics for affected counties (ACS 5-year estimates)") %>%
-    kable_styling(latex_options=c("striped","hold_position"), font_size=10) %>%
+    kable_styling(latex_options=c("striped","hold_position","scale_down"), font_size=10) %>%
     column_spec(6, bold=TRUE,
       color = ifelse(df[["Risk Level"]] %in% c("Critical","High"), "white", "black"),
       background = ifelse(df[["Risk Level"]] == "Critical", "#c0392b",

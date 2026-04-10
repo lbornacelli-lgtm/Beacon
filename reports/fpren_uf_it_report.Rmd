@@ -197,7 +197,7 @@ kbl(
   caption = "FPREN Server Infrastructure Summary"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE
   ) %>%
@@ -245,7 +245,7 @@ kbl(
   caption = "FPREN Live System Statistics"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE
   ) %>%
@@ -322,7 +322,7 @@ kbl(
   caption = "All 17 Active FPREN Systemd Services",
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position", "repeat_header"),
+    latex_options = c("striped", "hold_position", "repeat_header","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -403,7 +403,7 @@ kbl(
   caption = "FPREN Internal and External Connectivity Check Results",
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position", "repeat_header"),
+    latex_options = c("striped", "hold_position", "repeat_header","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -476,7 +476,7 @@ kbl(
   caption = "FPREN Completed and Operational Features",
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position", "repeat_header"),
+    latex_options = c("striped", "hold_position", "repeat_header","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -678,7 +678,7 @@ kbl(
   caption = "FPREN Features Currently Non-Functional Due to Access Restrictions",
 ) %>%
   kable_styling(
-    latex_options = c("hold_position", "repeat_header"),
+    latex_options = c("hold_position", "repeat_header","scale_down"),
     full_width = TRUE,
     font_size = 9
   ) %>%
@@ -753,7 +753,7 @@ kbl(
   caption = "SSL Certificate Options for FPREN"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -843,7 +843,7 @@ kbl(
   caption = "FPREN Shibboleth SP Configuration Parameters"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE
   ) %>%
@@ -896,7 +896,7 @@ kbl(
   caption = "Shibboleth Phase 1 Tasks (FPREN-side, no UF IT required)",
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position", "repeat_header"),
+    latex_options = c("striped", "hold_position", "repeat_header","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -962,7 +962,7 @@ kbl(
   caption = "Shibboleth Phase 2 Tasks (Requires UF IT Action)",
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position", "repeat_header"),
+    latex_options = c("striped", "hold_position", "repeat_header","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -1037,7 +1037,7 @@ kbl(
   caption = "Open Questions for UF IT / UF IAM Regarding Shibboleth Integration"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -1101,7 +1101,7 @@ kbl(
   caption = "FPREN Current Authentication Security Controls"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE
   ) %>%
@@ -1158,7 +1158,7 @@ kbl(
   caption = "FPREN MongoDB User Account Schema",
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position", "repeat_header"),
+    latex_options = c("striped", "hold_position", "repeat_header","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -1210,7 +1210,7 @@ kbl(
   caption = "FPREN Data Classification Summary"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -1290,7 +1290,7 @@ kbl(
   caption = "FPREN Planned Features and UF IT Dependencies",
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position", "repeat_header"),
+    latex_options = c("striped", "hold_position", "repeat_header","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9
@@ -1366,7 +1366,7 @@ kbl(
   caption = "Consolidated Action Items for UF IT --- Priority Order"
 ) %>%
   kable_styling(
-    latex_options = c("hold_position"),
+    latex_options = c("hold_position","scale_down"),
     full_width = TRUE,
     font_size = 9
   ) %>%
@@ -1479,7 +1479,7 @@ kbl(
   caption = "FPREN Florida Broadcast Zones and Icecast Mount Points"
 ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),
+    latex_options = c("striped", "hold_position","scale_down"),
     stripe_color = "lightgray",
     full_width = TRUE,
     font_size = 9

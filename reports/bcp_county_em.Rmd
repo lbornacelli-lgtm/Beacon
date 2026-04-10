@@ -74,7 +74,7 @@ cover <- data.frame(
   stringsAsFactors=FALSE
 )
 kable(cover, col.names=NULL, booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options="hold_position", full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","scale_down"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, color=FPREN_BLUE, width="6cm") %>%
   column_spec(2, width="9cm")
 ```
@@ -192,7 +192,7 @@ risk_df <- data.frame(
   stringsAsFactors=FALSE
 )
 kable(risk_df, col.names=c("Risk Category","Level","Detail"), booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
   column_spec(2, bold=TRUE,
     color=ifelse(risk_df$Level=="HIGH","red",ifelse(risk_df$Level=="MODERATE","orange","#2e7d32")))
 ```
@@ -232,7 +232,7 @@ if (is.null(census_rec)) {
   print(
     kable(cen_df, col.names=c("Demographic Indicator","Value"),
           booktabs=TRUE, linesep="") %>%
-      kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+      kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
       column_spec(1, bold=TRUE, color=FPREN_BLUE, width="9cm") %>%
       column_spec(2, width="4cm") %>%
       row_spec(nrow(cen_df), bold=TRUE, color=v_color)
@@ -270,7 +270,7 @@ if (nrow(evac_zones_df) == 0) {
     zone_disp$has_coastal <- ifelse(zone_disp$has_coastal==TRUE, "Yes", "No")
   kable(zone_disp, booktabs=TRUE, linesep="", row.names=FALSE,
         col.names=c("Zone","Description","Coastal Exposure")[seq_len(ncol(zone_disp))]) %>%
-    kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+    kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
     column_spec(1, bold=TRUE, color=FPREN_BLUE, width="1.2cm") %>%
     column_spec(2, width="11cm")
 }
@@ -517,7 +517,7 @@ contacts <- data.frame(
 )
 kable(contacts, col.names=c("Role / Organization","Contact"),
       booktabs=TRUE, linesep="") %>%
-  kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+  kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
   column_spec(1, bold=TRUE, color=FPREN_BLUE, width="6.5cm") %>%
   column_spec(2, width="8.5cm")
 ```

@@ -106,3 +106,4 @@ stream_notify_config.json
 weather_station/.env
 weather_station/audio/generated_wav_files
 wav_output/
+stream_notify_config.json

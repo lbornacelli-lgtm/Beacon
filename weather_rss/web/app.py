@@ -1856,7 +1856,7 @@ function appendChatMsg(text, type) {
             Open RStudio Server to edit the report template, build new charts, or run custom R analysis on the alert data.
           </p>
         </div>
-        <a href="http://128.227.67.234:8787" target="_blank"
+        <a href="http://cjc-fpren.ad.ufl.edu:8787" target="_blank"
            style="background:#0077aa;color:#fff;padding:10px 22px;border-radius:5px;
                   text-decoration:none;font-weight:600;font-size:0.9rem;white-space:nowrap;">
           &#128196; Open RStudio Server
@@ -1971,8 +1971,8 @@ function appendChatMsg(text, type) {
       </p>
       <p style="margin:0;font-size:.85rem;color:#555;">
         Reports are saved to <code>/home/ufuser/Fpren-main/reports/output/</code> &mdash;
-        accessible in <a href="http://128.227.67.234:8787" target="_blank" style="color:#0077aa;">RStudio Server</a>
-        or the <a href="http://128.227.67.234:3838/fpren" target="_blank" style="color:#0077aa;">Shiny Dashboard</a>.
+        accessible in <a href="http://cjc-fpren.ad.ufl.edu:8787" target="_blank" style="color:#0077aa;">RStudio Server</a>
+        or the <a href="https://cjc-fpren.ad.ufl.edu" target="_blank" style="color:#0077aa;">Shiny Dashboard</a>.
       </p>
     </div>
 

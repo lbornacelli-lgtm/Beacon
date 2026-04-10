@@ -128,7 +128,7 @@ if (has_vis) {
 tbl <- data.frame(Metric=metrics, Value=values, stringsAsFactors=FALSE)
 kable(tbl, booktabs=TRUE, row.names=FALSE,
       caption="Summary statistics for the selected period") %>%
-  kable_styling(latex_options=c("hold_position"), font_size=10)
+  kable_styling(latex_options=c("hold_position","scale_down"), font_size=10)
 ```
 
 \newpage
@@ -221,7 +221,7 @@ kable(cat_counts %>% select(flight_cat, n, pct) %>%
         rename(Category=flight_cat, Count=n, `Pct %`=pct),
       booktabs=TRUE, row.names=FALSE,
       caption="Flight category counts and percentages") %>%
-  kable_styling(latex_options=c("hold_position"), font_size=10)
+  kable_styling(latex_options=c("hold_position","scale_down"), font_size=10)
 ```
 
 \newpage
@@ -247,7 +247,7 @@ if (nrow(ifr_df) == 0) {
   display <- ifr_df %>% rename(!!!rename_map)
   print(kable(display, booktabs=TRUE, longtable=TRUE,
               caption="IFR and LIFR observation periods") %>%
-    kable_styling(latex_options=c("striped","hold_position","repeat_header"),
+    kable_styling(latex_options=c("striped","hold_position","repeat_header","scale_down"),
                   font_size=8) %>%
     row_spec(which(display$Category == "LIFR"), bold=TRUE, color="white",
              background="#8b0000") %>%

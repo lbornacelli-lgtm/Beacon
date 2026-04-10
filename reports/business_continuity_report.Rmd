@@ -19,6 +19,7 @@ params:
   lon: -82.33
   zip: "32601"
   city: "Gainesville"
+  county: "Alachua"
   nearest_airport_icao: "KGNV"
   nearest_airport_name: "Gainesville Regional Airport"
   asset_type: "Facility"
@@ -81,7 +82,7 @@ cover <- data.frame(
   stringsAsFactors = FALSE
 )
 kable(cover, col.names = NULL, booktabs = TRUE, linesep = "") %>%
-  kable_styling(latex_options = c("hold_position"), full_width = FALSE) %>%
+  kable_styling(latex_options = c("hold_position","scale_down"), full_width = FALSE) %>%
   column_spec(1, bold = TRUE, color = FPREN_BLUE, width = "6cm") %>%
   column_spec(2, width = "9cm")
 ```
@@ -146,7 +147,7 @@ wx_risk  <- if (!is.na(max_wind) && (max_wind > 40 || n_ifr > 10)) "HIGH" else
 traffic_col <- safe_mongo("fl_traffic")
 traffic_df  <- tryCatch({
   if (is.null(traffic_col)) stop("no connection")
-  q <- sprintf('{"county":{"$regex":"%s","$options":"i"}}', params$city)
+  q <- sprintf('{"county":{"$regex":"%s","$options":"i"}}', params$county)
   r <- traffic_col$find(q,
     fields = '{"type":1,"severity":1,"is_full_closure":1,"road":1,"description":1,"_id":0}')
   traffic_col$disconnect()
@@ -165,7 +166,7 @@ traffic_risk <- if (n_closures >= 2) "HIGH" else
 evac_zones_col <- safe_mongo("fl_evacuation_zones")
 evac_zones_df  <- tryCatch({
   if (is.null(evac_zones_col)) stop("no connection")
-  q <- sprintf('{"county":{"$regex":"^%s$","$options":"i"}}', params$city)
+  q <- sprintf('{"county":{"$regex":"^%s$","$options":"i"}}', params$county)
   r <- evac_zones_col$find(q,
     fields = '{"zone":1,"zone_order":1,"description":1,"has_coastal":1,"source":1,"_id":0}',
     sort = '{"zone_order":1}')
@@ -180,7 +181,7 @@ evac_zones_df  <- tryCatch({
 evac_routes_col <- safe_mongo("fl_evacuation_routes")
 evac_routes_df  <- tryCatch({
   if (is.null(evac_routes_col)) stop("no connection")
-  q <- sprintf('{"county":{"$regex":"^%s$","$options":"i"}}', params$city)
+  q <- sprintf('{"county":{"$regex":"^%s$","$options":"i"}}', params$county)
   r <- evac_routes_col$find(q,
     fields = '{"name":1,"road":1,"direction":1,"from_location":1,"to_location":1,"route_type":1,"serves_zones":1,"_id":0}',
     sort = '{"route_type":1}')
@@ -231,7 +232,7 @@ risk_df <- data.frame(
 )
 kable(risk_df, col.names = c("Risk Category","Level","Detail"),
       booktabs = TRUE, linesep = "") %>%
-  kable_styling(latex_options = c("hold_position","striped"), full_width = FALSE) %>%
+  kable_styling(latex_options = c("hold_position","striped","scale_down"), full_width = FALSE) %>%
   column_spec(2, bold = TRUE,
     color = ifelse(risk_df$Level == "HIGH", "red",
              ifelse(risk_df$Level == "MODERATE", "orange", "#2e7d32")))
@@ -256,7 +257,7 @@ loc_df <- data.frame(
   stringsAsFactors = FALSE
 )
 kable(loc_df, col.names = NULL, booktabs = TRUE, linesep = "") %>%
-  kable_styling(latex_options = "hold_position", full_width = FALSE) %>%
+  kable_styling(latex_options = c("hold_position","scale_down"), full_width = FALSE) %>%
   column_spec(1, bold = TRUE, color = FPREN_BLUE, width = "6cm") %>%
   column_spec(2, width = "9cm")
 ```
@@ -298,7 +299,7 @@ if (nrow(wx_hist) == 0) {
   )
   print(
     kable(wx_stats, col.names = c("Metric","Value"), booktabs = TRUE, linesep = "") %>%
-      kable_styling(latex_options = c("hold_position","striped"), full_width = FALSE) %>%
+      kable_styling(latex_options = c("hold_position","striped","scale_down"), full_width = FALSE) %>%
       column_spec(1, width = "7cm") %>%
       column_spec(2, width = "4cm")
   )
@@ -349,7 +350,7 @@ if (nrow(recent_alerts) == 0) {
 
 # Traffic & Evacuation Analysis
 
-## Hurricane Evacuation Zones — `r params$city` County
+## Hurricane Evacuation Zones — `r params$county` County
 
 ```{r evac-zones-section, results='asis'}
 if (nrow(evac_zones_df) == 0) {
@@ -364,7 +365,7 @@ if (nrow(evac_zones_df) == 0) {
   if ("Coastal Exposure" %in% names(zone_disp))
     zone_disp[["Coastal Exposure"]] <- ifelse(zone_disp[["Coastal Exposure"]] == TRUE, "Yes", "No")
   kable(zone_disp, booktabs = TRUE, linesep = "", row.names = FALSE) %>%
-    kable_styling(latex_options = c("hold_position","striped"),
+    kable_styling(latex_options = c("hold_position","striped","scale_down"),
                   full_width = FALSE) %>%
     column_spec(1, bold = TRUE, color = FPREN_BLUE, width = "1.2cm") %>%
     column_spec(2, width = "10cm")
@@ -403,10 +404,82 @@ if (nrow(evac_routes_df) == 0) {
   use_names <- all_col_names[names(all_col_names) %in% names(route_disp)]
   kable(route_disp, booktabs = TRUE, linesep = "", row.names = FALSE,
         col.names = use_names) %>%
-    kable_styling(latex_options = c("hold_position","striped"),
+    kable_styling(latex_options = c("hold_position","striped","scale_down"),
                   full_width = FALSE) %>%
     column_spec(1, bold = TRUE, width = "4.5cm") %>%
     column_spec(2, width = "1.8cm")
+}
+```
+
+## Closest Emergency Resources
+
+```{r closest-resources, results='asis'}
+# Query OpenStreetMap Overpass API for emergency resources near asset
+overpass_resources <- tryCatch({
+  query <- sprintf(
+    '[out:json][timeout:20];(node["amenity"~"hospital|fire_station|police"](around:15000,%f,%f);way["amenity"~"hospital|fire_station|police"](around:15000,%f,%f););out body center 8;',
+    params$lat, params$lon, params$lat, params$lon
+  )
+  r <- httr::POST("https://overpass-api.de/api/interpreter",
+                  body = list(data = query), encode = "form", httr::timeout(20))
+  if (httr::status_code(r) != 200) stop("Overpass unavailable")
+  parsed <- httr::content(r, "parsed", encoding = "UTF-8")
+  elements <- parsed$elements
+  if (length(elements) == 0) NULL else {
+    rows <- lapply(elements, function(el) {
+      tags <- el$tags %||% list()
+      lat_e <- el$lat %||% (el$center$lat %||% NA)
+      lon_e <- el$lon %||% (el$center$lon %||% NA)
+      dist_km <- if (!is.na(lat_e) && !is.na(lon_e)) {
+        R <- 6371
+        dlat <- (lat_e - params$lat) * pi / 180
+        dlon <- (lon_e - params$lon) * pi / 180
+        a <- sin(dlat/2)^2 + cos(params$lat*pi/180)*cos(lat_e*pi/180)*sin(dlon/2)^2
+        round(R * 2 * atan2(sqrt(a), sqrt(1-a)), 2)
+      } else NA_real_
+      amenity_type <- tags[["amenity"]] %||% ""
+      resource_type <- switch(amenity_type,
+        hospital     = "Hospital",
+        fire_station = "Fire Station",
+        police       = "Police",
+        amenity_type)
+      addr_parts <- c(
+        if (!is.null(tags[["addr:housenumber"]]) && !is.null(tags[["addr:street"]]))
+          paste(tags[["addr:housenumber"]], tags[["addr:street"]]) else NULL,
+        tags[["addr:city"]] %||% NULL,
+        tags[["addr:state"]] %||% NULL,
+        tags[["addr:postcode"]] %||% NULL
+      )
+      address <- if (length(addr_parts) > 0) paste(addr_parts, collapse=", ") else "Address not listed"
+      data.frame(
+        Type     = resource_type,
+        Name     = tags[["name"]] %||% "(unnamed)",
+        Address  = address,
+        Dist_km  = dist_km,
+        stringsAsFactors = FALSE
+      )
+    })
+    df <- do.call(rbind, rows)
+    df <- df[order(df$Dist_km), ]
+    # Keep top 2 per type
+    do.call(rbind, lapply(split(df, df$Type), function(x) head(x, 2)))
+  }
+}, error = function(e) NULL)
+
+if (is.null(overpass_resources) || nrow(overpass_resources) == 0) {
+  cat("> **Closest resources data unavailable** — check internet access from server.\n")
+} else {
+  res_disp <- overpass_resources[order(overpass_resources$Type, overpass_resources$Dist_km), ]
+  res_disp$Dist_km <- paste0(res_disp$Dist_km, " km")
+  print(
+    kable(res_disp, booktabs = TRUE, linesep = "", row.names = FALSE,
+          col.names = c("Type", "Name", "Address", "Distance")) %>%
+      kable_styling(latex_options = c("hold_position","striped","scale_down"), full_width = FALSE) %>%
+      column_spec(1, bold = TRUE, color = FPREN_BLUE, width = "2.5cm") %>%
+      column_spec(2, width = "4cm") %>%
+      column_spec(3, width = "6cm") %>%
+      column_spec(4, width = "2cm")
+  )
 }
 ```
 
@@ -424,7 +497,7 @@ if (nrow(traffic_df) == 0) {
   if ("description" %in% names(disp_t))
     disp_t$description <- substr(disp_t$description, 1, 60)
   kable(disp_t, booktabs = TRUE, linesep = "") %>%
-    kable_styling(latex_options = c("hold_position","striped"),
+    kable_styling(latex_options = c("hold_position","striped","scale_down"),
                   full_width = FALSE)
 }
 ```
@@ -441,7 +514,7 @@ if (nrow(traffic_on_evac_routes) > 0) {
     disp_er$description <- substr(disp_er$description, 1, 55)
   print(
     kable(disp_er, booktabs = TRUE, linesep = "") %>%
-      kable_styling(latex_options = c("hold_position","striped"),
+      kable_styling(latex_options = c("hold_position","striped","scale_down"),
                     full_width = FALSE)
   )
 } else if (n_evac_routes > 0) {
@@ -506,7 +579,7 @@ if (nrow(near_acc) == 0 && nrow(near_jams) == 0) {
       select(any_of(c("street","city","subtype","reliability","dist_km"))) %>% head(10)
     if ("dist_km" %in% names(acc_d)) acc_d$dist_km <- paste0(round(acc_d$dist_km,1)," km")
     print(kable(acc_d, booktabs=TRUE, linesep="") %>%
-      kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+      kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
       column_spec(1, width="5cm"))
   }
   if (nrow(near_jams) > 0) {
@@ -517,7 +590,7 @@ if (nrow(near_acc) == 0 && nrow(near_jams) == 0) {
       jam_d$delay_sec <- paste0(round(jam_d$delay_sec/60,0)," min delay")
     if ("dist_km" %in% names(jam_d)) jam_d$dist_km <- paste0(round(jam_d$dist_km,1)," km")
     print(kable(jam_d, booktabs=TRUE, linesep="") %>%
-      kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE))
+      kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE))
   }
 }
 ```
@@ -568,7 +641,7 @@ if (nrow(metar_row) == 0) {
   )
   print(
     kable(apt_df, col.names = NULL, booktabs = TRUE, linesep = "") %>%
-      kable_styling(latex_options = "hold_position", full_width = FALSE) %>%
+      kable_styling(latex_options = c("hold_position","scale_down"), full_width = FALSE) %>%
       column_spec(1, bold = TRUE, color = FPREN_BLUE, width = "5cm") %>%
       column_spec(2, width = "10cm")
   )
@@ -579,7 +652,7 @@ if (nrow(metar_row) == 0) {
 
 # Population & Vulnerability Analysis
 
-Community demographics for **`r params$city`** county from US Census ACS 5-Year Estimates,
+Community demographics for **`r params$county`** County from US Census ACS 5-Year Estimates,
 used to guide emergency messaging priorities and assess audience vulnerability.
 
 ```{r census-section, results='asis', fig.height=2.5}
@@ -587,7 +660,7 @@ used to guide emergency messaging priorities and assess audience vulnerability.
 census_col <- safe_mongo("fl_census")
 census_rec <- tryCatch({
   if (is.null(census_col)) stop("no connection")
-  q <- sprintf('{"county":{"$regex":"^%s$","$options":"i"}}', params$city)
+  q <- sprintf('{"county":{"$regex":"^%s$","$options":"i"}}', params$county)
   r <- census_col$find(q, sort='{"year":-1}', limit=1,
     fields='{"county":1,"year":1,"population_total":1,"population_65plus":1,
              "population_under18":1,"population_in_poverty":1,"limited_english":1,
@@ -602,7 +675,7 @@ census_rec <- tryCatch({
 })
 
 if (is.null(census_rec)) {
-  cat("> **No Census data available** for", params$city, "County.",
+  cat("> **No Census data available** for", params$county, "County.",
       "Run the census fetcher to populate fl_census collection.\n")
 } else {
   cr <- census_rec  # shorthand
@@ -637,7 +710,7 @@ if (is.null(census_rec)) {
   print(
     kable(cen_df, col.names=c("Demographic Metric","Value"),
           booktabs=TRUE, linesep="") %>%
-      kable_styling(latex_options=c("hold_position","striped"), full_width=FALSE) %>%
+      kable_styling(latex_options=c("hold_position","striped","scale_down"), full_width=FALSE) %>%
       column_spec(1, bold=TRUE, color=FPREN_BLUE, width="7cm") %>%
       column_spec(2, width="8cm") %>%
       row_spec(nrow(cen_df), bold=TRUE, color=v_color)
@@ -655,7 +728,7 @@ if (is.null(census_rec)) {
     geom_col(width=0.6, show.legend=FALSE) +
     scale_fill_manual(values=colors) +
     coord_flip() +
-    labs(title=paste0(params$city, " County Vulnerable Population Groups (%)"),
+    labs(title=paste0(params$county, " County Vulnerable Population Groups (%)"),
          x=NULL, y="% of Total Population") +
     theme_minimal(base_size=10) +
     theme(plot.title=element_text(color=FPREN_BLUE, face="bold", size=10))
@@ -671,7 +744,7 @@ if (is.null(census_rec)) {
         'import sys; sys.path.insert(0,"/home/ufuser/Fpren-main/weather_rss"); sys.path.insert(0,"/home/ufuser/Fpren-main");
 import census_ai_analyzer as ca
 print(ca.analyze_bcp_demographics("%s", "%s"))',
-        params$city, params$asset_name
+        params$county, params$asset_name
       ))
       result <- system2("python3", args=cmd_args, stdout=TRUE, stderr=FALSE, timeout=30)
       if (length(result) > 0) paste(result, collapse=" ") else ""
@@ -684,7 +757,7 @@ print(ca.analyze_bcp_demographics("%s", "%s"))',
     # Fallback narrative
     cat(sprintf(
       "> *%s County has a vulnerability score of %.3f (%s), with %.1f%% of the population over age 65 and %.1f%% below the poverty line. These groups depend heavily on emergency radio broadcasts and may lack alternative information sources during a disaster.*\n\n",
-      params$city, score, v_label,
+      params$county, score, v_label,
       safe_num(cr$pct_65plus), safe_num(cr$pct_poverty)
     ))
   }
@@ -961,7 +1034,7 @@ if (!is.null(specific)) {
   print(
     kable(specific, booktabs = TRUE, linesep = "",
           col.names = c("Agency / Organization","Phone / Contact")) %>%
-      kable_styling(latex_options = c("hold_position","striped"), full_width = FALSE) %>%
+      kable_styling(latex_options = c("hold_position","striped","scale_down"), full_width = FALSE) %>%
       column_spec(1, bold = TRUE, color = FPREN_BLUE, width = "7cm") %>%
       column_spec(2, width = "7cm")
   )

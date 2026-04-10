@@ -1,6 +1,7 @@
 library(shiny)
 library(shinydashboard)
 library(shinyjs)
+library(callr)
 library(bcrypt)
 library(digest)
 library(mongolite)
@@ -89,16 +90,24 @@ send_twilio_sms <- function(to_phone, body_text) {
   token <- cfg$twilio_token %||% ""
   from  <- cfg$twilio_from  %||% ""
   if (nchar(sid) == 0 || nchar(token) == 0 || nchar(from) == 0) {
-    message("Twilio not configured"); return(FALSE)
+    return(list(ok = FALSE, msg = "Twilio credentials not configured."))
   }
   url <- paste0("https://api.twilio.com/2010-04-01/Accounts/", sid, "/Messages.json")
   tryCatch({
-    r <- httr::POST(url,
+    r    <- httr::POST(url,
       httr::authenticate(sid, token),
       body = list(From = from, To = to_phone, Body = body_text),
       encode = "form")
-    httr::status_code(r) %in% c(200, 201)
-  }, error = function(e) { message("SMS failed: ", e$message); FALSE })
+    code <- httr::status_code(r)
+    body <- tryCatch(httr::content(r, "parsed", encoding = "UTF-8"), error = function(e) list())
+    if (code %in% c(200, 201)) {
+      status <- body$status %||% "queued"
+      list(ok = TRUE, msg = paste0("Accepted by Twilio (status: ", status, "). Check your phone."))
+    } else {
+      err <- body$message %||% paste("HTTP", code)
+      list(ok = FALSE, msg = paste0("Twilio error: ", err))
+    }
+  }, error = function(e) list(ok = FALSE, msg = paste("Request failed:", conditionMessage(e))))
 }
 
 log_audit <- function(action, target_user, performed_by, details = "") {
@@ -190,7 +199,7 @@ read_notify_log <- function(n = 20) {
 
 # ── MongoDB connections ───────────────────────────────────────────────────────
 MONGO_URI     <- Sys.getenv("MONGO_URI", "mongodb://localhost:27017/")
-DASHBOARD_URL <- Sys.getenv("FPREN_DASHBOARD_URL", "https://128.227.67.234")
+DASHBOARD_URL <- Sys.getenv("FPREN_DASHBOARD_URL", "https://cjc-fpren.ad.ufl.edu")
 
 # ── Florida ZIP → County lookup ───────────────────────────────────────────────
 FLORIDA_COUNTIES_LIST <- c(
@@ -622,31 +631,39 @@ ui <- tagList(
   dashboardBody(
     tags$head(
       tags$script(HTML("
-        (function() {
-          var idleMinutes = 0;
-          var warnShown = false;
-          function resetIdle() {
-            idleMinutes = 0;
-            warnShown = false;
-            if (window.Shiny) Shiny.setInputValue('user_activity_ping', Math.random());
+        var idleMinutes = 0;
+        var warnShown = false;
+        var idleSuppressed = false;
+        window.resetIdleTimer = function() {
+          idleMinutes = 0;
+          warnShown = false;
+        };
+        window.suppressIdleTimer = function(suppress) {
+          idleSuppressed = suppress;
+          if (suppress) { idleMinutes = 0; warnShown = false; }
+        };
+        function resetIdle() {
+          idleMinutes = 0;
+          warnShown = false;
+          if (window.Shiny) Shiny.setInputValue('user_activity_ping', Math.random());
+        }
+        document.addEventListener('mousemove', resetIdle, true);
+        document.addEventListener('keydown',   resetIdle, true);
+        document.addEventListener('click',     resetIdle, true);
+        document.addEventListener('scroll',    resetIdle, true);
+        setInterval(function() {
+          var ls = document.getElementById('login_screen');
+          if (ls && ls.style.display !== 'none') return;
+          if (idleSuppressed) return;
+          idleMinutes++;
+          if (idleMinutes >= 4 && !warnShown) {
+            warnShown = true;
+            if (window.Shiny) Shiny.setInputValue('idle_warn', Math.random());
           }
-          document.addEventListener('mousemove', resetIdle, true);
-          document.addEventListener('keydown',   resetIdle, true);
-          document.addEventListener('click',     resetIdle, true);
-          document.addEventListener('scroll',    resetIdle, true);
-          setInterval(function() {
-            var ls = document.getElementById('login_screen');
-            if (ls && ls.style.display !== 'none') return;
-            idleMinutes++;
-            if (idleMinutes >= 4 && !warnShown) {
-              warnShown = true;
-              if (window.Shiny) Shiny.setInputValue('idle_warn', Math.random());
-            }
-            if (idleMinutes >= 5) {
-              if (window.Shiny) Shiny.setInputValue('idle_logout', Math.random());
-            }
-          }, 60000);
-        })();
+          if (idleMinutes >= 5) {
+            if (window.Shiny) Shiny.setInputValue('idle_logout', Math.random());
+          }
+        }, 60000);
       ")),
       tags$style(HTML("
       .content-wrapper { background-color: #f4f6f9; }
@@ -1654,6 +1671,8 @@ ui <- tagList(
                               rows = 3, width = "100%"),
                 actionButton("btn_send_test_sms", "Send Test SMS",
                              class = "btn-warning", icon = icon("mobile-alt")),
+                actionButton("btn_reset_test_sms", "Reset",
+                             class = "btn-default", icon = icon("undo")),
                 br(), br(),
                 verbatimTextOutput("test_sms_status")
             ),
@@ -2475,6 +2494,7 @@ server <- function(input, output, session) {
       menuItem("Overview",                 tabName = "overview",        icon = icon("tachometer-alt")),
       menuItem("Weather Conditions",       tabName = "wx_cities",       icon = icon("cloud-sun")),
       menuItem("FL Alerts",                tabName = "alerts",          icon = icon("exclamation-triangle")),
+      menuItem("Florida Rivers Alerts",    tabName = "rivers",          icon = icon("water")),
       menuItem("Traffic Alerts",           tabName = "traffic_alerts",  icon = icon("car-crash")),
       menuItem("Traffic Analysis",         tabName = "traffic_analysis",icon = icon("chart-bar")),
       menuItem("County Alerts",            tabName = "county_alerts",   icon = icon("map-marker-alt")),
@@ -2482,7 +2502,6 @@ server <- function(input, output, session) {
       menuItem("Icecast Streams",          tabName = "icecast",         icon = icon("broadcast-tower")),
       menuItem("Feed Status",              tabName = "feeds",           icon = icon("rss")),
       menuItem("Census & Demographics",    tabName = "census",          icon = icon("users")),
-      menuItem("Florida Rivers Alerts",   tabName = "rivers",          icon = icon("water")),
       menuItem("Social Media",            tabName = "social_media",    icon = icon("share-nodes")),
       menuItem("Travel Buddy",            tabName = "travel_buddy",    icon = icon("route")),
       menuItem("Alarms & SNMP",           tabName = "alarms",          icon = icon("bell"))
@@ -5823,6 +5842,47 @@ server <- function(input, output, session) {
       return()
     })
 
+    # Fetch emergency checklists for this profession (if any)
+    checklist_html <- ""
+    checklist_sms  <- ""
+    if (nchar(profession) > 0) {
+      ec_col <- tryCatch(mongo("emergency_roles_config", "weather_rss", url=MONGO_URI), error=function(e) NULL)
+      if (!is.null(ec_col)) {
+        phases <- c("before"="Before Event","during"="During Event","after"="After Event")
+        cl_sections <- lapply(names(phases), function(ph) {
+          tryCatch({
+            q  <- sprintf('{"role":"%s","phase":"%s"}', gsub('"','',profession), ph)
+            r  <- ec_col$find(q, fields='{"todos":1,"_id":0}')
+            if (nrow(r) == 0 || is.null(r$todos)) return(NULL)
+            todos <- r$todos[[1]]
+            if (is.list(todos)) todos <- unlist(todos)
+            todos <- todos[nchar(trimws(todos)) > 0]
+            if (length(todos) == 0) return(NULL)
+            list(label=phases[[ph]], items=todos)
+          }, error=function(e) NULL)
+        })
+        tryCatch(ec_col$disconnect(), error=function(e) NULL)
+        cl_sections <- Filter(Negate(is.null), cl_sections)
+        if (length(cl_sections) > 0) {
+          checklist_html <- paste0(
+            "<h3 style='color:#003087;margin-top:20px;'>Emergency Action Checklist \u2014 ", profession, "</h3>",
+            paste(sapply(cl_sections, function(s) paste0(
+              "<h4 style='margin:12px 0 4px;color:#555;'>", s$label, "</h4>",
+              "<ol style='margin:0 0 8px 20px;font-size:13px;'>",
+              paste0("<li>", s$items, "</li>", collapse=""),
+              "</ol>"
+            )), collapse="")
+          )
+          before_sec <- Filter(function(s) s$label == "Before Event", cl_sections)
+          if (length(before_sec) > 0) {
+            items_txt <- paste(seq_along(before_sec[[1]]$items),
+                               before_sec[[1]]$items, sep=". ", collapse="\n")
+            checklist_sms <- paste0("\nEMERGENCY PRE-EVENT CHECKLIST (", profession, "):\n", items_txt, "\n")
+          }
+        }
+      }
+    }
+
     # Send invite email (with direct invite link + 72-hour expiry warning)
     if (admin_invites_on) {
       send_fpren_email(email,
@@ -5858,6 +5918,7 @@ server <- function(input, output, session) {
           "</table>",
           "<p style='font-size:12px;color:#666;'>After activation you will complete SMS and email verification. ",
           "Your account will be automatically disabled after <strong>6 months of inactivity</strong>.</p>",
+          if (nchar(checklist_html) > 0) checklist_html else "",
           "<p style='font-size:12px;'>Questions? Contact <a href='mailto:lawrence.bornace@ufl.edu'>lawrence.bornace@ufl.edu</a>.</p>",
           "</div>"
         ))
@@ -5869,6 +5930,7 @@ server <- function(input, output, session) {
           "You have been invited by ", creator, ".\n",
           "Username: ", uname, "\n",
           "Activate: ", invite_link, "\n",
+          if (nchar(checklist_sms) > 0) checklist_sms else "",
           "EXPIRES IN 72 HRS. If not activated your account is deleted.\n",
           "Reply STOP to opt out. \u2014FPREN"
         )
@@ -7044,8 +7106,86 @@ server <- function(input, output, session) {
   })
 
   # ── BCP Report Generation ────────────────────────────────────────────────────
-  bcp_status_msg <- reactiveVal("")
+  bcp_status_msg  <- reactiveVal("")
+  bcp_bg_job_rv   <- reactiveVal(NULL)   # stores list(job, do_email, user_email, asset_names)
   output$bcp_status <- renderText({ bcp_status_msg() })
+
+  # Helper: build the params list for one asset render (runs in main session)
+  .bcp_render_params <- function(uname, asset, tmpl_key, output_dir, timestamp, all_assets_df, profession) {
+    tmpl_map <- list(
+      general       = "/home/ufuser/Fpren-main/reports/business_continuity_report.Rmd",
+      broadcast     = "/home/ufuser/Fpren-main/reports/bcp_broadcast_facility.Rmd",
+      county_em     = "/home/ufuser/Fpren-main/reports/bcp_county_em.Rmd",
+      campus_police = "/home/ufuser/Fpren-main/reports/bcp_campus_police.Rmd"
+    )
+    tmpl_label <- switch(tmpl_key, broadcast="Broadcast", county_em="CountyEM",
+                         campus_police="CampusPolice", "General")
+    tmpl_file  <- tmpl_map[[tmpl_key]] %||% tmpl_map[["general"]]
+    safe_name  <- gsub("[^A-Za-z0-9]", "_", asset$asset_name %||% "asset")
+    out_file   <- file.path(output_dir,
+      paste0("bcp_", tmpl_label, "_", uname, "_", safe_name, "_", timestamp, ".pdf"))
+    lat <- tryCatch(as.numeric(asset$lat), error=function(e) 29.65); if (is.na(lat)) lat <- 29.65
+    lon <- tryCatch(as.numeric(asset$lon), error=function(e) -82.33); if (is.na(lon)) lon <- -82.33
+    county <- zip_to_florida_county(asset$zip %||% "") %||% (asset$city %||% "")
+    other_json <- tryCatch({
+      this_id <- as.character(asset$asset_id %||% "")
+      if (is.data.frame(all_assets_df) && nrow(all_assets_df) > 0) {
+        others <- all_assets_df[as.character(all_assets_df$asset_id) != this_id, , drop=FALSE]
+        if (nrow(others) > 0) jsonlite::toJSON(others, auto_unbox=TRUE) else "[]"
+      } else "[]"
+    }, error=function(e) "[]")
+    list(
+      tmpl_file = tmpl_file, out_file = out_file,
+      rmd_params = list(
+        username=uname, asset_name=asset$asset_name %||% "",
+        address=asset$address %||% "", lat=lat, lon=lon,
+        zip=asset$zip %||% "", city=asset$city %||% "", county=county,
+        nearest_airport_icao=asset$nearest_airport_icao %||% "KGNV",
+        nearest_airport_name=asset$nearest_airport_name %||% "Gainesville Regional",
+        asset_type=asset$asset_type %||% "Facility", notes=asset$notes %||% "",
+        other_assets_json=other_json, profession=profession,
+        mongo_uri=MONGO_URI, days_back=30L
+      )
+    )
+  }
+
+  # Poller: checks background job every 3 seconds
+  observe({
+    job_info <- bcp_bg_job_rv()
+    if (is.null(job_info)) return()
+    invalidateLater(3000)
+    job <- job_info$job
+    if (job$is_alive()) {
+      bcp_status_msg(paste0("Rendering\u2026 (", job_info$label, ")"))
+      return()
+    }
+    # Job finished — clear it first
+    bcp_bg_job_rv(NULL)
+    shinyjs::runjs("suppressIdleTimer(false)")
+    result <- tryCatch(job$get_result(), error=function(e)
+      list(files=character(0), errors=conditionMessage(e)))
+    if (is.character(result)) result <- list(files=result, errors=character(0))
+    files  <- result$files  %||% character(0)
+    errors <- result$errors %||% character(0)
+    # Email if requested
+    if (isTRUE(job_info$do_email) && nchar(job_info$user_email) > 0 && length(files) > 0) {
+      for (f in files) {
+        aname <- gsub("bcp_[A-Za-z]+_[^_]+_(.+)_[0-9_]+\\.pdf", "\\1", basename(f))
+        send_fpren_email(job_info$user_email,
+          paste0("FPREN BCP: ", aname),
+          paste0("<h3>Business Continuity Plan</h3><p>BCP for <strong>", aname,
+                 "</strong> is attached.</p>"),
+          attachment_path = f)
+      }
+    }
+    msg <- if (length(files) > 0)
+      paste0("Generated ", length(files), " BCP(s): ", paste(basename(files), collapse=", "))
+    else "No BCPs generated."
+    if (length(errors) > 0) msg <- paste0(msg, "\nErrors: ", paste(errors, collapse="; "))
+    bcp_status_msg(msg)
+    if (length(files) > 0)
+      showNotification(paste0("BCP complete: ", length(files), " file(s)"), type="message")
+  })
 
   output$profession_bcp_hint <- renderUI({
     prof <- input$new_user_profession %||% ""
@@ -7259,8 +7399,16 @@ server <- function(input, output, session) {
     # Build JSON of all other assets (excluding this one) for the cross-asset section
     other_assets_json <- tryCatch({
       this_id <- as.character(asset$asset_id %||% "")
-      if (!is.null(all_assets) && is.data.frame(all_assets) && nrow(all_assets) > 0) {
-        others <- all_assets[as.character(all_assets$asset_id) != this_id, , drop=FALSE]
+      # Normalise to data.frame whether all_assets is a df or a list of lists
+      af <- if (is.data.frame(all_assets)) {
+        all_assets
+      } else if (is.list(all_assets) && length(all_assets) > 0) {
+        as.data.frame(do.call(rbind, lapply(all_assets, function(a)
+          lapply(a, function(v) if (length(v) == 1) v else list(v)))),
+          stringsAsFactors = FALSE)
+      } else NULL
+      if (!is.null(af) && nrow(af) > 0) {
+        others <- af[as.character(af$asset_id) != this_id, , drop=FALSE]
         if (nrow(others) > 0) jsonlite::toJSON(others, auto_unbox=TRUE) else "[]"
       } else "[]"
     }, error=function(e) "[]")
@@ -7278,6 +7426,7 @@ server <- function(input, output, session) {
         lat                  = lat, lon = lon,
         zip                  = asset$zip                 %||% "",
         city                 = asset$city                %||% "",
+        county               = zip_to_florida_county(asset$zip %||% "") %||% (asset$city %||% ""),
         nearest_airport_icao = asset$nearest_airport_icao %||% "KGNV",
         nearest_airport_name = asset$nearest_airport_name %||% "Gainesville Regional",
         asset_type           = asset$asset_type          %||% "Facility",
@@ -7299,123 +7448,80 @@ server <- function(input, output, session) {
     if (is.null(uname) || nchar(uname) == 0 || is.null(asset_id) || nchar(asset_id) == 0) {
       bcp_status_msg("Select a user and asset first."); return()
     }
-
-    # ── All Facilities batch mode ────────────────────────────────────────────
-    if (asset_id == "__all__") {
-      bcp_status_msg("Generating BCPs for all facilities\u2026 (this may take several minutes)")
-      col <- tryCatch(mongo(collection="users", db="weather_rss", url=MONGO_URI), error=function(e) NULL)
-      if (is.null(col)) { bcp_status_msg("DB unavailable."); return() }
-      tryCatch({
-        all_users <- col$find("{}", fields='{"username":1,"profession":1,"assets":1,"email":1,"_id":0}')
-        col$disconnect()
-        output_dir <- rpt_output_dir
-        dir.create(output_dir, showWarnings=FALSE, recursive=TRUE)
-        timestamp  <- format(Sys.time(), "%Y%m%d_%H%M")
-        generated  <- character(0)
-        errors     <- character(0)
-
-        for (i in seq_len(nrow(all_users))) {
-          row    <- all_users[i, ]
-          uname_i <- as.character(row$username)
-          prof_i  <- if (!is.null(row$profession) && !is.na(row$profession)) as.character(row$profession) else ""
-          tmpl_i  <- if (nchar(prof_i) > 0) PROFESSION_TEMPLATE_MAP[prof_i] %||% "general" else "general"
-          assets_i <- if (!is.null(row$assets)) row$assets[[1]] else NULL
-          if (is.null(assets_i) || (is.data.frame(assets_i) && nrow(assets_i) == 0)) next
-
-          # Sort by priority if available
-          if (is.data.frame(assets_i) && "priority" %in% names(assets_i))
-            assets_i <- assets_i[order(as.integer(assets_i$priority)), ]
-
-          all_assets_i <- assets_i  # pass full sorted set to each render call
-
-          asset_list <- if (is.data.frame(assets_i)) {
-            lapply(seq_len(nrow(assets_i)), function(j) as.list(assets_i[j, ]))
-          } else as.list(assets_i)
-
-          for (asset in asset_list) {
-            tryCatch({
-              f <- .render_one_bcp(uname_i, asset, tmpl_i, output_dir, timestamp,
-                                   all_assets = all_assets_i, profession = prof_i %||% "General")
-              generated <- c(generated, basename(f))
-              if (isTRUE(input$bcp_email) && !is.null(row$email) && nchar(as.character(row$email)) > 0) {
-                send_fpren_email(as.character(row$email),
-                  paste0("FPREN BCP: ", asset$asset_name %||% "Asset"),
-                  paste0("<h3>Business Continuity Plan</h3><p>BCP for <strong>",
-                         asset$asset_name %||% "Asset", "</strong> is attached.</p>"),
-                  attachment_path = f)
-              }
-            }, error=function(e) {
-              errors <<- c(errors, paste0(uname_i, "/", asset$asset_name %||% "?", ": ", conditionMessage(e)))
-            })
-          }
-        }
-        msg <- paste0("Generated ", length(generated), " BCP(s).")
-        if (length(errors) > 0) msg <- paste0(msg, "\nErrors: ", paste(errors, collapse="; "))
-        bcp_status_msg(msg)
-        showNotification(paste0("Batch BCP complete: ", length(generated), " files"), type="message")
-      }, error=function(e) {
-        tryCatch(col$disconnect(), error=function(e2) NULL)
-        bcp_status_msg(paste0("Batch error: ", conditionMessage(e)))
-      })
-      return()
+    if (!is.null(bcp_bg_job_rv()) && bcp_bg_job_rv()$job$is_alive()) {
+      bcp_status_msg("A BCP is already generating — please wait."); return()
     }
-    bcp_status_msg("Generating BCP — this may take 60-120 seconds...")
 
-    # Fetch asset details + profession from MongoDB
-    col <- tryCatch(mongo(collection="users", db="weather_rss", url=MONGO_URI), error=function(e) NULL)
+    # Load user info and assets in main session (safe, fast)
+    col <- tryCatch(mongo("users","weather_rss",url=MONGO_URI), error=function(e) NULL)
     if (is.null(col)) { bcp_status_msg("DB unavailable."); return() }
-    user_profession <- tryCatch({
-      up <- col$find(sprintf('{"username":"%s"}', uname), fields='{"profession":1,"_id":0}')
-      if (nrow(up) > 0 && !is.null(up$profession) && !is.na(up$profession)) as.character(up$profession) else "General"
-    }, error = function(e) "General")
-    asset <- tryCatch({
-      u <- col$find(sprintf('{"username":"%s"}', uname), fields='{"assets":1,"_id":0}')
-      col$disconnect()
-      assets <- if (nrow(u) > 0 && !is.null(u$assets)) u$assets[[1]] else NULL
-      if (is.null(assets)) NULL else {
-        if (is.data.frame(assets)) {
-          idx <- which(as.character(assets$asset_id) == asset_id)
-          if (length(idx) == 0) NULL else as.list(assets[idx[1], ])
-        } else {
-          found <- Filter(function(a) as.character(a$asset_id) == asset_id, assets)
-          if (length(found) == 0) NULL else found[[1]]
-        }
-      }
-    }, error=function(e) {
-      tryCatch(col$disconnect(), error=function(e2) NULL); NULL
-    })
+    u <- tryCatch({
+      r <- col$find(sprintf('{"username":"%s"}', uname),
+                    fields='{"profession":1,"email":1,"assets":1,"_id":0}')
+      col$disconnect(); r
+    }, error=function(e) { tryCatch(col$disconnect(),error=function(e2)NULL); NULL })
+    if (is.null(u) || nrow(u) == 0) { bcp_status_msg("User not found."); return() }
 
-    if (is.null(asset)) { bcp_status_msg("Asset not found."); return() }
+    prof_raw   <- tryCatch(u$profession[[1]] %||% "", error=function(e) "")
+    profession <- if (is.character(prof_raw) && nchar(prof_raw)>0) prof_raw else "General"
+    user_email <- tryCatch(as.character(u$email[1] %||% ""), error=function(e) "")
+    tmpl_key   <- input$bcp_template %||%
+                  (if (nchar(profession)>0) PROFESSION_TEMPLATE_MAP[profession] %||% "general" else "general")
+    do_email   <- isTRUE(input$bcp_email)
+    all_assets <- .load_user_assets(uname)
 
-    output_dir  <- rpt_output_dir
+    # Build render job list in main session
+    output_dir <- rpt_output_dir
     dir.create(output_dir, showWarnings=FALSE, recursive=TRUE)
-    timestamp   <- format(Sys.time(), "%Y%m%d_%H%M")
-    tmpl_key    <- input$bcp_template %||% "general"
-    all_assets  <- .load_user_assets(uname)  # sorted by priority
+    timestamp  <- format(Sys.time(), "%Y%m%d_%H%M")
 
-    tryCatch({
-      output_file <- .render_one_bcp(uname, asset, tmpl_key, output_dir, timestamp,
-                                     all_assets = all_assets, profession = user_profession)
-      msg <- paste0("BCP saved: ", basename(output_file))
-      if (isTRUE(input$bcp_email)) {
-        u_email <- tryCatch({
-          col2 <- mongo(collection="users", db="weather_rss", url=MONGO_URI)
-          ue <- col2$find(sprintf('{"username":"%s"}', uname), fields='{"email":1,"_id":0}')
-          col2$disconnect()
-          if (nrow(ue) > 0 && !is.null(ue$email)) ue$email[1] else ""
-        }, error=function(e) "")
-        if (nchar(u_email) > 0) {
-          send_fpren_email(u_email,
-            paste0("FPREN BCP: ", asset$asset_name %||% "Asset"),
-            paste0("<h3>Business Continuity Plan</h3>",
-                   "<p>Your BCP for <strong>", asset$asset_name %||% "Asset",
-                   "</strong> has been generated and is attached.</p>"),
-            attachment_path = output_file)
-          msg <- paste0(msg, " — emailed to ", u_email)
-        }
+    asset_rows <- if (asset_id == "__all__") {
+      if (is.null(all_assets) || nrow(all_assets) == 0) {
+        bcp_status_msg("No assets registered for this user."); return()
       }
-      bcp_status_msg(msg)
-    }, error=function(e) bcp_status_msg(paste0("ERROR: ", conditionMessage(e))))
+      lapply(seq_len(nrow(all_assets)), function(j) as.list(all_assets[j,]))
+    } else {
+      if (is.null(all_assets) || nrow(all_assets) == 0) {
+        bcp_status_msg("Asset not found."); return()
+      }
+      idx <- which(as.character(all_assets$asset_id) == asset_id)
+      if (length(idx) == 0) { bcp_status_msg("Asset not found."); return() }
+      list(as.list(all_assets[idx[1],]))
+    }
+
+    render_jobs <- lapply(asset_rows, function(asset)
+      .bcp_render_params(uname, asset, tmpl_key, output_dir, timestamp, all_assets, profession))
+
+    label <- if (asset_id == "__all__")
+      paste0("all ", length(render_jobs), " assets for ", uname)
+    else
+      render_jobs[[1]]$rmd_params$asset_name
+
+    shinyjs::runjs("suppressIdleTimer(true)")
+    bcp_status_msg(paste0("Rendering\u2026 (", label, ")"))
+
+    # Launch background render — no R session blocking
+    job <- callr::r_bg(
+      func = function(jobs) {
+        files  <- character(0)
+        errors <- character(0)
+        for (j in jobs) {
+          tryCatch({
+            tmp <- tempfile(); dir.create(tmp)
+            withr::with_dir(tmp,
+              rmarkdown::render(input=j$tmpl_file, output_file=j$out_file,
+                                intermediates_dir=tmp, params=j$rmd_params, quiet=TRUE))
+            files <- c(files, j$out_file)
+          }, error=function(e) {
+            errors <<- c(errors, paste0(basename(j$out_file), ": ", conditionMessage(e)))
+          })
+        }
+        list(files=files, errors=errors)
+      },
+      args = list(jobs = render_jobs),
+      supervise = TRUE
+    )
+    bcp_bg_job_rv(list(job=job, label=label, do_email=do_email, user_email=user_email))
   })
 
   # Upload Content (operator + admin only)
@@ -8389,12 +8495,13 @@ server <- function(input, output, session) {
         raw      <- input[[field_id]] %||% ""
         todos    <- Filter(nchar, trimws(strsplit(raw, "\n")[[1]]))
         id_key   <- paste0(role, "|", phase)
-        col$upsert(
+        col$update(
           sprintf('{"_id":"%s"}', gsub('"', '', id_key)),
           sprintf('{"$set":{"role":"%s","phase":"%s","todos":%s,"updated_at":"%s"}}',
                   gsub('"', '', role), phase,
                   jsonlite::toJSON(todos, auto_unbox = FALSE),
-                  now_str)
+                  now_str),
+          upsert = TRUE
         )
       }
       col$disconnect()
@@ -8469,7 +8576,12 @@ server <- function(input, output, session) {
   test_sms_status_rv <- reactiveVal("")
   output$test_sms_status <- renderText({ test_sms_status_rv() })
 
+  observeEvent(input$btn_reset_test_sms, {
+    test_sms_status_rv("")
+  })
+
   observeEvent(input$btn_send_test_sms, {
+    test_sms_status_rv("")
     if (!isTRUE(auth_rv$role == "admin")) {
       test_sms_status_rv("Admin role required."); return()
     }
@@ -8478,11 +8590,8 @@ server <- function(input, output, session) {
     if (nchar(phone) == 0) { test_sms_status_rv("Phone number required."); return() }
     if (nchar(msg)   == 0) { test_sms_status_rv("Message cannot be empty."); return() }
     test_sms_status_rv(paste0("Sending to ", phone, " ..."))
-    ok <- send_twilio_sms(phone, msg)
-    test_sms_status_rv(if (ok)
-      paste0("Sent successfully to ", phone)
-    else
-      paste0("Failed — check Twilio credentials in Stream Alerts tab, then retry."))
+    res <- send_twilio_sms(phone, msg)
+    test_sms_status_rv(res$msg)
   })
 
   # ── Accessibility / Firewall Report ──────────────────────────────────────────
