@@ -21,7 +21,7 @@ if (file.exists(.env_file)) {
 }
 
 MONGO_URI <- Sys.getenv("MONGO_URI", unset = "mongodb://localhost:27017")
-DB_NAME   <- "beacon"
+DB_NAME   <- "weather_rss"
 
 fpren_col    <- function(col) mongolite::mongo(collection=col, db=DB_NAME, url=MONGO_URI)
 col_weather  <- function() fpren_col("weather_processed")

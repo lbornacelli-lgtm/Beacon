@@ -10,7 +10,7 @@ class BaseAgent(ABC):
 
     def __init__(self):
         self.client = MongoClient(MONGO_URI)
-        self.db = self.client["beacon"]
+        self.db = self.client["weather_rss"]
         self.log = logging.getLogger(self.__class__.__name__)
 
     @abstractmethod

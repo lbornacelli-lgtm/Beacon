@@ -252,8 +252,8 @@ def fetch_fl_traffic():
                     "end_time":          inc.get("endDate"),
                     "last_updated":      inc.get("lastUpdated"),
                     "fetched_at":        now,
+                    "processed": False,
                 }},
-                "$setOnInsert": {"processed": False},
                 upsert=True,
             )
             updated += 1

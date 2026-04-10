@@ -243,6 +243,25 @@ def load_user(user_id):
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="/static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fpren-secret-2026-change-me")
+
+# ── Security: CSRF protection ──────────────────────────────────────────
+from flask_wtf.csrf import CSRFProtect, CSRFError
+csrf = CSRFProtect(app)
+app.config["WTF_CSRF_TIME_LIMIT"] = 3600
+
+# ── Security: DNS Rebinding / Host header validation ───────────────────
+ALLOWED_HOSTS = {"cjc-fpren.ad.ufl.edu", "128.227.67.234", "localhost", "127.0.0.1"}
+
+@app.before_request
+def check_host():
+    host = request.host.split(":")[0]
+    if host not in ALLOWED_HOSTS:
+        abort(403)
+
+# ── Security: CSRF error handler ───────────────────────────────────────
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return jsonify({"error": "CSRF validation failed", "reason": str(e)}), 403
 login_manager.init_app(app)
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]

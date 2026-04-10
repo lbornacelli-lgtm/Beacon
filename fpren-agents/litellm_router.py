@@ -21,6 +21,10 @@ MODEL_MAP = {
 litellm.api_base = UF_BASE_URL
 litellm.api_key  = UF_API_KEY
 
+import os
+os.environ["OPENAI_API_KEY"]  = UF_API_KEY
+os.environ["OPENAI_API_BASE"] = UF_BASE_URL
+
 def load_prompt(md_file):
     path = Path(__file__).parent / "prompts" / md_file
     return path.read_text(encoding="utf-8")

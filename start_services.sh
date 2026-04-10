@@ -16,10 +16,15 @@ echo "=== FPREN Weather Station Startup ==="
 if mongosh --eval "db.runCommand({ping:1})" --quiet > /dev/null 2>&1; then
     echo "[OK] MongoDB already running"
 else
-    echo "[..] Starting MongoDB..."
-    mongod --dbpath "$MONGO_DBPATH" --logpath "$MONGO_LOG" --fork
-    sleep 2
-    echo "[OK] MongoDB started"
+    echo "[..] Starting MongoDB via systemctl..."
+    sudo systemctl start mongod
+    sleep 3
+    if mongosh --eval "db.runCommand({ping:1})" --quiet > /dev/null 2>&1; then
+        echo "[OK] MongoDB started"
+    else
+        echo "[ERROR] MongoDB failed to start — check: sudo journalctl -u mongod -n 20"
+        exit 1
+    fi
 fi
 
 # --- Weather RSS Fetcher Services ---

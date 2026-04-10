@@ -15,19 +15,19 @@ MONGO_URI     = "mongodb://localhost:27017"
 POLL_INTERVAL = 5
 
 AGENT_MAP = {
-    "weather_alerts": WeatherAgent,
-    "observations":   WeatherAgent,
-    "fl511_traffic":  TrafficAgent,
-    "ipaws_alerts":   AlertsAgent,
-    "alachua_alerts": AlertsAgent,
-    "tsa_alerts":     AlertsAgent,
+    "nws_alerts": WeatherAgent,
+    "airport_metar":   WeatherAgent,
+    "fl_traffic":  TrafficAgent,
+    "nws_alerts_extended":   AlertsAgent,
+    "nws_alerts": AlertsAgent,
+    "airport_delays":     AlertsAgent,
     "tts_queue":      TTSAgent,
 }
 
 class Director:
     def __init__(self):
         self.client       = MongoClient(MONGO_URI)
-        self.db           = self.client["beacon"]
+        self.db           = self.client["weather_rss"]
         self._agents      = {}
         self.r            = RBridge()
         self._last_daily  = None
