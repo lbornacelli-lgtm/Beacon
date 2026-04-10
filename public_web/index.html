@@ -92,6 +92,25 @@
       transform: translateY(0);
     }
 
+    /* -- Live Clock -- */
+    #live-clock {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--sky);
+      letter-spacing: 0.06em;
+      background: rgba(0,168,232,0.08);
+      border: 1px solid rgba(0,168,232,0.22);
+      border-radius: 8px;
+      padding: 6px 14px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #live-clock i { font-size: 0.8rem; opacity: 0.75; }
+
     /* ════════════════════════════════════════
        NAVBAR
     ════════════════════════════════════════ */
@@ -1122,6 +1141,7 @@
           <li><a href="#technology">Technology</a></li>
         </ul>
         <div class="nav-btns">
+          <div id="live-clock"><i class="fa-solid fa-clock"></i><span id="clock-display">--:--:--</span></div>
           <a href="http://128.227.67.234:8000/fpren" target="_blank" rel="noopener" class="btn btn-outline">
             <i class="fa-solid fa-radio"></i> Listen Live
           </a>
@@ -2006,6 +2026,20 @@
       zonePolygons[zoneKey].setStyle({ fillOpacity: 0.22, weight: 2.5, opacity: 1 });
     }
   }
+
+  // -- Live Clock --
+  (function initClock() {
+    const display = document.getElementById('clock-display');
+    function tick() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2,'0');
+      const m = String(now.getMinutes()).padStart(2,'0');
+      const s = String(now.getSeconds()).padStart(2,'0');
+      display.textContent = h + ':' + m + ':' + s;
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
 
   // Ensure map renders correctly after layout
   setTimeout(() => map.invalidateSize(), 400);
