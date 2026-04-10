@@ -147,6 +147,7 @@ def fetch_and_store(col, since_dt: datetime) -> int:
                     **data,
                     "tts_generated": False,
                     "fetched_at": datetime.now(timezone.utc),
+                    "processed": False,
                 }
             },
             upsert=True,

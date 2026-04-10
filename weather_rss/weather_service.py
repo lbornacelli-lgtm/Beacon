@@ -134,7 +134,8 @@ def fetch_nws_alerts():
                     "instruction": properties.get("instruction"),
                     "start": properties.get("onset"),
                     "end": properties.get("ends"),
-                    "fetched_at": now
+                    "fetched_at": now,
+                    "processed": False
                 }},
                 upsert=True
             )

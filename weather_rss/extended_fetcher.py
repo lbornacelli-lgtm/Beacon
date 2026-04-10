@@ -135,6 +135,7 @@ def fetch_airport_metar():
                     "lat":       rec.get("lat"),
                     "lon":       rec.get("lon"),
                     "fetched_at": now,
+                    "processed": False,
                 }},
                 upsert=True,
             )
@@ -252,6 +253,7 @@ def fetch_fl_traffic():
                     "last_updated":      inc.get("lastUpdated"),
                     "fetched_at":        now,
                 }},
+                "$setOnInsert": {"processed": False},
                 upsert=True,
             )
             updated += 1
