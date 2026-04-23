@@ -56,9 +56,34 @@ echo "[OK] alert_service started (PID $!)"
 cd /home/ufuser/Fpren-main/weather_rss
 start_service "web_dashboard"      "web/app.py"
 
+# --- Alarm & Monitoring System ---
+echo "[..] Starting alarm system services..."
+ALARM_SYS="$BEACON_DIR/fpren-agents/alarm_system"
+
+nohup /home/ufuser/Fpren-main/venv/bin/python3 "$ALARM_SYS/alarm_engine.py" \
+    > "$LOG_DIR/alarm_engine.log" 2>&1 &
+echo $! > "$LOG_DIR/alarm_engine.pid"
+echo "[OK] alarm_engine started (PID $!)"
+
+nohup /home/ufuser/Fpren-main/venv/bin/python3 "$ALARM_SYS/watchdogs/stream_watchdog.py" \
+    > "$LOG_DIR/stream_watchdog.log" 2>&1 &
+echo $! > "$LOG_DIR/stream_watchdog.pid"
+echo "[OK] stream_watchdog started (PID $!)"
+
+nohup /home/ufuser/Fpren-main/venv/bin/python3 "$ALARM_SYS/watchdogs/feed_watchdog.py" \
+    > "$LOG_DIR/feed_watchdog.log" 2>&1 &
+echo $! > "$LOG_DIR/feed_watchdog.pid"
+echo "[OK] feed_watchdog started (PID $!)"
+
+nohup /home/ufuser/Fpren-main/venv/bin/python3 "$ALARM_SYS/snmp_engine/snmp_poller.py" \
+    > "$LOG_DIR/snmp_poller.log" 2>&1 &
+echo $! > "$LOG_DIR/snmp_poller.pid"
+echo "[OK] snmp_poller started (PID $!)"
+
 echo ""
 echo "=== All services started ==="
-echo "Web dashboard: http://localhost:5000"
+echo "Web dashboard:    http://localhost:5000"
+echo "Alarm dashboard:  http://localhost:5000/alarms"
 echo "Logs: $LOG_DIR"
 echo ""
 echo "To stop all services, run: $BEACON_DIR/stop_services.sh"

@@ -1,19 +1,21 @@
 #!/usr/bin/env Rscript
 suppressPackageStartupMessages(library(rmarkdown))
 
-REPORT_DIR <- file.path(getwd(), "reports")
-OUTPUT_DIR <- file.path(REPORT_DIR, "output")
+REPORT_DIR <- file.path(dirname(getwd()), "reports")
+OUTPUT_DIR <- file.path(getwd(), "reports", "output")
 dir.create(OUTPUT_DIR, recursive=TRUE, showWarnings=FALSE)
 
 timestamp <- format(Sys.time(), "%Y%m%d_%H%M")
 
 reports <- list(
-  list(rmd=file.path(REPORT_DIR,"daily_summary.Rmd"),
-       output=file.path(OUTPUT_DIR,paste0("daily_summary_",timestamp)),
-       params=list(days=1, lookback_days=30)),
-  list(rmd=file.path(REPORT_DIR,"weekly_trends.Rmd"),
+  list(rmd=file.path(REPORT_DIR,"fpren_alert_report.Rmd"),
+       output=file.path(OUTPUT_DIR,paste0("daily_alert_report_",timestamp)),
+       params=list(days_back=1, zone_label="All Florida",
+                   mongo_uri="mongodb://localhost:27017/")),
+  list(rmd=file.path(REPORT_DIR,"weather_trends_report.Rmd"),
        output=file.path(OUTPUT_DIR,paste0("weekly_trends_",timestamp)),
-       params=list(weeks=4))
+       params=list(icao="KGNV", city_name="Gainesville",
+                   mongo_uri="mongodb://localhost:27017/"))
 )
 
 render_one <- function(r, format) {

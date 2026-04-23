@@ -1,0 +1,269 @@
+---
+title: "FPREN Incident Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: false
+    latex_engine: xelatex
+  html_document:
+    theme: cerulean
+params:
+  alert_id: ""
+  event_type: ""
+  date_from: ""
+  date_to: ""
+  area_desc: ""
+  mongo_uri: "mongodb://localhost:27017/"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+suppressPackageStartupMessages({
+  library(mongolite)
+  library(dplyr)
+  library(ggplot2)
+  library(lubridate)
+  library(knitr)
+  library(jsonlite)
+})
+
+MONGO_URI <- params$mongo_uri
+DB_NAME   <- "weather_rss"
+
+fpren_col <- function(col) mongolite::mongo(collection = col, db = DB_NAME, url = MONGO_URI)
+
+# ── Resolve incident ──────────────────────────────────────────────────────────
+# Look up by alert_id first, then by event_type + area + date range
+primary_alert <- NULL
+related_alerts <- data.frame()
+
+if (nchar(params$alert_id) > 0) {
+  primary_alert <- tryCatch({
+    col <- fpren_col("nws_alerts")
+    q   <- sprintf('{"alert_id":"%s"}', params$alert_id)
+    df  <- col$find(q)
+    col$disconnect()
+    if (nrow(df) > 0) as.list(df[1, ]) else NULL
+  }, error = function(e) NULL)
+}
+
+# Fallback: match by event_type and date range
+if (is.null(primary_alert) && nchar(params$event_type) > 0) {
+  start_iso <- if (nchar(params$date_from) > 0)
+    format(as.POSIXct(params$date_from), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  else
+    format(Sys.time() - 7*86400, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  end_iso <- if (nchar(params$date_to) > 0)
+    format(as.POSIXct(params$date_to), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  else
+    format(Sys.time() + 86400, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
+  related_alerts <- tryCatch({
+    col <- fpren_col("nws_alerts")
+    q   <- sprintf('{"event":{"$regex":"%s","$options":"i"},
+                    "fetched_at":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}',
+                   params$event_type, start_iso, end_iso)
+    df  <- col$find(q)
+    col$disconnect()
+    df
+  }, error = function(e) data.frame())
+
+  if (nrow(related_alerts) > 0) {
+    primary_alert <- as.list(related_alerts[1, ])
+  }
+}
+
+# ── Processed summary for this alert ─────────────────────────────────────────
+proc_summary <- NULL
+if (!is.null(primary_alert)) {
+  src_id <- primary_alert[["_id"]] %||% primary_alert[["alert_id"]] %||% ""
+  proc_summary <- tryCatch({
+    col <- fpren_col("alerts_processed")
+    q   <- sprintf('{"source_id":"%s"}', src_id)
+    df  <- col$find(q)
+    col$disconnect()
+    if (nrow(df) > 0) df else NULL
+  }, error = function(e) NULL)
+}
+
+`%||%` <- function(a, b) if (!is.null(a) && length(a) > 0) a else b
+
+# ── Timeline from execution_log ───────────────────────────────────────────────
+exec_timeline <- tryCatch({
+  col <- fpren_col("execution_log")
+  doc_id <- if (!is.null(primary_alert)) as.character(primary_alert[["_id"]] %||% "") else ""
+  if (nchar(doc_id) > 0) {
+    df <- col$find(sprintf('{"doc_id":"%s"}', doc_id))
+  } else {
+    df <- data.frame()
+  }
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+
+# ── Weather context at time of incident ───────────────────────────────────────
+weather_context <- tryCatch({
+  incident_time <- primary_alert[["fetched_at"]] %||% primary_alert[["sent"]] %||% ""
+  if (nchar(as.character(incident_time)) > 0) {
+    t   <- as.POSIXct(as.character(incident_time), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    t0  <- format(t - 3600, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    t1  <- format(t + 3600, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    col <- fpren_col("airport_metar")
+    df  <- col$find(sprintf('{"fetched_at":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}', t0, t1))
+    col$disconnect()
+    df
+  } else {
+    data.frame()
+  }
+}, error = function(e) data.frame())
+
+# ── Related alarms ────────────────────────────────────────────────────────────
+related_alarms <- tryCatch({
+  incident_time <- primary_alert[["fetched_at"]] %||% primary_alert[["sent"]] %||% Sys.time()
+  t   <- as.POSIXct(as.character(incident_time), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  t0  <- format(t - 3600, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  t1  <- format(t + 7200, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  col <- fpren_col("alarms")
+  df  <- col$find(sprintf('{"created_at":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}', t0, t1))
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+```
+
+# Incident Report
+
+```{r incident-header}
+if (!is.null(primary_alert)) {
+  event  <- as.character(primary_alert[["event"]] %||% "Unknown Event")
+  area   <- as.character(primary_alert[["area_desc"]] %||% "Unknown Area")
+  sev    <- as.character(primary_alert[["severity"]] %||% "Unknown")
+  sent   <- as.character(primary_alert[["sent"]] %||% primary_alert[["fetched_at"]] %||% "Unknown")
+  expires <- as.character(primary_alert[["expires"]] %||% primary_alert[["ends"]] %||% "Unknown")
+
+  cat(sprintf("**Event:** %s\n\n", event))
+  cat(sprintf("**Affected Area:** %s\n\n", area))
+  cat(sprintf("**Severity:** %s\n\n", sev))
+  cat(sprintf("**Issued:** %s\n\n", sent))
+  cat(sprintf("**Expires:** %s\n\n", expires))
+} else {
+  cat("**No matching incident found for the specified parameters.**\n\n")
+  cat("Specify `alert_id`, `event_type`, or a date range to locate an incident.\n")
+}
+```
+
+---
+
+## Incident Description
+
+```{r incident-desc}
+if (!is.null(primary_alert)) {
+  headline <- as.character(primary_alert[["headline"]] %||% "")
+  desc     <- as.character(primary_alert[["description"]] %||% "No description available.")
+  instr    <- as.character(primary_alert[["instruction"]] %||% "")
+
+  if (nchar(headline) > 0) cat("**Headline:** ", headline, "\n\n")
+  cat("**Description:**\n\n", desc, "\n\n")
+  if (nchar(instr) > 0) cat("**Instructions:**\n\n", instr, "\n\n")
+}
+```
+
+---
+
+## AI-Generated Broadcast Summary
+
+```{r proc-summary}
+if (!is.null(proc_summary) && nrow(proc_summary) > 0) {
+  cat("**Broadcast Summary** *(generated by FPREN AlertsAgent)*:\n\n")
+  cat("> ", as.character(proc_summary$summary[1] %||% ""), "\n\n")
+  cat(sprintf("**AI Severity Classification:** %s\n\n",
+              as.character(proc_summary$severity[1] %||% "unknown")))
+} else {
+  cat("No processed broadcast summary found for this incident.\n\n")
+  cat("*(Alert may have been received before the director was running, or was not dispatched.)*\n\n")
+}
+```
+
+---
+
+## Related Alerts in Window
+
+```{r related-alerts}
+if (nrow(related_alerts) > 1) {
+  rel_tbl <- related_alerts %>%
+    head(20) %>%
+    transmute(
+      Event    = as.character(event),
+      Area     = substr(as.character(area_desc), 1, 50),
+      Severity = as.character(severity),
+      Issued   = as.character(sent)
+    )
+  knitr::kable(rel_tbl, caption = "Related Alerts in Same Window")
+}
+```
+
+---
+
+## Processing Timeline
+
+```{r exec-timeline}
+if (nrow(exec_timeline) > 0) {
+  tl_tbl <- exec_timeline %>%
+    transmute(
+      Agent     = as.character(agent_name),
+      `Model Tier` = as.character(model_tier),
+      `Latency (ms)` = as.integer(latency_ms),
+      Status    = as.character(status),
+      Timestamp = as.character(timestamp)
+    )
+  knitr::kable(tl_tbl, caption = "Agent Execution Timeline")
+} else {
+  cat("No execution log entries for this incident.\n")
+}
+```
+
+---
+
+## Weather Context at Time of Incident
+
+```{r weather-context}
+if (nrow(weather_context) > 0 && "icaoId" %in% names(weather_context)) {
+  wx_tbl <- weather_context %>%
+    transmute(
+      Station  = as.character(icaoId),
+      City     = as.character(city),
+      `Temp (°F)` = as.numeric(temp_f),
+      `Wind (kt)` = as.numeric(wind_speed_kt),
+      `Flight Cat` = as.character(flight_category)
+    ) %>%
+    arrange(Station)
+  knitr::kable(wx_tbl, caption = "Weather Conditions at Time of Incident (±1 hour)")
+} else {
+  cat("No weather data available for this time window.\n")
+}
+```
+
+---
+
+## System Alarms During Incident
+
+```{r related-alarms}
+if (nrow(related_alarms) > 0 && "severity" %in% names(related_alarms)) {
+  alm_tbl <- related_alarms %>%
+    transmute(
+      Name     = as.character(name %||% ""),
+      Severity = as.character(severity),
+      Source   = as.character(source %||% ""),
+      Status   = as.character(status %||% ""),
+      Created  = as.character(created_at %||% "")
+    ) %>%
+    head(10)
+  knitr::kable(alm_tbl, caption = "System Alarms During Incident Window (±3 hours)")
+} else {
+  cat("No system alarms during this incident window.\n")
+}
+```
+
+---
+
+*Generated by FPREN — Florida Public Radio Emergency Network*
+*`r format(Sys.time(), "%Y-%m-%d %H:%M %Z")`*

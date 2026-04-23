@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly FPREN Emergency Resources Overpass cache prefetch (1:00 AM)
+
+[Timer]
+Unit=fpren-emergency-resources-prefetch.service
+OnCalendar=*-*-* 01:00:00
+AccuracySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

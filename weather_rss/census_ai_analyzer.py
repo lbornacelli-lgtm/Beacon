@@ -18,13 +18,16 @@ import sys
 
 from pymongo import MongoClient
 
-# Add weather_station to path so we can import ai_client
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "weather_station"))
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 try:
-    from services.ai_client import chat as ai_chat, is_configured as ai_ready
+    from weather_station.services.ai_client import chat_with_retry as ai_chat, is_configured as ai_ready
+    from weather_station.config.ai_config import TOKENS_ANALYSIS
     _AI_AVAILABLE = True
 except ImportError:
+    TOKENS_ANALYSIS = 250
     _AI_AVAILABLE = False
 
 log = logging.getLogger("census_ai")
@@ -168,7 +171,7 @@ weather emergencies and what types of outreach FPREN should prioritize."""
         return _fallback_vulnerability_summary(county, census)
 
     try:
-        return ai_chat(prompt, system=_SYSTEM_VULNERABILITY, max_tokens=200)
+        return ai_chat(prompt, system=_SYSTEM_VULNERABILITY, max_tokens=TOKENS_ANALYSIS)
     except Exception as e:
         log.warning("AI vulnerability analysis failed for %s: %s", county, e)
         return _fallback_vulnerability_summary(county, census)
@@ -212,7 +215,7 @@ which vulnerable groups are most at risk and what targeted messaging FPREN shoul
         return _fallback_impact_summary(county, alerts, census)
 
     try:
-        return ai_chat(prompt, system=_SYSTEM_IMPACT, max_tokens=180)
+        return ai_chat(prompt, system=_SYSTEM_IMPACT, max_tokens=TOKENS_ANALYSIS)
     except Exception as e:
         log.warning("AI alert impact analysis failed for %s: %s", county, e)
         return _fallback_impact_summary(county, alerts, census)
@@ -251,7 +254,7 @@ and adjusting emergency messaging strategies based on the demographic profile.""
         return _fallback_bcp_demographics(county, census)
 
     try:
-        return ai_chat(prompt, system=_SYSTEM_BCP, max_tokens=220)
+        return ai_chat(prompt, system=_SYSTEM_BCP, max_tokens=TOKENS_ANALYSIS)
     except Exception as e:
         log.warning("AI BCP demographics failed for %s: %s", county, e)
         return _fallback_bcp_demographics(county, census)

@@ -1,59 +1,82 @@
 """
-litellm_router.py  —  FPREN LiteLLM Model Router
-Routes tasks to the right-sized UF HiPerGator model.
-  small  → llama-3.1-8b   (classify, tag)
-  medium → llama-3.3-70b  (summarize, bulletins)
-  large  → nemotron-120b  (complex reports)
+litellm_router.py — compatibility shim
+
+This module previously called the litellm library directly with hardcoded
+model names.  It now delegates to weather_station.services.ai_client so
+that all AI calls share a single client, model tier configuration, and
+timeout settings.
+
+New code should import from ai_client directly.  This shim exists only to
+keep director.py and routing_adapter.py working without changes.
 """
+import json
+import logging
 import os
-import litellm
+import sys
 from pathlib import Path
 
-UF_BASE_URL = os.getenv("UF_LITELLM_BASE_URL", "https://api.ai.it.ufl.edu/v1")
-UF_API_KEY  = os.getenv("UF_LITELLM_API_KEY", "")
+# Add project root so weather_station imports resolve from fpren-agents/
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
+from weather_station.services.ai_client import chat as _chat, is_configured
+from weather_station.config.ai_config import (
+    MODEL_SMALL, MODEL_MEDIUM, MODEL_LARGE,
+)
+
+_rlog = logging.getLogger("litellm_router")
+
+# Preserve the MODEL_MAP interface so routing_adapter.py can still read/write it
 MODEL_MAP = {
-    "small":  "openai/llama-3.1-8b-instruct",
-    "medium": "openai/llama-3.3-70b-instruct",
-    "large":  "openai/nemotron-3-super-120b-a12b",
+    "small":  MODEL_SMALL,
+    "medium": MODEL_MEDIUM,
+    "large":  MODEL_LARGE,
 }
 
-litellm.api_base = UF_BASE_URL
-litellm.api_key  = UF_API_KEY
+# routing_config.json support kept for routing_adapter.py compatibility
+_ROUTING_CONFIG = Path(__file__).parent / "routing_config.json"
 
-import os
-os.environ["OPENAI_API_KEY"]  = UF_API_KEY
-os.environ["OPENAI_API_BASE"] = UF_BASE_URL
 
-def load_prompt(md_file):
+def reload_routing():
+    """Re-read routing_config.json overrides (written by routing_adapter.py)."""
+    if not _ROUTING_CONFIG.exists():
+        return
+    try:
+        cfg = json.loads(_ROUTING_CONFIG.read_text())
+        overrides = cfg.get("model_map", {})
+        if overrides:
+            MODEL_MAP.update(overrides)
+            _rlog.info("Routing overrides loaded (generated %s)",
+                       cfg.get("generated_at", "?"))
+    except Exception as exc:
+        _rlog.warning("Could not load routing_config.json: %s", exc)
+
+
+reload_routing()
+
+
+def load_prompt(md_file: str) -> str:
     path = Path(__file__).parent / "prompts" / md_file
     return path.read_text(encoding="utf-8")
 
-def complete(system_md, user_message, size="medium", max_tokens=512, temperature=0.2):
-    system_content = load_prompt(system_md) if system_md.endswith(".md") else system_md
-    model = MODEL_MAP.get(size, MODEL_MAP["medium"])
-    resp = litellm.completion(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_content},
-            {"role": "user",   "content": user_message},
-        ],
-        max_tokens=max_tokens,
-        temperature=temperature,
-        api_base=UF_BASE_URL,
-        api_key=UF_API_KEY,
-    )
-    return resp.choices[0].message.content.strip()
 
-def classify(text):
-    import json
+def complete(system_md: str, user_message: str, size: str = "medium",
+             max_tokens: int = 512, temperature: float = 0.2) -> str:
+    """Drop-in replacement for the old litellm.completion call."""
+    system_content = load_prompt(system_md) if system_md.endswith(".md") else system_md
+    return _chat(user_message, system=system_content, size=size, max_tokens=max_tokens)
+
+
+def classify(text: str) -> dict:
+    """Drop-in replacement for the old classify() call."""
     system = (
         "You are a classifier for emergency/weather/traffic broadcasts. "
         "Return ONLY a JSON object with keys: "
         "category (weather|traffic|alerts|other), severity (low|medium|high), "
         "tts_priority (true|false). No extra text."
     )
-    raw = complete(system, text, size="small", max_tokens=80, temperature=0.0)
+    raw = _chat(text, system=system, size="small", max_tokens=80)
     try:
         return json.loads(raw)
     except Exception:

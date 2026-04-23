@@ -1,0 +1,392 @@
+{% extends "alarms/base.html" %}
+{% block title %}FPREN Active Alarms{% endblock %}
+
+{% block content %}
+
+<!-- Severity stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="stat-card stat-critical">
+      <div class="count text-danger">{{ counts.critical }}</div>
+      <div class="label">Critical</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card stat-major">
+      <div class="count" style="color:var(--major)">{{ counts.major }}</div>
+      <div class="label">Major</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card stat-minor">
+      <div class="count" style="color:var(--minor)">{{ counts.minor }}</div>
+      <div class="label">Minor</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card stat-warning">
+      <div class="count" style="color:var(--warning)">{{ counts.warning }}</div>
+      <div class="label">Warning</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card stat-total">
+      <div class="count" style="color:#58a6ff">{{ counts.total }}</div>
+      <div class="label">Total Active</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2 d-flex align-items-center">
+    <div class="w-100">
+      <div class="text-center mb-1" style="font-size:11px;color:var(--text-dim)">
+        {{ now.strftime('%H:%M UTC') }}
+      </div>
+      <button class="btn btn-sm btn-outline-primary w-100" onclick="window.location.reload()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh Now
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Active alarms table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-bell-fill text-danger me-2"></i>Active Alarms</span>
+    <span style="font-size:12px;color:var(--text-dim)">{{ counts.total }} alarm(s)</span>
+  </div>
+  <div class="card-body p-0">
+    {% if alarms %}
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th style="width:90px">Severity</th>
+            <th style="width:110px">Source</th>
+            <th>Alarm Name</th>
+            <th style="width:80px">Status</th>
+            <th style="width:90px">Age</th>
+            <th style="width:80px">Count</th>
+            <th style="width:130px">Raised At</th>
+            <th style="width:120px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for alarm in alarms %}
+          <tr class="alarm-row-{{ alarm.severity }} {% if alarm.status == 'acknowledged' %}alarm-row-acknowledged{% endif %}">
+            <td>
+              <span class="sev-badge sev-{{ alarm.severity }}">{{ alarm.severity }}</span>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim)">{{ alarm.source }}</td>
+            <td>
+              <a href="/alarms/{{ alarm._id_str }}" style="color:var(--text);text-decoration:none">
+                <strong>{{ alarm.name }}</strong>
+              </a>
+              {% if alarm.detail %}
+              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+                {{ alarm.detail[:120] }}{% if alarm.detail|length > 120 %}…{% endif %}
+              </div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="sev-badge sev-{{ alarm.status }}">{{ alarm.status }}</span>
+            </td>
+            <td>
+              <span class="age-badge {% if alarm.age_minutes > 60 %}age-old{% endif %}">
+                {% if alarm.age_minutes < 60 %}
+                  {{ alarm.age_minutes }}m
+                {% else %}
+                  {{ (alarm.age_minutes // 60) }}h {{ alarm.age_minutes % 60 }}m
+                {% endif %}
+              </span>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim)">{{ alarm.event_count }}</td>
+            <td style="font-size:11px;color:var(--text-dim)">
+              {% if alarm.raised_at %}
+                {{ alarm.raised_at.strftime('%m/%d %H:%M') }}
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                {% if alarm.status == 'active' %}
+                <form method="POST" action="/alarms/{{ alarm._id_str }}/acknowledge" class="d-inline">
+                  <button class="btn btn-sm btn-outline-warning" style="font-size:10px;padding:2px 6px" title="Acknowledge">
+                    <i class="bi bi-check2"></i> Ack
+                  </button>
+                </form>
+                {% endif %}
+                <form method="POST" action="/alarms/{{ alarm._id_str }}/clear" class="d-inline">
+                  <button class="btn btn-sm btn-outline-success" style="font-size:10px;padding:2px 6px" title="Clear"
+                          onclick="return confirm('Clear this alarm?')">
+                    <i class="bi bi-x-lg"></i> Clear
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5" style="color:var(--text-dim)">
+      <i class="bi bi-check-circle-fill text-success" style="font-size:2rem"></i>
+      <div class="mt-2">No active alarms — all systems nominal.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Config modals ──────────────────────────────────────────────── -->
+
+<!-- Alarm Rules Modal -->
+<div class="modal fade" id="rulesModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title"><i class="bi bi-list-check me-2"></i>Alarm Rules</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="rules-table-wrap">
+          <div class="text-center py-4" style="color:var(--text-dim)">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SNMP Devices Modal -->
+<div class="modal fade" id="devicesModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title"><i class="bi bi-hdd-network me-2"></i>SNMP Devices</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="devices-table-wrap">
+          <div class="text-center py-4" style="color:var(--text-dim)">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+          </div>
+        </div>
+        <hr style="border-color:var(--border)">
+        <h6 class="mb-3" style="color:var(--text-dim)">Add / Update Device</h6>
+        <form id="addDeviceForm">
+          <div class="row g-2">
+            <div class="col-md-3"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="device_id" placeholder="device_id *" required></div>
+            <div class="col-md-3"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="host" placeholder="Host / IP *" required></div>
+            <div class="col-md-2"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="port" placeholder="Port" value="161" type="number"></div>
+            <div class="col-md-2">
+              <select class="form-select form-select-sm bg-dark text-light border-secondary" name="version">
+                <option value="v2c">SNMPv2c</option>
+                <option value="v1">SNMPv1</option>
+                <option value="v3">SNMPv3</option>
+              </select>
+            </div>
+            <div class="col-md-2"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="community" placeholder="Community" value="public"></div>
+            <div class="col-md-8"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="oid_trees" placeholder="OID trees (comma-separated, e.g. .1.3.6.1.2.1.1)"></div>
+            <div class="col-md-2"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="poll_interval_seconds" placeholder="Poll interval (s)" type="number" value="60"></div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-primary w-100">Add Device</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Maintenance Windows Modal -->
+<div class="modal fade" id="maintenanceModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title"><i class="bi bi-tools me-2"></i>Maintenance Windows</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="maintenance-table-wrap">
+          <div class="text-center py-4" style="color:var(--text-dim)">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+          </div>
+        </div>
+        <hr style="border-color:var(--border)">
+        <h6 class="mb-3" style="color:var(--text-dim)">Create Window</h6>
+        <form id="addMaintenanceForm">
+          <div class="row g-2">
+            <div class="col-md-3"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="start" type="datetime-local" required></div>
+            <div class="col-md-3"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="end" type="datetime-local" required></div>
+            <div class="col-md-3"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="source" placeholder="Source (* = all)" value="*"></div>
+            <div class="col-md-3"><input class="form-control form-control-sm bg-dark text-light border-secondary" name="reason" placeholder="Reason"></div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-sm btn-primary w-100">Create</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MIB Browser Modal -->
+<div class="modal fade" id="mibModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title"><i class="bi bi-file-earmark-code me-2"></i>MIB Browser</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="mibUploadForm" class="mb-3">
+          <div class="input-group input-group-sm">
+            <input type="file" class="form-control bg-dark text-light border-secondary" name="mib_file" accept=".txt,.mib,.my">
+            <button type="submit" class="btn btn-sm btn-primary">Upload & Load MIB</button>
+          </div>
+        </form>
+        <div id="mib-list-wrap">
+          <div class="text-center py-4" style="color:var(--text-dim)">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+          </div>
+        </div>
+        <hr style="border-color:var(--border)">
+        <div class="input-group input-group-sm">
+          <input class="form-control bg-dark text-light border-secondary" id="oidLookupInput" placeholder="Lookup OID, e.g. .1.3.6.1.2.1.1.1.0">
+          <button class="btn btn-outline-secondary" onclick="lookupOid()">Lookup</button>
+        </div>
+        <pre id="oidLookupResult" class="mt-2" style="min-height:40px"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Load rules table when modal opens
+document.getElementById('rulesModal').addEventListener('show.bs.modal', function() {
+  fetch('/alarms/api/rules').then(r=>r.json()).then(rules => {
+    var rows = rules.map(function(r) {
+      return '<tr><td style="font-size:11px">'+r.rule_id+'</td>'+
+        '<td><span class="sev-badge sev-'+r.severity+'">'+r.severity+'</span></td>'+
+        '<td>'+r.source+'</td><td>'+r.name+'</td>'+
+        '<td><span class="badge bg-'+(r.enabled?'success':'secondary')+'">'+
+        (r.enabled?'ON':'OFF')+'</span></td>'+
+        '<td><button class="btn btn-xs btn-outline-danger" onclick="deleteRule(\''+r.rule_id+'\')" style="font-size:10px;padding:1px 6px">Del</button></td></tr>';
+    }).join('');
+    document.getElementById('rules-table-wrap').innerHTML =
+      '<table class="table table-sm mb-0"><thead><tr>'+
+      '<th>Rule ID</th><th>Severity</th><th>Source</th><th>Name</th><th>Enabled</th><th></th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>';
+  });
+});
+
+function deleteRule(id) {
+  if(!confirm('Delete rule '+id+'?')) return;
+  fetch('/alarms/api/rules/'+id, {method:'DELETE'}).then(()=>location.reload());
+}
+
+// Load devices table
+document.getElementById('devicesModal').addEventListener('show.bs.modal', function() {
+  fetch('/alarms/api/devices').then(r=>r.json()).then(devs => {
+    var rows = devs.map(function(d) {
+      return '<tr><td>'+d.device_id+'</td><td>'+d.host+'</td><td>'+d.port+'</td>'+
+        '<td>'+d.version+'</td><td>'+d.community+'</td>'+
+        '<td><span class="badge bg-'+(d.enabled?'success':'secondary')+'">'+
+        (d.enabled?'ON':'OFF')+'</span></td>'+
+        '<td><button class="btn btn-outline-danger" onclick="deleteDevice(\''+d.device_id+'\')" style="font-size:10px;padding:1px 6px">Del</button></td></tr>';
+    }).join('');
+    document.getElementById('devices-table-wrap').innerHTML =
+      '<table class="table table-sm mb-0"><thead><tr>'+
+      '<th>Device ID</th><th>Host</th><th>Port</th><th>Ver</th><th>Community</th><th>Enabled</th><th></th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>';
+  });
+});
+
+function deleteDevice(id) {
+  if(!confirm('Remove device '+id+'?')) return;
+  fetch('/alarms/api/devices/'+id, {method:'DELETE'}).then(()=>location.reload());
+}
+
+document.getElementById('addDeviceForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var fd = new FormData(this);
+  var data = Object.fromEntries(fd.entries());
+  data.port = parseInt(data.port);
+  data.poll_interval_seconds = parseInt(data.poll_interval_seconds);
+  if(data.oid_trees) data.oid_trees = data.oid_trees.split(',').map(s=>s.trim()).filter(Boolean);
+  fetch('/alarms/api/devices', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(()=>location.reload());
+});
+
+// Load maintenance windows
+document.getElementById('maintenanceModal').addEventListener('show.bs.modal', function() {
+  fetch('/alarms/api/maintenance').then(r=>r.json()).then(wins => {
+    var rows = wins.map(function(w) {
+      return '<tr><td style="font-size:11px">'+w._id.$oid+'</td>'+
+        '<td>'+w.source+'</td>'+
+        '<td style="font-size:11px">'+(w.start?w.start.$date:'')+'</td>'+
+        '<td style="font-size:11px">'+(w.end?w.end.$date:'')+'</td>'+
+        '<td>'+w.reason+'</td>'+
+        '<td><button class="btn btn-outline-danger" onclick="deleteWindow(\''+w._id.$oid+'\')" style="font-size:10px;padding:1px 6px">Del</button></td></tr>';
+    }).join('');
+    document.getElementById('maintenance-table-wrap').innerHTML = rows ?
+      '<table class="table table-sm mb-0"><thead><tr><th>ID</th><th>Source</th><th>Start</th><th>End</th><th>Reason</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>' :
+      '<p style="color:var(--text-dim)">No maintenance windows scheduled.</p>';
+  });
+});
+
+function deleteWindow(id) {
+  if(!confirm('Remove maintenance window?')) return;
+  fetch('/alarms/api/maintenance/'+id, {method:'DELETE'}).then(()=>location.reload());
+}
+
+document.getElementById('addMaintenanceForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var fd = new FormData(this);
+  var data = Object.fromEntries(fd.entries());
+  data.start = new Date(data.start).toISOString();
+  data.end   = new Date(data.end).toISOString();
+  fetch('/alarms/api/maintenance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(()=>location.reload());
+});
+
+// MIB browser
+document.getElementById('mibModal').addEventListener('show.bs.modal', function() {
+  fetch('/alarms/api/mibs').then(r=>r.json()).then(mibs => {
+    if(!mibs || !mibs.length) {
+      document.getElementById('mib-list-wrap').innerHTML = '<p style="color:var(--text-dim)">No MIBs loaded yet. Upload a .txt / .mib file above.</p>';
+      return;
+    }
+    var rows = mibs.map(m=>'<tr><td>'+m.mib_name+'</td><td>'+m.oid_count+'</td><td style="font-size:11px">'+m.loaded_at+'</td></tr>').join('');
+    document.getElementById('mib-list-wrap').innerHTML =
+      '<table class="table table-sm mb-0"><thead><tr><th>MIB Name</th><th>OIDs</th><th>Loaded</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  });
+});
+
+document.getElementById('mibUploadForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var fd = new FormData(this);
+  fetch('/alarms/api/mibs/upload', {method:'POST', body:fd})
+    .then(r=>r.json()).then(res=>{
+      alert(res.ok ? 'Loaded '+res.oid_count+' OIDs from '+res.mib_name : 'Error: '+res.error);
+      if(res.ok) location.reload();
+    });
+});
+
+function lookupOid() {
+  var oid = document.getElementById('oidLookupInput').value.trim();
+  if(!oid) return;
+  fetch('/alarms/api/mibs/lookup?oid='+encodeURIComponent(oid))
+    .then(r=>r.json()).then(rec=>{
+      var el = document.getElementById('oidLookupResult');
+      if(rec && rec.name) {
+        el.textContent = 'Name:   '+rec.module+'::'+rec.name+'\nSyntax: '+rec.syntax+'\n\n'+rec.description;
+      } else {
+        el.textContent = 'OID '+oid+' not found in mib_store.';
+      }
+    });
+}
+</script>
+{% endblock %}

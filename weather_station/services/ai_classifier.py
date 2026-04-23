@@ -17,7 +17,8 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from weather_station.services.ai_client import chat, is_configured
+from weather_station.services.ai_client import chat, chat_with_retry, is_configured
+from weather_station.config.ai_config import TOKENS_CLASSIFY, TOKENS_REWRITE
 
 logger = logging.getLogger("ai_classifier")
 
@@ -103,7 +104,7 @@ def classify_alert(alert: dict) -> str:
     prompt   = f"Event: {alert.get('event','')}\nSeverity: {severity}\nHeadline: {headline}\nArea: {area}"
 
     try:
-        result = chat(prompt, system=_CLASSIFY_SYSTEM, max_tokens=10).lower().strip()
+        result = chat(prompt, system=_CLASSIFY_SYSTEM, size="small", max_tokens=TOKENS_CLASSIFY).lower().strip()
         if result in (SEVERITY_ROUTINE, SEVERITY_ELEVATED, SEVERITY_CRITICAL):
             if result != baseline:
                 logger.info("AI reclassified '%s' from %s → %s", event, baseline, result)
@@ -173,7 +174,7 @@ def rewrite_alert(alert: dict) -> str:
 
     for attempt in range(2):
         try:
-            result = chat(prompt, system=_REWRITE_SYSTEM, max_tokens=120)
+            result = chat_with_retry(prompt, system=_REWRITE_SYSTEM, max_tokens=TOKENS_REWRITE)
             valid, reason = _validate_rewrite(result, alert)
             if valid:
                 if attempt > 0:

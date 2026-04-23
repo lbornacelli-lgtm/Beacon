@@ -18,6 +18,8 @@ FPREN (Florida Public Radio Emergency Network) is a 24/7 automated weather radio
 
 ## Active Services (systemd)
 
+### Continuously running
+
 | Service | Source file | Purpose |
 |---------|-------------|---------|
 | `beacon-web-dashboard` | `weather_rss/web/app.py` | Flask admin dashboard (port 5000) |
@@ -25,17 +27,35 @@ FPREN (Florida Public Radio Emergency Network) is a 24/7 automated weather radio
 | `beacon-ipaws-fetcher` | `weather_rss/ipaws_fetcher.py` | NWS/IPAWS alert fetcher (2 min) |
 | `beacon-obs-fetcher` | `weather_rss/weather_rss.py` | 19 FL ASOS station obs (15 min) |
 | `beacon-extended-fetcher` | `weather_rss/extended_fetcher.py` | Extended forecast + FL511 traffic |
+| `beacon-airport-delays` | `weather_rss/airport_delays_fetcher.py` | FAA airport delays (FAA API blocked by UF IT — stays empty) |
 | `beacon-mongo-tts` | `mongo_tts/app.py` | MongoDB TTS monitor |
 | `beacon-rivers-fetcher` | `weather_rss/fl_rivers_fetcher.py` | USGS FL river gauge data (15 min) |
 | `beacon-rivers-agent` | `weather_rss/fl_rivers_agent.py` | LiteLLM agent river analysis (1 hr) |
 | `zone-alert-tts` | `weather_station/services/zone_alert_tts.py` | Alert → MP3 per zone (main pipeline) |
-| `fpren-broadcast-generator` | `weather_station/services/broadcast_generator.py` | AI broadcast scripts → MP3 per zone (every 30 min via timer) |
 | `fpren-multi-zone-streamer` | `weather_station/services/multi_zone_streamer.py` | One FFmpeg → Icecast streamer per zone, all on port 8000 |
-| `fpren_desktop` | `weather_rss/web/fpren_desktop.py` | Tkinter desktop mirror — syncs with web dashboard via `/api/sync` every 5 s |
+| `fpren-alarm-engine` | `fpren-agents/alarm_system/alarm_engine.py` | Central alarm processor (5 s loop) |
+| `fpren-feed-watchdog` | `fpren-agents/alarm_system/watchdogs/feed_watchdog.py` | MongoDB feed staleness + TTS backlog (60 s) |
+| `fpren-stream-watchdog` | `fpren-agents/alarm_system/watchdogs/stream_watchdog.py` | Icecast mount/bitrate monitoring (60 s) |
+| `fpren-snmp-poller` | `fpren-agents/alarm_system/snmp_engine/snmp_poller.py` | Async SNMP device poller |
+| `fpren-snmp-trap-receiver` | `fpren-agents/alarm_system/snmp_engine/snmp_trap_receiver.py` | UDP 162 trap listener (runs as root) |
 | `icecast2` | system | Audio streaming server |
 | `shiny-server` | `/srv/shiny-server/fpren/app.R` | Primary monitoring dashboard |
 | `mongod` | system | MongoDB (`weather_rss` database) |
 | `nginx` | `/etc/nginx/sites-available/fpren` | Reverse proxy (port 80 → 3838) |
+
+### Timer-triggered (oneshot)
+
+| Timer | Service | Schedule | Purpose |
+|-------|---------|----------|---------|
+| `fpren-broadcast-generator.timer` | `fpren-broadcast-generator` | every 30 min | AI broadcast scripts → MP3 per zone |
+| `fpren-situation-agent.timer` | `fpren-situation-agent` | every 15 min | AI situation awareness report |
+| `fpren-weather-history.timer` | `fpren-weather-history` | every 30 min | Store METAR snapshots → weather_history |
+| `fpren-snmp-updater.timer` | `fpren-snmp-updater` | every 60 s | Update FPREN SNMP status OIDs |
+| `fpren-report.timer` | `fpren-report` | 06:00 daily | Daily alert summary email |
+| `fpren-comprehensive-2pm.timer` | `fpren-comprehensive-2pm` | 18:00 UTC daily (2 PM ET) | Comprehensive PDF report + BCP reports |
+| `fpren-evacuation-refresh.timer` | `beacon-evacuation-fetcher` | 07:00 weekly | FL evacuation zone data refresh |
+| `fpren-census-refresh.timer` | `beacon-census-fetcher` | monthly | Census ACS data refresh |
+| `fpren-invite-cleanup.timer` | `fpren-invite-cleanup` | 03:00 daily | Expire old invite tokens |
 
 ---
 
@@ -127,9 +147,51 @@ Audio lives at: `weather_station/audio/zones/<zone_id>/`
 ## AI Integration (UF LiteLLM)
 
 - **Endpoint:** `https://api.ai.it.ufl.edu`
-- **Model:** `llama-3.3-70b-instruct`
-- **Key:** `UF_LITELLM_API_KEY` in `weather_station/config/.env`
-- **Uses:** alert severity classification, broadcast script generation, playlist decisions
+- **Key:** `UF_LITELLM_API_KEY` in `weather_station/.env`
+- **Client:** `weather_station/services/ai_client.py` — single shared OpenAI-compatible client, 30s request timeout
+
+### Model Tiers (configured in `weather_station/config/ai_config.py`)
+
+| Tier | Default model | Use cases |
+|------|--------------|-----------|
+| `small` | `llama-3.1-8b-instruct` | classify/tag (single-word) |
+| `medium` | `llama-3.3-70b-instruct` | rewrites, summaries, analysis (default) |
+| `large` | `nemotron-3-super-120b-a12b` | complex reports, long-form |
+
+Override any tier at runtime: `UF_LITELLM_MODEL_SMALL/MEDIUM/LARGE` env vars.
+Pin a single model for all calls: `UF_LITELLM_MODEL` env var.
+
+### ai_client.py API
+
+```python
+from weather_station.services.ai_client import chat, chat_with_retry, run_agent, is_configured
+from weather_station.config.ai_config import TOKENS_CLASSIFY, TOKENS_REWRITE, TOKENS_BROADCAST
+
+# Single call — raises on failure, caller handles fallback
+chat(prompt, system="...", size="small", max_tokens=TOKENS_CLASSIFY)
+
+# Auto-retry (RETRY_ATTEMPTS=2, 0.5s backoff) — raises on final failure
+chat_with_retry(prompt, system="...", size="medium", max_tokens=TOKENS_BROADCAST)
+
+# Tool-calling agent loop
+run_agent(system_prompt, tools, tool_functions, initial_message,
+          size="medium", max_iterations=8, max_tokens=TOKENS_AGENT_STEP)
+```
+
+### Callers
+
+| File | Function | Tier | Use case |
+|------|----------|------|----------|
+| `weather_station/services/ai_classifier.py` | `classify_alert()` | small | Severity classification |
+| `weather_station/services/ai_classifier.py` | `rewrite_alert()` | medium | Broadcast rewrite + validation |
+| `weather_station/services/broadcast_generator.py` | `generate_script()` | medium | Zone broadcast script |
+| `weather_rss/census_ai_analyzer.py` | `analyze_*()` | medium | Demographic/BCP analysis |
+| `weather_rss/fl_rivers_agent.py` | `run_agent_analysis()` | medium | River flood tool-calling agent |
+| `weather_rss/situation_agent.py` | `run()` | medium | Situation awareness tool-calling agent |
+| `fpren-agents/director.py` | via BaseAgent | tiered | Alert/traffic/weather dispatch |
+
+### `fpren-agents/` Director System
+`director.py` polls MongoDB and dispatches docs to specialized agents (`WeatherAgent`, `AlertsAgent`, `TrafficAgent`, `TTSAgent`). All agents inherit `BaseAgent` which calls `ai_client.chat()` with tiered routing. Prompt templates live in `fpren-agents/prompts/*.md`. `litellm_router.py` is a compatibility shim — new code should import from `ai_client` directly.
 
 ---
 
@@ -395,6 +457,108 @@ sudo journalctl -u beacon-waze-fetcher -f
 
 ---
 
+## Alarm & Monitoring System (added 2026-04-10)
+
+### Overview
+A new `fpren-agents/alarm_system/` module provides end-to-end alarm management:
+SNMP polling + trap receiving, feed/stream watchdogs, central alarm engine, and a Flask dashboard at `/alarms`.
+
+### Module Structure
+```
+fpren-agents/alarm_system/
+├── alarm_engine.py          — Central event processor (dedup, severity, maintenance windows, re-notify)
+├── alarm_rules.py           — MongoDB-backed rule definitions + default seed data
+├── notifier.py              — Twilio SMS (Critical/Major) + SMTP email (all levels)
+├── alarm_dashboard.py       — Flask blueprint mounted at /alarms on port 5000
+├── snmp_engine/
+│   ├── snmp_poller.py       — Async SNMPv1/v2c/v3 device poller (pysnmp 7.x asyncio)
+│   ├── snmp_trap_receiver.py — UDP 162 trap listener → trap_log + alarm_events
+│   └── mib_browser.py       — MIB file upload + parse + OID lookup (CLI + API)
+├── watchdogs/
+│   ├── stream_watchdog.py   — Icecast mount/bitrate/listener monitoring (60s)
+│   └── feed_watchdog.py     — MongoDB collection staleness + TTS backlog + Director health
+└── templates/alarms/        — Jinja2 dashboard, history, detail pages
+```
+
+### MongoDB Collections Added
+| Collection | Purpose |
+|---|---|
+| `alarms` | Active + cleared alarm records with severity, ack status, escalation timers |
+| `alarm_history` | Archived cleared alarms (moved after 7 days) |
+| `alarm_events` | Event queue — watchdogs/poller write here; engine dequeues every 5s |
+| `alarm_rules` | User-defined feed staleness thresholds + SNMP OID threshold rules |
+| `snmp_devices` | SNMP device list (host, version, community/v3 creds, OID trees, poll interval) |
+| `snmp_poll_results` | Raw SNMP poll results per device per poll cycle |
+| `trap_log` | Inbound SNMP trap records |
+| `mib_store` | Parsed MIB OID → name/description mapping (unique index on oid) |
+| `mib_files` | Metadata on loaded MIB files |
+| `maintenance_windows` | Scheduled alarm suppression windows |
+
+### Alarm Severity Levels
+`Critical (4) > Major (3) > Minor (2) > Warning (1)`
+
+### Notification Rules
+- **Critical** → Twilio SMS + email (re-notified every 30 min if unacknowledged); recovery email on clear
+- **Major** → Twilio SMS + email (re-notified every 60 min if unacknowledged); recovery email on clear
+- **Minor** → Email only (if included in `ALARM_EMAIL_SEVERITIES`)
+- **Warning** → Email only (if included in `ALARM_EMAIL_SEVERITIES`)
+
+### .env Variables (in `weather_station/.env`)
+```
+TWILIO_ALARM_NUMBERS=+13525551234,+13525555678   # comma-separated — who gets SMS alarms
+ALARM_EMAIL_ENABLED=true                          # master email switch
+ALARM_EMAIL_SEVERITIES=Critical,Major             # which severities email (default: Critical,Major)
+ALARM_EMAIL_CLEAR=true                            # recovery email when Critical/Major alarms clear
+```
+(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER already used by existing emergency SMS system)
+
+### Alarm Dashboard
+- **URL:** `http://128.227.67.234:5000/alarms`
+- Active alarms sorted by severity then age
+- Severity count cards (Critical/Major/Minor/Warning)
+- Acknowledge / Clear workflow with operator name
+- Alarm history with duration and clear reason
+- Config modals for: Alarm Rules, SNMP Devices, Maintenance Windows, MIB Browser
+- Auto-refreshes every 30 seconds
+
+### Director Integration
+`fpren-agents/director.py` now posts to `alarm_events` when an agent fails ≥ 3 consecutive times:
+- 3–4 failures → Minor alarm
+- 5+ failures → Major alarm
+
+### New systemd Services
+| Service | File | Purpose |
+|---|---|---|
+| `fpren-alarm-engine` | `alarm_system/alarm_engine.py` | Central processor (5s loop) |
+| `fpren-snmp-poller` | `alarm_system/snmp_engine/snmp_poller.py` | Device polling (async) |
+| `fpren-snmp-trap-receiver` | `alarm_system/snmp_engine/snmp_trap_receiver.py` | UDP 162 trap listener (root) |
+| `fpren-stream-watchdog` | `alarm_system/watchdogs/stream_watchdog.py` | Icecast monitoring (60s) |
+| `fpren-feed-watchdog` | `alarm_system/watchdogs/feed_watchdog.py` | Feed staleness (60s) |
+
+### SNMP Trap Receiver Port
+The trap receiver binds UDP 162 and runs as root. If you want to run as `ufuser` instead,
+use iptables port redirection and set `SNMP_TRAP_PORT=1162` in the service file:
+```bash
+sudo iptables -t nat -A PREROUTING -p udp --dport 162 -j REDIRECT --to-port 1162
+```
+
+### MIB Browser CLI
+```bash
+source venv/bin/activate
+cd fpren-agents/alarm_system
+
+# Load a MIB file
+python3 snmp_engine/mib_browser.py --load /path/to/MY-MIB.txt
+
+# Look up an OID
+python3 snmp_engine/mib_browser.py --lookup .1.3.6.1.2.1.1.1.0
+
+# List all loaded MIBs
+python3 snmp_engine/mib_browser.py --list
+```
+
+---
+
 ## Known Issues / TODO
 
 - [ ] Port 80/443 and zone stream mounts pending UF IT firewall approval
@@ -410,6 +574,8 @@ sudo journalctl -u beacon-waze-fetcher -f
 - [x] Drag-to-reorder playlist priority (2026-04-03)
 - [x] FL Census data integration + LiteLLM AI analysis (2026-04-03)
 - [x] Waze for Cities CCP feed integration + RStudio distance helpers (2026-04-03)
+- [x] FPREN Alarm & Monitoring System — SNMP poller/traps, feed/stream watchdogs, alarm engine, notifier, dashboard (2026-04-10)
+- [x] SNMP device management UI in Shiny Alarms tab — Add/Delete with asset-based location enforcement (2026-04-10)
 
 ---
 

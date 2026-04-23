@@ -37,6 +37,7 @@ from weather_rss.agent_tools import (
     get_waze_summary, get_evacuation_zones, get_zone_stream_status,
 )
 from weather_station.services.ai_client import run_agent, is_configured
+from weather_station.config.ai_config import TOKENS_AGENT_STEP
 
 # Nine primary FL cities monitored by FPREN and their nearest airport + coords
 _MONITORED = [
@@ -102,8 +103,8 @@ def run(dry_run: bool = False) -> str:
         tools           = TOOL_SCHEMAS_WRITE,
         tool_functions  = tool_fns,
         initial_message = TASK_PROMPT,
-        max_iterations  = 12,
-        max_tokens      = 600,
+        max_iterations  = 8,
+        max_tokens      = TOKENS_AGENT_STEP,
     )
 
     log.info("Agent finished in %d tool-calling round(s)", result["iterations"])

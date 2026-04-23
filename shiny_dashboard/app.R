@@ -469,11 +469,29 @@ zip_to_florida_county <- function(zip_str) {
   FL_ZIP_RANGES$county[idx[1L]]
 }
 
+FPREN_DB <- "weather_rss"
+
 get_col <- function(collection) {
   tryCatch(
-    mongo(collection = collection, db = "weather_rss", url = MONGO_URI),
-    error = function(e) NULL
+    mongo(collection = collection, db = FPREN_DB, url = MONGO_URI),
+    error = function(e) {
+      warning("[MongoDB] Cannot open '", collection, "': ", conditionMessage(e))
+      NULL
+    }
   )
+}
+
+# Convenience wrapper: opens a connection, runs fn(col), disconnects on exit.
+# Returns `default` if the connection fails or fn() throws.
+# Usage: with_col("fl_traffic", function(col) col$find(...))
+with_col <- function(collection, fn, default = data.frame()) {
+  col <- get_col(collection)
+  if (is.null(col)) return(default)
+  on.exit(try(col$disconnect(), silent = TRUE), add = TRUE)
+  tryCatch(fn(col), error = function(e) {
+    warning("[MongoDB] Query error on '", collection, "': ", conditionMessage(e))
+    default
+  })
 }
 
 # ── UI ────────────────────────────────────────────────────────────────────────
@@ -666,6 +684,16 @@ ui <- tagList(
         }, 60000);
       ")),
       tags$style(HTML("
+      /* Keep sidebar fixed to the viewport — prevents it from stretching with
+         content height changes (e.g. collapsible boxes expanding) */
+      .main-sidebar {
+        position: fixed !important;
+        top: 50px !important;
+        bottom: 0 !important;
+        height: auto !important;
+        min-height: unset !important;
+        overflow-y: auto !important;
+      }
       .content-wrapper { background-color: #f4f6f9; }
       .small-box .icon { font-size: 60px; }
       .alert-extreme { background-color: #f56954 !important; color: white !important; }
@@ -768,47 +796,6 @@ ui <- tagList(
                   class = "btn-primary"))
               ),
               DTOutput("tbl_alerts"))
-        ),
-        # ── FPREN System / SNMP Status ────────────────────────────────────────
-        fluidRow(
-          valueBoxOutput("snmp_box_health",   width = 3),
-          valueBoxOutput("snmp_box_services", width = 3),
-          valueBoxOutput("snmp_box_alerts",   width = 3),
-          valueBoxOutput("snmp_box_wx_cat",   width = 3)
-        ),
-        fluidRow(
-          box(title = tagList(icon("server"), " FPREN Service OID Status"),
-              width = 7, status = "info", solidHeader = TRUE,
-              p(tags$small(
-                "Live service status from the FPREN SNMP agent. Polling community: ",
-                code("fpren_monitor"), " / OID base: ",
-                code("1.3.6.1.4.1.64533"), " — updated every 60 s.")),
-              actionButton("btn_snmp_refresh", "Refresh Now",
-                           class = "btn-xs btn-default", icon = icon("sync")),
-              br(), br(),
-              DTOutput("tbl_snmp_services")),
-          box(title = tagList(icon("map-marker-alt"), " User Asset OID Map"),
-              width = 5, status = "primary", solidHeader = TRUE,
-              p(tags$small(
-                "Each registered user asset is addressable via SNMP OID.",
-                " Poll individual assets from your SNMP management station.")),
-              DTOutput("tbl_snmp_asset_oids"))
-        ),
-        fluidRow(
-          box(
-            title = tagList(icon("exclamation-triangle"), " Offline / Unreachable SNMP Devices"),
-            width = 12, status = "danger", solidHeader = TRUE, collapsible = TRUE,
-            p(tags$small(
-              icon("info-circle"),
-              " SNMP devices registered to user assets that are offline, unreachable, or not yet checked.",
-              " Devices are ", tags$strong("never auto-polled"),
-              " — click ", tags$strong("Recheck"), " to test TCP connectivity once and store the result."
-            )),
-            actionButton("btn_snmp_offline_refresh", "Refresh List",
-                         class = "btn-sm btn-warning", icon = icon("sync")),
-            br(), br(),
-            uiOutput("snmp_offline_devices_ui")
-          )
         )
       ),
 
@@ -844,7 +831,7 @@ ui <- tagList(
         # Florida state radar
         fluidRow(
           box(title = tagList(icon("satellite-dish"), " Florida State Radar (NWS NEXRAD)"),
-              width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
+              width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
               leafletOutput("fl_state_radar_map", height = "330px"),
               div(style = "font-size:11px; color:#888; margin-top:4px;",
                 icon("clock"), " NWS NEXRAD base reflectivity \u2014 auto-refreshes every 5 min")
@@ -869,29 +856,13 @@ ui <- tagList(
         # ── Flight Category Legend ───────────────────────────────────────────
         fluidRow(
           column(12,
-            div(style = "display:flex; align-items:center; gap:18px; padding:8px 14px 6px 14px; flex-wrap:wrap;",
-              tags$span(style = "font-size:12px; color:#888; font-weight:600; margin-right:4px;",
-                        icon("info-circle"), " Flight Category:"),
-              tags$span(style = "display:inline-flex; align-items:center; gap:6px;",
-                div(style = "width:14px; height:14px; border-radius:3px; background:#1a6bb5; display:inline-block;"),
-                tags$span(style = "font-size:12px; color:#333;",
-                  tags$strong("VFR"), " — Visual Flight Rules (good visibility)")),
-              tags$span(style = "display:inline-flex; align-items:center; gap:6px;",
-                div(style = "width:14px; height:14px; border-radius:3px; background:#b5860a; display:inline-block;"),
-                tags$span(style = "font-size:12px; color:#333;",
-                  tags$strong("MVFR"), " — Marginal VFR (reduced visibility)")),
-              tags$span(style = "display:inline-flex; align-items:center; gap:6px;",
-                div(style = "width:14px; height:14px; border-radius:3px; background:#c0460a; display:inline-block;"),
-                tags$span(style = "font-size:12px; color:#333;",
-                  tags$strong("IFR"), " — Instrument Flight Rules (low visibility)")),
-              tags$span(style = "display:inline-flex; align-items:center; gap:6px;",
-                div(style = "width:14px; height:14px; border-radius:3px; background:#8b0000; display:inline-block;"),
-                tags$span(style = "font-size:12px; color:#333;",
-                  tags$strong("LIFR"), " — Low IFR (very poor conditions)")),
-              tags$span(style = "display:inline-flex; align-items:center; gap:6px;",
-                div(style = "width:14px; height:14px; border-radius:3px; background:#5a5a5a; display:inline-block;"),
-                tags$span(style = "font-size:12px; color:#333;",
-                  tags$strong("UNK"), " — Data unavailable"))
+            div(style = "display:flex; align-items:center; gap:14px; padding:4px 14px; flex-wrap:wrap; font-size:12px;",
+              tags$span(style = "color:#888; font-weight:600;", icon("info-circle"), " Flight Cat:"),
+              tags$span(HTML('<span style="display:inline-block;width:12px;height:12px;background:#1a6bb5;border-radius:2px;vertical-align:middle;margin-right:3px;"></span><strong>VFR</strong>')),
+              tags$span(HTML('<span style="display:inline-block;width:12px;height:12px;background:#b5860a;border-radius:2px;vertical-align:middle;margin-right:3px;"></span><strong>MVFR</strong>')),
+              tags$span(HTML('<span style="display:inline-block;width:12px;height:12px;background:#c0460a;border-radius:2px;vertical-align:middle;margin-right:3px;"></span><strong>IFR</strong>')),
+              tags$span(HTML('<span style="display:inline-block;width:12px;height:12px;background:#8b0000;border-radius:2px;vertical-align:middle;margin-right:3px;"></span><strong>LIFR</strong>')),
+              tags$span(HTML('<span style="display:inline-block;width:12px;height:12px;background:#5a5a5a;border-radius:2px;vertical-align:middle;margin-right:3px;"></span><strong>UNK</strong>'))
             )
           )
         ),
@@ -900,111 +871,124 @@ ui <- tagList(
 
       # ── Traffic Alerts ───────────────────────────────────────────────────────
       tabItem(tabName = "traffic_alerts",
+        # Summary boxes — always show unfiltered totals
         fluidRow(
           valueBoxOutput("box_traffic_total",    width = 3),
           valueBoxOutput("box_traffic_major",    width = 3),
           valueBoxOutput("box_traffic_closures", width = 3),
           valueBoxOutput("box_traffic_counties", width = 3)
         ),
-        fluidRow(
-          box(title = "Filters", width = 12, status = "primary", solidHeader = TRUE,
-              fluidRow(
-                column(3, selectInput("traffic_county", "County",
-                  choices = c("All Counties" = ""), selected = "")),
-                column(3, selectInput("traffic_severity", "Severity",
-                  choices = c("All" = "", "Major" = "Major", "Minor" = "Minor"),
-                  selected = "")),
-                column(3, selectInput("traffic_type", "Incident Type",
-                  choices = c("All Types" = ""), selected = "")),
-                column(3, br(),
-                  actionButton("btn_traffic_refresh", "Refresh",
-                               class = "btn-primary", icon = icon("sync")))
-              )
-          )
-        ),
-        fluidRow(
-          box(title = "Active FL511 Traffic Incidents", width = 12, status = "warning",
-              solidHeader = TRUE, DTOutput("tbl_traffic"))
-        ),
-        fluidRow(
-          box(title = "Interactive Map", width = 12, status = "info", solidHeader = TRUE,
-              p(tags$small(style="color:#666;",
-                  icon("info-circle"),
-                  " Circle size = incident count per county. Color = worst severity. Click a county to filter the table above.")),
-              leafletOutput("traffic_map", height = "480px"))
-        )
-      ),
 
-      # ── Traffic Analysis ─────────────────────────────────────────────────────
-      tabItem(tabName = "traffic_analysis",
-        fluidRow(
-          box(title = "Filters", width = 12, status = "primary", solidHeader = TRUE,
-              fluidRow(
-                column(3, selectInput("ta_road", "Road / Highway",
-                  choices = c("All Roads" = ""), selected = "")),
-                column(3, selectInput("ta_type", "Incident Type",
-                  choices = c("All Types" = ""), selected = "")),
-                column(3, selectInput("ta_severity", "Severity",
-                  choices = c("All" = "", "Major" = "Major",
-                              "Minor" = "Minor", "Intermediate" = "Intermediate"),
-                  selected = "")),
-                column(3, selectInput("ta_district", "DOT District",
-                  choices = c("All Districts" = ""), selected = ""))
+        tabsetPanel(id = "traffic_tabs", type = "tabs",
+
+          # ── Live Incidents ────────────────────────────────────────────────
+          tabPanel("Live Incidents", icon = icon("list"),
+            br(),
+            fluidRow(
+              box(title = "Filters", width = 12, status = "primary", solidHeader = TRUE,
+                  fluidRow(
+                    column(3, selectInput("traffic_county", "County",
+                      choices = c("All Counties" = ""), selected = "")),
+                    column(3, selectInput("traffic_severity", "Severity",
+                      choices = c("All" = "", "Major" = "Major", "Minor" = "Minor"),
+                      selected = "")),
+                    column(3, selectInput("traffic_type", "Incident Type",
+                      choices = c("All Types" = ""), selected = "")),
+                    column(3, br(),
+                      actionButton("btn_traffic_refresh", "Refresh",
+                                   class = "btn-primary", icon = icon("sync")))
+                  )
               )
+            ),
+            fluidRow(
+              box(title = "Active FL511 Traffic Incidents", width = 12,
+                  status = "warning", solidHeader = TRUE,
+                  DTOutput("tbl_traffic"))
+            ),
+            fluidRow(
+              box(title = "Interactive Map", width = 12, status = "info", solidHeader = TRUE,
+                  collapsible = TRUE, collapsed = TRUE,
+                  p(tags$small(style = "color:#666;",
+                      icon("info-circle"),
+                      " Circle size = incident count per county. Color = worst severity.",
+                      " Click a county to filter the table above.")),
+                  leafletOutput("traffic_map", height = "480px"))
+            )
+          ),
+
+          # ── Analysis ──────────────────────────────────────────────────────
+          tabPanel("Analysis", icon = icon("chart-bar"),
+            br(),
+            fluidRow(
+              box(title = "Filters", width = 12, status = "primary", solidHeader = TRUE,
+                  fluidRow(
+                    column(3, selectInput("ta_road", "Road / Highway",
+                      choices = c("All Roads" = ""), selected = "")),
+                    column(3, selectInput("ta_type", "Incident Type",
+                      choices = c("All Types" = ""), selected = "")),
+                    column(3, selectInput("ta_severity", "Severity",
+                      choices = c("All" = "", "Major" = "Major",
+                                  "Minor" = "Minor", "Intermediate" = "Intermediate"),
+                      selected = "")),
+                    column(3, selectInput("ta_district", "DOT District",
+                      choices = c("All Districts" = ""), selected = ""))
+                  )
+              )
+            ),
+            fluidRow(
+              valueBoxOutput("ta_box_total",    width = 3),
+              valueBoxOutput("ta_box_major",    width = 3),
+              valueBoxOutput("ta_box_closures", width = 3),
+              valueBoxOutput("ta_box_counties", width = 3)
+            ),
+            fluidRow(
+              box(title = "Charts", width = 12, status = "primary", solidHeader = TRUE,
+                  tabsetPanel(
+                    tabPanel("By Road",
+                      br(), plotly::plotlyOutput("ta_plot_roads",    height = "360px")),
+                    tabPanel("By Type",
+                      br(), plotly::plotlyOutput("ta_plot_types",    height = "360px")),
+                    tabPanel("By County",
+                      br(), plotly::plotlyOutput("ta_plot_counties", height = "360px")),
+                    tabPanel("By Severity",
+                      br(), plotly::plotlyOutput("ta_plot_severity", height = "360px"))
+                  )
+              )
+            ),
+            fluidRow(
+              box(title = "County Hotspot Map", width = 12, status = "success",
+                  solidHeader = TRUE,
+                  p(tags$small(
+                      "Circle size and color = incident count. Click a circle for details.")),
+                  leaflet::leafletOutput("ta_map", height = "500px"))
+            ),
+            fluidRow(
+              box(title = "Export & Email Report", width = 12, status = "warning",
+                  solidHeader = TRUE,
+                  fluidRow(
+                    column(5, textInput("ta_email", "Email Address",
+                      placeholder = "recipient@example.com", value = "")),
+                    column(7, br(),
+                      actionButton("btn_ta_pdf",   "Generate PDF",
+                                   class = "btn-primary", icon = icon("file-pdf")),
+                      tags$span(" "),
+                      actionButton("btn_ta_email", "Generate & Email PDF",
+                                   class = "btn-success", icon = icon("envelope")),
+                      tags$span(" "),
+                      downloadButton("ta_download", "Download CSV",
+                                     class = "btn-default")
+                    )
+                  ),
+                  verbatimTextOutput("ta_export_status")
+              )
+            ),
+            fluidRow(
+              box(title = "Detailed Data", width = 12, status = "primary",
+                  solidHeader = TRUE,
+                  DTOutput("ta_table"))
+            )
           )
-        ),
-        fluidRow(
-          valueBoxOutput("ta_box_total",    width = 3),
-          valueBoxOutput("ta_box_major",    width = 3),
-          valueBoxOutput("ta_box_closures", width = 3),
-          valueBoxOutput("ta_box_counties", width = 3)
-        ),
-        fluidRow(
-          box(title = "Incidents by Road (Top 20)", width = 6, status = "primary",
-              solidHeader = TRUE,
-              plotly::plotlyOutput("ta_plot_roads", height = "380px")),
-          box(title = "Incident Type Breakdown", width = 6, status = "info",
-              solidHeader = TRUE,
-              plotly::plotlyOutput("ta_plot_types", height = "380px"))
-        ),
-        fluidRow(
-          box(title = "Incidents by County", width = 6, status = "warning",
-              solidHeader = TRUE,
-              plotly::plotlyOutput("ta_plot_counties", height = "380px")),
-          box(title = "Severity Distribution by Road (Top 15)", width = 6,
-              status = "danger", solidHeader = TRUE,
-              plotly::plotlyOutput("ta_plot_severity", height = "380px"))
-        ),
-        fluidRow(
-          box(title = "County Hotspot Map", width = 12, status = "success",
-              solidHeader = TRUE,
-              p(tags$small("Circle size and color = incident count. Click a circle for details.")),
-              leaflet::leafletOutput("ta_map", height = "500px"))
-        ),
-        fluidRow(
-          box(title = "Export & Email Report", width = 12, status = "warning",
-              solidHeader = TRUE,
-              fluidRow(
-                column(5, textInput("ta_email", "Email Address",
-                  placeholder = "recipient@example.com", value = "")),
-                column(7, br(),
-                  actionButton("btn_ta_pdf",   "Generate PDF",
-                               class = "btn-primary", icon = icon("file-pdf")),
-                  tags$span(" "),
-                  actionButton("btn_ta_email", "Generate & Email PDF",
-                               class = "btn-success", icon = icon("envelope")),
-                  tags$span(" "),
-                  downloadButton("ta_download", "Download CSV",
-                                 class = "btn-default")
-                )
-              ),
-              verbatimTextOutput("ta_export_status")
-          )
-        ),
-        fluidRow(
-          box(title = "Detailed Data", width = 12, status = "primary",
-              solidHeader = TRUE,
-              DTOutput("ta_table"))
+
         )
       ),
 
@@ -1171,7 +1155,7 @@ ui <- tagList(
         fluidRow(
           box(title = tagList(icon("broadcast-tower"),
                               " Inovonics 677 EAS LP-1 Monitor — 10.245.74.39"),
-              width = 12, status = "warning", solidHeader = TRUE,
+              width = 12, status = "warning", solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
               div(style = "background:#fff8e1;border-left:4px solid #f39c12;padding:10px 14px;margin-bottom:14px;border-radius:0 4px 4px 0;font-size:13px;color:#555;",
                 tags$strong(icon("exclamation-circle"), " Compatibility Notice:"),
                 tags$span(" This monitoring interface is designed and configured exclusively for the ",
@@ -1401,7 +1385,7 @@ ui <- tagList(
           condition = "output.is_admin",
           fluidRow(
             box(title = "User Management (Admin Only)", width = 12, status = "warning",
-                solidHeader = TRUE,
+                solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
                 p(tags$small("Click a user row to select them. A profile card will appear below with options to edit or delete.")),
                 DT::dataTableOutput("users_table"),
                 br(),
@@ -1484,7 +1468,7 @@ ui <- tagList(
           condition = "output.is_admin",
           fluidRow(
             box(title = "User Assets / Properties (Admin Only)", width = 12, status = "primary",
-                solidHeader = TRUE,
+                solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
                 p(tags$small(icon("info-circle"),
                   " Select a user above to view and manage their assets.",
                   " Assets store the physical location of each property with LAT/LON for BCP generation.")),
@@ -1558,7 +1542,7 @@ ui <- tagList(
           condition = "output.is_admin",
           fluidRow(
             box(title = tagList(icon("comment-dots"), " Emergency SMS Notifications (Admin Only)"),
-                width = 12, status = "danger", solidHeader = TRUE,
+                width = 12, status = "danger", solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
 
                 # ── To-Do List Editor ──────────────────────────────────────
                 h5(icon("list"), " Role-Based Action Checklists"),
@@ -1926,32 +1910,6 @@ ui <- tagList(
               code("Rscript reports/generate_and_email.R 7")
           )
         ),
-        fluidRow(
-          box(title = tagList(icon("shield-alt"), " Past BCP Reports"), width = 12,
-              status = "warning", solidHeader = TRUE,
-              p(tags$small(
-                "Business Continuity Plan reports generated for your profile. ",
-                "Admins see all users' reports. Select a row, then download or email."
-              )),
-              div(style = "overflow-x:auto; max-width:100%;",
-                DTOutput("tbl_past_bcp_reports")
-              ),
-              br(),
-              fluidRow(
-                column(3,
-                  downloadButton("dl_past_bcp_report", "Download Selected",
-                                 class = "btn-sm btn-default", icon = icon("download"))
-                ),
-                column(3,
-                  actionButton("btn_email_past_bcp_report", "Email Selected to Me",
-                               class = "btn-sm btn-info", icon = icon("envelope"))
-                ),
-                column(6,
-                  verbatimTextOutput("past_bcp_action_status")
-                )
-              )
-          )
-        ),
         hr(),
         h3(icon("chart-line"), " Weather Trends Reports"),
         fluidRow(
@@ -2014,58 +1972,6 @@ ui <- tagList(
               p(icon("clock"), strong(" History is collected hourly"),
                 " via the ", code("fpren-weather-history.timer"), " systemd unit."),
               p(icon("database"), " Up to 90 days of data retained per station.")
-          )
-        ),
-        hr(),
-        h3(icon("shield-alt"), " Business Continuity Plans"),
-        fluidRow(
-          box(title = "Generate Business Continuity Plan PDF", width = 6, status = "danger",
-              solidHeader = TRUE,
-              p(tags$small("Select a user and asset to generate a BCP. Choose",
-                           strong("All Facilities"), "to generate individual BCPs for",
-                           "every registered asset using each user's profession-matched template.")),
-              selectInput("bcp_username", "User",
-                choices = c("-- select a user --" = ""), selected = ""),
-              selectInput("bcp_asset_id", "Asset / Property",
-                choices = c("Select a user first" = ""), selected = ""),
-              uiOutput("bcp_template_selector"),
-              uiOutput("bcp_template_desc"),
-              checkboxInput("bcp_email", "Email BCP after generating", value = FALSE),
-              br(),
-              tags$span(
-                title = paste0(
-                  "Generates a Business Continuity Plan PDF for the selected user asset. ",
-                  "Includes live weather risk at the nearest airport, active NWS alerts ",
-                  "for the asset's county, traffic and evacuation route data, census ",
-                  "vulnerability analysis, emergency contacts, and a recovery timeline. ",
-                  "Select 'All Facilities' to batch-generate BCPs for every asset."
-                ),
-                actionButton("btn_gen_bcp", "Generate BCP PDF",
-                             class = "btn-danger btn-lg", icon = icon("shield-alt"))
-              ),
-              br(), br(),
-              verbatimTextOutput("bcp_status")
-          ),
-          box(title = "Recent BCP Reports", width = 6, status = "info",
-              solidHeader = TRUE,
-              p(tags$small("Select a report row, then download or email it to your registered address.")),
-              div(style = "overflow-x:auto; max-width:100%;",
-                DTOutput("tbl_bcp_reports")
-              ),
-              br(),
-              fluidRow(
-                column(4,
-                  downloadButton("dl_bcp_report", "Download", class = "btn-sm btn-default",
-                                 icon = icon("download"))
-                ),
-                column(4,
-                  actionButton("btn_email_bcp_report", "Email Me", class = "btn-sm btn-info",
-                               icon = icon("envelope"))
-                ),
-                column(4,
-                  verbatimTextOutput("bcp_report_action_status")
-                )
-              )
           )
         ),
         # ── UF IT Project Report ─────────────────────────────────────────────
@@ -2136,6 +2042,85 @@ ui <- tagList(
           )
         )
       ),
+
+      # ── Business Continuity Reports ─────────────────────────────────────────
+      tabItem(tabName = "bcp_reports",
+        fluidRow(
+          box(title = tagList(icon("shield-alt"), " Generate BCP PDF"), width = 6,
+              status = "danger", solidHeader = TRUE,
+              p(tags$small("Select a user and asset to generate a Business Continuity Plan.",
+                           " Choose ", strong("All Facilities"),
+                           " to batch-generate BCPs for every registered asset.")),
+              selectInput("bcp_username", "User",
+                choices = c("-- select a user --" = ""), selected = ""),
+              selectInput("bcp_asset_id", "Asset / Property",
+                choices = c("Select a user first" = ""), selected = ""),
+              uiOutput("bcp_template_selector"),
+              uiOutput("bcp_template_desc"),
+              checkboxInput("bcp_email", "Email BCP after generating", value = FALSE),
+              br(),
+              tags$span(
+                title = paste0(
+                  "Generates a Business Continuity Plan PDF for the selected user asset. ",
+                  "Includes live weather risk, active NWS alerts, traffic/evacuation data, ",
+                  "census vulnerability analysis, emergency contacts, and a recovery timeline."
+                ),
+                actionButton("btn_gen_bcp", "Generate BCP PDF",
+                             class = "btn-danger btn-lg", icon = icon("shield-alt"))
+              ),
+              br(), br(),
+              verbatimTextOutput("bcp_status")
+          ),
+          box(title = "Recent BCP Reports", width = 6, status = "info",
+              solidHeader = TRUE,
+              p(tags$small("Select a row, then download or email it to your registered address.")),
+              div(style = "overflow-x:auto; max-width:100%;",
+                DTOutput("tbl_bcp_reports")
+              ),
+              br(),
+              fluidRow(
+                column(4,
+                  downloadButton("dl_bcp_report", "Download", class = "btn-sm btn-default",
+                                 icon = icon("download"))
+                ),
+                column(4,
+                  actionButton("btn_email_bcp_report", "Email Me", class = "btn-sm btn-info",
+                               icon = icon("envelope"))
+                ),
+                column(4,
+                  verbatimTextOutput("bcp_report_action_status")
+                )
+              )
+          )
+        ),
+        fluidRow(
+          box(title = tagList(icon("history"), " Past BCP Reports"), width = 12,
+              status = "warning", solidHeader = TRUE,
+              p(tags$small(
+                "All Business Continuity Plan reports generated for your profile. ",
+                "Admins see all users' reports. Select a row, then download or email."
+              )),
+              div(style = "overflow-x:auto; max-width:100%;",
+                DTOutput("tbl_past_bcp_reports")
+              ),
+              br(),
+              fluidRow(
+                column(3,
+                  downloadButton("dl_past_bcp_report", "Download Selected",
+                                 class = "btn-sm btn-default", icon = icon("download"))
+                ),
+                column(3,
+                  actionButton("btn_email_past_bcp_report", "Email Selected to Me",
+                               class = "btn-sm btn-info", icon = icon("envelope"))
+                ),
+                column(6,
+                  verbatimTextOutput("past_bcp_action_status")
+                )
+              )
+          )
+        )
+      ),
+
       # ── Florida Rivers Alerts ────────────────────────────────────────────
       tabItem(tabName = "rivers",
         fluidRow(
@@ -2241,36 +2226,70 @@ ui <- tagList(
 
       # ── Alarms & SNMP ────────────────────────────────────────────────────
       tabItem(tabName = "alarms",
+
+        # Row 1: severity count boxes + refresh
+        fluidRow(
+          valueBoxOutput("alarm_box_critical", width = 2),
+          valueBoxOutput("alarm_box_major",    width = 2),
+          valueBoxOutput("alarm_box_minor",    width = 2),
+          valueBoxOutput("alarm_box_warning",  width = 2),
+          valueBoxOutput("alarm_box_total",    width = 2),
+          column(2, br(),
+            actionButton("btn_alarm_refresh", "Refresh",
+                         icon = icon("sync"), class = "btn-default btn-sm btn-block"),
+            tags$div(style = "margin-top:6px; text-align:center;",
+              tags$a(href = "/alarms", target = "_blank",
+                     class = "btn btn-xs btn-warning btn-block",
+                     icon("external-link-alt"), " Full Dashboard"))
+          )
+        ),
+
+        # Row 2: active alarms table
         fluidRow(
           box(width = 12, status = "danger", solidHeader = TRUE,
-              title = tagList(icon("bell"), " Alarms & SNMP Monitoring — Coming Soon"),
-              tags$div(style = "padding: 20px 0;",
-                tags$h4(icon("clock"), " Planned Feature", style = "color:#dc3545; margin-bottom:16px;"),
-                tags$p("This tab will provide a full SNMP-based monitoring and alarm management system,",
-                       "watching Icecast streams, data feed health, and any connected SNMP-capable device",
-                       "using standard MIBs and custom OIDs — alerting operators via SMS and email."),
-                tags$hr(),
-                tags$h5("Planned Capabilities:", style = "margin-bottom:12px;"),
-                tags$ul(style = "color:#555; line-height:2;",
-                  tags$li(tags$strong("SNMP polling:"), " SNMPv1/v2c/v3 polling of management devices using configurable MIBs and OID trees"),
-                  tags$li(tags$strong("SNMP trap receiver:"), " Listen for inbound SNMP traps from network equipment, encoders, and broadcast hardware"),
-                  tags$li(tags$strong("Icecast stream watchdog:"), " Alarm when any stream mount goes offline, bitrate drops, or listener count anomaly detected"),
-                  tags$li(tags$strong("Data feed watchdog:"), " Alert when NWS fetcher, Waze fetcher, METAR, or any MongoDB collection stops updating"),
-                  tags$li(tags$strong("Custom OID alarms:"), " User-defined thresholds on any polled OID value (CPU, temperature, signal level, etc.)"),
-                  tags$li(tags$strong("Alarm severity levels:"), " Critical, Major, Minor, Warning — each with configurable notification rules"),
-                  tags$li(tags$strong("SMS notifications:"), " Twilio SMS to configured on-call numbers for Critical and Major alarms"),
-                  tags$li(tags$strong("Email notifications:"), " SMTP email for all alarm levels with alarm details and suggested remediation"),
-                  tags$li(tags$strong("Alarm dashboard:"), " Real-time alarm list, acknowledge/clear workflow, and escalation timers"),
-                  tags$li(tags$strong("Alarm history:"), " Full audit trail of alarm events, acknowledgements, and resolutions in MongoDB"),
-                  tags$li(tags$strong("Maintenance windows:"), " Suppress alarms during scheduled maintenance to prevent false notifications"),
-                  tags$li(tags$strong("MIB browser:"), " Built-in MIB upload and OID tree browser for device discovery")
-                ),
-                tags$hr(),
-                tags$p(tags$em("Status: "), tags$strong("Pending development."),
-                       " Requires SNMP daemon (Net-SNMP), trap receiver service, and alarm rules engine implementation.",
-                       style = "color:#888; font-size:13px;")
-              )
-          )
+              title = tagList(icon("bell"), " Active Alarms"),
+              div(style = "font-size:12px; color:#888; margin-bottom:8px;",
+                  "Auto-refreshes every 60 s. Select a row to acknowledge or clear."),
+              conditionalPanel(
+                condition = "output.can_manage_snmp",
+                div(style = "margin-bottom:10px;",
+                  actionButton("btn_alarm_ack",   "Acknowledge Selected",
+                               icon = icon("check"),  class = "btn-warning btn-sm",
+                               style = "margin-right:6px;"),
+                  actionButton("btn_alarm_clear",  "Clear Selected",
+                               icon = icon("times-circle"), class = "btn-danger btn-sm")
+                )
+              ),
+              DTOutput("tbl_active_alarms"))
+        ),
+
+        # Row 3: SNMP device status + last poll
+        fluidRow(
+          box(width = 6, status = "warning", solidHeader = TRUE,
+              title = tagList(icon("hdd"), " SNMP Devices"),
+              div(style = "font-size:12px; color:#888; margin-bottom:8px;",
+                  "Devices registered in snmp_devices collection. Polled every 60 s."),
+              conditionalPanel(
+                condition = "output.can_manage_snmp",
+                div(style = "margin-bottom:10px;",
+                  actionButton("btn_snmp_add_device", "Add Device",
+                               icon = icon("plus"), class = "btn-success btn-sm",
+                               style = "margin-right:6px;"),
+                  actionButton("btn_snmp_delete_device", "Delete Selected",
+                               icon = icon("trash"), class = "btn-danger btn-sm")
+                )
+              ),
+              DTOutput("tbl_alarm_snmp_devices")),
+          box(width = 6, status = "info", solidHeader = TRUE,
+              title = tagList(icon("list-alt"), " Latest SNMP Poll Results"),
+              uiOutput("alarm_snmp_poll_ui"))
+        ),
+
+        # Row 4: alarm history (last 20 cleared)
+        fluidRow(
+          box(width = 12, status = "success", solidHeader = TRUE,
+              title = tagList(icon("history"), " Recent Cleared Alarms (last 20)"),
+              DTOutput("tbl_alarm_history"))
         )
       )
     )
@@ -2484,6 +2503,9 @@ server <- function(input, output, session) {
   output$is_admin <- reactive({ isTRUE(auth_rv$role == "admin") })
   outputOptions(output, "is_admin", suspendWhenHidden = FALSE)
 
+  output$can_manage_snmp <- reactive({ isTRUE(auth_rv$role %in% c("operator", "admin")) })
+  outputOptions(output, "can_manage_snmp", suspendWhenHidden = FALSE)
+
   # ── Role-based sidebar ────────────────────────────────────────────────────────
   # viewer  : monitoring tabs only (read-only)
   # operator: viewer + Upload, Reports, Station Health, Zones
@@ -2495,8 +2517,7 @@ server <- function(input, output, session) {
       menuItem("Weather Conditions",       tabName = "wx_cities",       icon = icon("cloud-sun")),
       menuItem("FL Alerts",                tabName = "alerts",          icon = icon("exclamation-triangle")),
       menuItem("Florida Rivers Alerts",    tabName = "rivers",          icon = icon("water")),
-      menuItem("Traffic Alerts",           tabName = "traffic_alerts",  icon = icon("car-crash")),
-      menuItem("Traffic Analysis",         tabName = "traffic_analysis",icon = icon("chart-bar")),
+      menuItem("Traffic",                  tabName = "traffic_alerts",  icon = icon("car-crash")),
       menuItem("County Alerts",            tabName = "county_alerts",   icon = icon("map-marker-alt")),
       menuItem("Airport Delays & Weather", tabName = "airports",        icon = icon("plane")),
       menuItem("Icecast Streams",          tabName = "icecast",         icon = icon("broadcast-tower")),
@@ -2509,6 +2530,7 @@ server <- function(input, output, session) {
     operator_items <- list(
       menuItem("Upload Content",  tabName = "upload",   icon = icon("upload")),
       menuItem("Reports",         tabName = "reports",  icon = icon("file-pdf")),
+      menuItem("BCP Reports",    tabName = "bcp_reports", icon = icon("shield-alt")),
       menuItem("Station Health",  tabName = "health",   icon = icon("heartbeat")),
       menuItem("Zones",           tabName = "zones",    icon = icon("map"))
     )
@@ -3506,11 +3528,13 @@ server <- function(input, output, session) {
   output$txt_tts_engine <- renderText({ "ElevenLabs via LiteLLM" })
 
   output$txt_heartbeat <- renderText({
-    path <- "/home/ufuser/Fpren-main/watchdog.heartbeat"
+    path <- "/tmp/weather_station.watchdog"
     if (file.exists(path)) {
-      mtime <- file.mtime(path)
-      age   <- round(as.numeric(difftime(Sys.time(), mtime, units = "mins")), 1)
-      paste0(format(mtime, "%Y-%m-%d %H:%M:%S"), "\n(", age, " minutes ago)")
+      raw <- tryCatch(readLines(path, warn = FALSE)[1], error = function(e) NA)
+      ts  <- tryCatch(as.POSIXct(raw, format = "%Y-%m-%dT%H:%M:%OS", tz = "UTC"),
+                      error = function(e) file.mtime(path))
+      age <- round(as.numeric(difftime(Sys.time(), ts, units = "mins")), 1)
+      paste0(format(ts, "%Y-%m-%d %H:%M:%S UTC"), "\n(", age, " minutes ago)")
     } else {
       "Heartbeat file not found"
     }
@@ -3881,7 +3905,14 @@ server <- function(input, output, session) {
       df <- df %>% filter(tolower(severity) == tolower(input$traffic_severity))
     if (!is.null(input$traffic_type) && nchar(input$traffic_type) > 0)
       df <- df %>% filter(type == input$traffic_type)
-    df
+    sev_rank <- c("Major" = 1L, "Intermediate" = 2L, "Minor" = 3L, "N/A" = 4L)
+    df %>%
+      mutate(
+        .sev  = ifelse(severity %in% names(sev_rank), sev_rank[severity], 5L),
+        .updt = suppressWarnings(as.POSIXct(last_updated, format = "%m/%d/%y, %I:%M %p"))
+      ) %>%
+      arrange(.sev, desc(.updt)) %>%
+      select(-.sev, -.updt)
   })
 
   output$box_traffic_total <- renderValueBox({
@@ -3925,7 +3956,8 @@ server <- function(input, output, session) {
                        "Type","Description","Last Updated","Full Closure")[
                         seq_along(.)], everything())
     datatable(display,
-              options = list(pageLength = 20, scrollX = TRUE,
+              options = list(pageLength = 10, scrollX = TRUE,
+                             order = list(),
                              columnDefs = list(
                                list(width = "220px", targets = 5)  # Description col
                              )),
@@ -4200,7 +4232,7 @@ server <- function(input, output, session) {
                        "Full Closure","District","Description","Last Updated")[
                         seq_along(.)], everything())
     datatable(display,
-              options = list(pageLength = 25, scrollX = TRUE,
+              options = list(pageLength = 10, scrollX = TRUE,
                              columnDefs = list(list(width = "200px", targets = 7))),
               rownames = FALSE) %>%
       formatStyle("Severity",
@@ -4647,7 +4679,7 @@ server <- function(input, output, session) {
     names(df)[names(df) == "sky"]          <- "Sky/Cat"
     names(df)[names(df) == "obs_time"]     <- "Obs Time"
 
-    datatable(df, options = list(pageLength = 20, scrollX = TRUE),
+    datatable(df, options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE) %>%
       formatStyle("Delay Status",
         color      = styleEqual(c("DELAYED","Normal","Unknown"),
@@ -4690,7 +4722,7 @@ server <- function(input, output, session) {
   output$tbl_feeds <- renderDT({
     df <- feed_data()
     if (nrow(df) == 0) return(datatable(data.frame(Message = "No feed status data")))
-    datatable(df, options = list(pageLength = 20, scrollX = TRUE),
+    datatable(df, options = list(pageLength = 10, scrollX = TRUE),
               rownames = FALSE) %>%
       formatStyle("status",
         color      = styleEqual(c("OK","ERROR"), c("green","red")),
@@ -4843,7 +4875,7 @@ server <- function(input, output, session) {
       vals <- unlist(walk)
       df <- data.frame(OID = oids, Value = vals, stringsAsFactors = FALSE)
     }
-    DT::datatable(df, options = list(pageLength=20, scrollX=TRUE), rownames=FALSE)
+    DT::datatable(df, options = list(pageLength=10, scrollX=TRUE), rownames=FALSE)
   })
 
   # ── Icecast tab ─────────────────────────────────────────────────────────────
@@ -7536,7 +7568,7 @@ server <- function(input, output, session) {
     if (length(files)==0) return(data.frame(Message="No files yet"))
     data.frame(Filename=files, Size_KB=file.size(file.path(folder,files))%/%1024,
                stringsAsFactors=FALSE)
-  }, options=list(pageLength=20), rownames=FALSE)
+  }, options=list(pageLength=10), rownames=FALSE)
   observeEvent(input$btn_upload, {
     if (!isTRUE(auth_rv$role %in% c("operator","admin"))) { upload_msg("Access denied."); return() }
     req(input$upload_file)
@@ -7705,7 +7737,7 @@ server <- function(input, output, session) {
                  stringsAsFactors=FALSE)
     }, all_types, labels, modes, SIMPLIFY=FALSE)
     df <- do.call(rbind, rows)
-    DT::datatable(df, options=list(pageLength=20, dom="t"), rownames=FALSE) %>%
+    DT::datatable(df, options=list(pageLength=10, dom="t"), rownames=FALSE) %>%
       DT::formatStyle("Mode",
         backgroundColor=DT::styleEqual(c("P1 Interrupt","Normal"),
                                         c("#fadbd8","#d5f5e3")))
@@ -8062,7 +8094,7 @@ server <- function(input, output, session) {
       stringsAsFactors = FALSE,
       check.names = FALSE
     )
-    dt <- datatable(df, options=list(pageLength=20, scrollX=TRUE, order=list(list(7,"desc"))),
+    dt <- datatable(df, options=list(pageLength=10, scrollX=TRUE, order=list(list(7,"desc"))),
                     rownames=FALSE, selection="none")
     dt %>% DT::formatStyle("Level",
       backgroundColor = DT::styleEqual(
@@ -8806,6 +8838,683 @@ server <- function(input, output, session) {
       tryCatch(col$disconnect(), error = function(e2) NULL)
       group_invite_msg_rv(paste("Error:", conditionMessage(e)))
     })
+  })
+
+  # ── Alarms & SNMP Tab ────────────────────────────────────────────────────────
+
+  snmp_refresh_trigger   <- reactiveVal(0L)
+  snmp_delete_pending_rv <- reactiveVal(NULL)
+
+  alarm_refresh_timer <- reactiveTimer(60000)
+  alarm_refresh_rv    <- reactiveVal(0L)
+
+  alarm_data <- reactive({
+    input$btn_alarm_refresh
+    alarm_refresh_timer()
+    alarm_refresh_rv()
+    col <- tryCatch(mongo("alarms", "weather_rss", url = MONGO_URI), error = function(e) NULL)
+    if (is.null(col)) return(data.frame())
+    docs <- tryCatch(col$find('{"status":{"$in":["active","acknowledged"]}}',
+                               sort = '{"severity":-1,"raised_at":-1}'),
+                     error = function(e) data.frame())
+    tryCatch(col$disconnect(), error = function(e) NULL)
+    docs
+  })
+
+  alarm_history_data <- reactive({
+    input$btn_alarm_refresh
+    alarm_refresh_timer()
+    alarm_refresh_rv()
+    col <- tryCatch(mongo("alarms", "weather_rss", url = MONGO_URI), error = function(e) NULL)
+    if (is.null(col)) return(data.frame())
+    docs <- tryCatch(col$find('{"status":"cleared"}',
+                               sort = '{"cleared_at":-1}',
+                               limit = 20L),
+                     error = function(e) data.frame())
+    tryCatch(col$disconnect(), error = function(e) NULL)
+    docs
+  })
+
+  snmp_devices_data <- reactive({
+    input$btn_alarm_refresh
+    alarm_refresh_timer()
+    snmp_refresh_trigger()
+    col <- tryCatch(mongo("snmp_devices", "weather_rss", url = MONGO_URI), error = function(e) NULL)
+    if (is.null(col)) return(data.frame())
+    docs <- tryCatch(col$find('{}', sort = '{"device_id":1}'),
+                     error = function(e) data.frame())
+    tryCatch(col$disconnect(), error = function(e) NULL)
+    docs
+  })
+
+  snmp_poll_data <- reactive({
+    input$btn_alarm_refresh
+    alarm_refresh_timer()
+    col <- tryCatch(mongo("snmp_poll_results", "weather_rss", url = MONGO_URI), error = function(e) NULL)
+    if (is.null(col)) return(list())
+    docs <- tryCatch(col$find('{}', sort = '{"polled_at":-1}', limit = 1L),
+                     error = function(e) list())
+    tryCatch(col$disconnect(), error = function(e) NULL)
+    if (is.data.frame(docs) && nrow(docs) > 0) as.list(docs[1,]) else list()
+  })
+
+  # ── Severity boxes ────────────────────────────────────────────────────────
+
+  .alarm_counts <- reactive({
+    df <- alarm_data()
+    if (!is.data.frame(df) || nrow(df) == 0)
+      return(list(critical=0L, major=0L, minor=0L, warning=0L, total=0L))
+    list(
+      critical = sum(tolower(df$severity) == "critical", na.rm = TRUE),
+      major    = sum(tolower(df$severity) == "major",    na.rm = TRUE),
+      minor    = sum(tolower(df$severity) == "minor",    na.rm = TRUE),
+      warning  = sum(tolower(df$severity) == "warning",  na.rm = TRUE),
+      total    = nrow(df)
+    )
+  })
+
+  output$alarm_box_critical <- renderValueBox({
+    n <- .alarm_counts()$critical
+    valueBox(n, "Critical", icon = icon("exclamation-circle"),
+             color = if (n > 0) "red" else "green")
+  })
+  output$alarm_box_major <- renderValueBox({
+    n <- .alarm_counts()$major
+    valueBox(n, "Major", icon = icon("exclamation-triangle"),
+             color = if (n > 0) "orange" else "green")
+  })
+  output$alarm_box_minor <- renderValueBox({
+    n <- .alarm_counts()$minor
+    valueBox(n, "Minor", icon = icon("info-circle"),
+             color = if (n > 0) "yellow" else "green")
+  })
+  output$alarm_box_warning <- renderValueBox({
+    n <- .alarm_counts()$warning
+    valueBox(n, "Warning", icon = icon("bell"),
+             color = if (n > 0) "blue" else "green")
+  })
+  output$alarm_box_total <- renderValueBox({
+    n <- .alarm_counts()$total
+    valueBox(n, "Total Active", icon = icon("list"),
+             color = if (n > 0) "orange" else "green")
+  })
+
+  # ── Active alarms table ───────────────────────────────────────────────────
+
+  output$tbl_active_alarms <- renderDT({
+    df <- alarm_data()
+    if (!is.data.frame(df) || nrow(df) == 0)
+      return(datatable(data.frame(Message = "No active alarms — all systems nominal.")))
+
+    # Compute age in minutes
+    now_utc <- as.POSIXct(Sys.time(), tz = "UTC")
+    raised <- tryCatch(as.POSIXct(df$raised_at, tz = "UTC"), error = function(e) rep(NA, nrow(df)))
+    age_min <- as.integer(difftime(now_utc, raised, units = "mins"))
+
+    display <- data.frame(
+      Severity    = df$severity,
+      Source      = df$source,
+      Name        = df$name,
+      Status      = df$status,
+      `Age (min)` = age_min,
+      Events      = df$event_count,
+      `Raised At` = format(raised, "%m/%d %H:%M"),
+      Detail      = substr(df$detail, 1, 120),
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+
+    # Sort: Critical first, then Major, Minor, Warning
+    sev_rank <- c(Critical=1, Major=2, Minor=3, Warning=4)
+    display$.rank <- sev_rank[display$Severity]
+    display$.rank[is.na(display$.rank)] <- 5L
+    display <- display[order(display$.rank, -age_min), ]
+    display$.rank <- NULL
+
+    dt <- datatable(display,
+              selection = "single",
+              options = list(pageLength = 10, scrollX = TRUE,
+                             order = list(),
+                             columnDefs = list(list(width = "260px", targets = 7))),
+              rownames = FALSE)
+
+    dt %>%
+      formatStyle("Severity",
+        backgroundColor = styleEqual(
+          c("Critical","Major","Minor","Warning"),
+          c("#c0392b","#e67e22","#d4ac0d","#2980b9")),
+        color = styleEqual(
+          c("Critical","Major","Minor","Warning"),
+          c("white","white","black","white"))) %>%
+      formatStyle("Status",
+        backgroundColor = styleEqual(
+          c("active","acknowledged"),
+          c("#2c3e50","#6c3483")),
+        color = "white")
+  })
+
+  # ── SNMP devices table ────────────────────────────────────────────────────
+
+  output$tbl_alarm_snmp_devices <- renderDT({
+    df <- snmp_devices_data()
+    if (!is.data.frame(df) || nrow(df) == 0)
+      return(datatable(data.frame(Message = "No SNMP devices registered."),
+                       selection = "single", rownames = FALSE))
+
+    last_poll <- tryCatch(
+      format(as.POSIXct(df$last_polled, tz = "UTC"), "%m/%d %H:%M"),
+      error = function(e) rep("Never", nrow(df))
+    )
+    last_poll[is.na(last_poll)] <- "Never"
+
+    # Extract location label from nested location field
+    location_label <- vapply(seq_len(nrow(df)), function(i) {
+      loc <- tryCatch(df$location[[i]], error = function(e) NULL)
+      if (is.null(loc)) return("—")
+      if (is.data.frame(loc) && nrow(loc) > 0) {
+        name <- as.character(loc$asset_name[1] %||% "")
+        city <- as.character(loc$city[1] %||% "")
+      } else if (is.list(loc)) {
+        name <- as.character(loc$asset_name %||% "")
+        city <- as.character(loc$city %||% "")
+      } else {
+        return("—")
+      }
+      if (nchar(name) > 0 && nchar(city) > 0) paste0(name, " (", city, ")")
+      else if (nchar(name) > 0) name
+      else "—"
+    }, character(1))
+
+    added_by <- if ("added_by" %in% names(df)) df$added_by else rep("—", nrow(df))
+    added_by[is.na(added_by) | added_by == ""] <- "—"
+
+    display <- data.frame(
+      `Device ID`     = df$device_id,
+      Host            = df$host,
+      Port            = df$port,
+      Version         = df$version,
+      Community       = df$community,
+      Enabled         = ifelse(df$enabled == TRUE, "YES", "NO"),
+      Location        = location_label,
+      `Added By`      = added_by,
+      `Last Polled`   = last_poll,
+      check.names     = FALSE,
+      stringsAsFactors = FALSE
+    )
+    datatable(display,
+              selection = "single",
+              options = list(pageLength = 10, scrollX = TRUE, dom = "t"),
+              rownames = FALSE) %>%
+      formatStyle("Enabled",
+        backgroundColor = styleEqual(c("YES","NO"), c("#1e8449","#922b21")),
+        color = "white")
+  })
+
+  # ── SNMP latest poll summary ──────────────────────────────────────────────
+
+  output$alarm_snmp_poll_ui <- renderUI({
+    poll <- snmp_poll_data()
+    if (length(poll) == 0 || is.null(poll$device_id)) {
+      return(tags$p(style="color:#888;padding:10px;",
+                    "No poll results yet. SNMP poller runs on 60s schedule."))
+    }
+    polled_at <- tryCatch(
+      format(as.POSIXct(poll$polled_at, tz = "UTC"), "%Y-%m-%d %H:%M:%S UTC"),
+      error = function(e) "unknown"
+    )
+    results <- if (!is.null(poll$results) && length(poll$results) > 0) poll$results else list()
+    n_results <- if (!is.null(poll$result_count)) poll$result_count else length(results)
+
+    # Show first 15 OID rows
+    rows_html <- ""
+    if (is.data.frame(results)) {
+      for (i in seq_len(min(15, nrow(results)))) {
+        rows_html <- paste0(rows_html,
+          "<tr><td style='font-family:monospace;font-size:11px;color:#aaa;padding:3px 8px;'>",
+          htmltools::htmlEscape(results$oid[i]), "</td>",
+          "<td style='font-size:12px;padding:3px 8px;'>",
+          htmltools::htmlEscape(substr(as.character(results$value[i]), 1, 60)), "</td></tr>")
+      }
+    }
+
+    tagList(
+      tags$div(style = "font-size:12px; color:#888; margin-bottom:8px;",
+               "Device: ", tags$strong(poll$device_id),
+               " | OIDs: ", tags$strong(n_results),
+               " | Polled: ", tags$strong(polled_at)),
+      if (nchar(rows_html) > 0)
+        tags$div(style = "overflow-x:auto; max-height:300px; overflow-y:auto;",
+          HTML(paste0("<table style='width:100%;border-collapse:collapse'>",
+                      "<thead><tr>",
+                      "<th style='font-size:11px;color:#666;padding:3px 8px;text-align:left;'>OID</th>",
+                      "<th style='font-size:11px;color:#666;padding:3px 8px;text-align:left;'>Value</th>",
+                      "</tr></thead><tbody>", rows_html, "</tbody></table>")))
+      else
+        tags$p(style="color:#888;font-size:12px;", "Poll results not yet available.")
+    )
+  })
+
+  # ── Alarm history table ───────────────────────────────────────────────────
+
+  output$tbl_alarm_history <- renderDT({
+    df <- alarm_history_data()
+    if (!is.data.frame(df) || nrow(df) == 0)
+      return(datatable(data.frame(Message = "No cleared alarms yet.")))
+
+    cleared <- tryCatch(as.POSIXct(df$cleared_at, tz = "UTC"), error = function(e) rep(NA, nrow(df)))
+    raised  <- tryCatch(as.POSIXct(df$raised_at,  tz = "UTC"), error = function(e) rep(NA, nrow(df)))
+    dur_min <- as.integer(difftime(cleared, raised, units = "mins"))
+
+    display <- data.frame(
+      Severity       = df$severity,
+      Source         = df$source,
+      Name           = df$name,
+      `Raised At`    = format(raised,  "%m/%d %H:%M"),
+      `Cleared At`   = format(cleared, "%m/%d %H:%M"),
+      `Duration(m)`  = dur_min,
+      Events         = df$event_count,
+      check.names    = FALSE,
+      stringsAsFactors = FALSE
+    )
+    datatable(display,
+              options = list(pageLength = 10, scrollX = TRUE, order = list()),
+              rownames = FALSE) %>%
+      formatStyle("Severity",
+        backgroundColor = styleEqual(
+          c("Critical","Major","Minor","Warning"),
+          c("#c0392b","#e67e22","#d4ac0d","#2980b9")),
+        color = styleEqual(
+          c("Critical","Major","Minor","Warning"),
+          c("white","white","black","white")))
+  })
+
+  # ── Alarm acknowledge / clear ─────────────────────────────────────────────
+
+  # Helper: get the _id of the selected alarm row
+  .selected_alarm_id <- function() {
+    sel <- input$tbl_active_alarms_rows_selected
+    if (is.null(sel) || length(sel) == 0) return(NULL)
+    df <- alarm_data()
+    if (!is.data.frame(df) || nrow(df) < sel) return(NULL)
+    # alarm_data is sorted by severity then age — match row to _id field
+    sev_rank <- c(Critical=1, Major=2, Minor=3, Warning=4)
+    raised <- tryCatch(as.POSIXct(df$raised_at, tz = "UTC"), error = function(e) rep(NA, nrow(df)))
+    age_min <- as.integer(difftime(as.POSIXct(Sys.time(), tz="UTC"), raised, units="mins"))
+    rank <- sev_rank[df$severity]; rank[is.na(rank)] <- 5L
+    df <- df[order(rank, -age_min), ]
+    as.character(df[sel, "_id"])
+  }
+
+  .selected_alarm_name <- function() {
+    sel <- input$tbl_active_alarms_rows_selected
+    if (is.null(sel) || length(sel) == 0) return("(none selected)")
+    df <- alarm_data()
+    if (!is.data.frame(df) || nrow(df) < sel) return("(none)")
+    sev_rank <- c(Critical=1, Major=2, Minor=3, Warning=4)
+    raised <- tryCatch(as.POSIXct(df$raised_at, tz = "UTC"), error = function(e) rep(NA, nrow(df)))
+    age_min <- as.integer(difftime(as.POSIXct(Sys.time(), tz="UTC"), raised, units="mins"))
+    rank <- sev_rank[df$severity]; rank[is.na(rank)] <- 5L
+    df <- df[order(rank, -age_min), ]
+    as.character(df[sel, "name"])
+  }
+
+  observeEvent(input$btn_alarm_ack, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+    alarm_id   <- .selected_alarm_id()
+    alarm_name <- .selected_alarm_name()
+    if (is.null(alarm_id)) {
+      showNotification("Select an alarm row first.", type = "warning")
+      return()
+    }
+    showModal(modalDialog(
+      title = tagList(icon("check"), " Acknowledge Alarm"),
+      tags$p("Acknowledging: ", tags$strong(alarm_name)),
+      textInput("alarm_ack_by", "Your name / operator ID",
+                value = auth_rv$username %||% ""),
+      textInput("alarm_ack_note", "Note (optional)", placeholder = "Investigating…"),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("btn_alarm_ack_confirm", "Acknowledge",
+                     class = "btn-warning", icon = icon("check"))
+      ),
+      easyClose = TRUE
+    ))
+  })
+
+  observeEvent(input$btn_alarm_ack_confirm, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+    removeModal()
+    alarm_id <- .selected_alarm_id()
+    if (is.null(alarm_id)) return()
+    by_val   <- trimws(input$alarm_ack_by)
+    note_val <- trimws(input$alarm_ack_note)
+    if (nchar(by_val) == 0) by_val <- auth_rv$username %||% "unknown"
+    tryCatch({
+      col <- mongo("alarms", "weather_rss", url = MONGO_URI)
+      now_str <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+      col$update(
+        sprintf('{"_id":{"$oid":"%s"}}', alarm_id),
+        sprintf('{"$set":{"status":"acknowledged","acknowledged_at":{"$date":"%s"},"acknowledged_by":"%s","clear_detail":"%s"}}',
+                now_str, by_val, gsub('"', "'", note_val))
+      )
+      col$disconnect()
+      showNotification(paste("Alarm acknowledged by", by_val), type = "message")
+    }, error = function(e) {
+      showNotification(paste("Error:", conditionMessage(e)), type = "error")
+    })
+    alarm_refresh_rv(alarm_refresh_rv() + 1L)
+  })
+
+  observeEvent(input$btn_alarm_clear, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+    alarm_id   <- .selected_alarm_id()
+    alarm_name <- .selected_alarm_name()
+    if (is.null(alarm_id)) {
+      showNotification("Select an alarm row first.", type = "warning")
+      return()
+    }
+    showModal(modalDialog(
+      title = tagList(icon("times-circle"), " Clear Alarm"),
+      tags$p("Clearing: ", tags$strong(alarm_name)),
+      textInput("alarm_clear_by", "Your name / operator ID",
+                value = auth_rv$username %||% ""),
+      textInput("alarm_clear_reason", "Reason (optional)",
+                placeholder = "Issue resolved, false positive…"),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("btn_alarm_clear_confirm", "Clear Alarm",
+                     class = "btn-danger", icon = icon("times-circle"))
+      ),
+      easyClose = TRUE
+    ))
+  })
+
+  observeEvent(input$btn_alarm_clear_confirm, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+    removeModal()
+    alarm_id <- .selected_alarm_id()
+    if (is.null(alarm_id)) return()
+    by_val     <- trimws(input$alarm_clear_by)
+    reason_val <- trimws(input$alarm_clear_reason)
+    if (nchar(by_val) == 0) by_val <- auth_rv$username %||% "unknown"
+    tryCatch({
+      col <- mongo("alarms", "weather_rss", url = MONGO_URI)
+      now_str <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+      col$update(
+        sprintf('{"_id":{"$oid":"%s"}}', alarm_id),
+        sprintf('{"$set":{"status":"cleared","cleared_at":{"$date":"%s"},"acknowledged_by":"%s","clear_detail":"%s"}}',
+                now_str, by_val, gsub('"', "'", reason_val))
+      )
+      col$disconnect()
+      showNotification("Alarm cleared.", type = "message")
+    }, error = function(e) {
+      showNotification(paste("Error:", conditionMessage(e)), type = "error")
+    })
+    alarm_refresh_rv(alarm_refresh_rv() + 1L)
+  })
+
+  # ── SNMP Device Add ───────────────────────────────────────────────────────────
+
+  observeEvent(input$btn_snmp_add_device, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+
+    # Load the current user's assets fresh from DB
+    user_assets <- .load_user_assets(auth_rv$username)
+    has_assets  <- is.data.frame(user_assets) && nrow(user_assets) > 0
+
+    if (has_assets) {
+      asset_choices <- setNames(
+        as.character(user_assets$asset_id),
+        paste0(user_assets$asset_name, " (", user_assets$city, ")")
+      )
+    } else {
+      asset_choices <- character(0)
+    }
+
+    showModal(modalDialog(
+      title      = tagList(icon("hdd"), " Add SNMP Device"),
+      size       = "m",
+      easyClose  = FALSE,
+      footer     = tagList(
+        modalButton("Cancel"),
+        if (has_assets)
+          actionButton("btn_snmp_save_device", "Add Device", class = "btn-success")
+      ),
+
+      fluidRow(
+        column(6, textInput("snmp_new_device_id", "Device ID *",
+                            placeholder = "e.g. router-main")),
+        column(6, textInput("snmp_new_host", "Host / IP *",
+                            placeholder = "e.g. 192.168.1.1"))
+      ),
+      fluidRow(
+        column(4, numericInput("snmp_new_port", "Port",
+                               value = 161, min = 1, max = 65535, step = 1)),
+        column(4, selectInput("snmp_new_version", "SNMP Version",
+                              choices = c("v2c", "v1", "v3"), selected = "v2c")),
+        column(4, numericInput("snmp_new_poll_interval", "Poll Interval (s)",
+                               value = 60, min = 10, max = 3600, step = 1))
+      ),
+      # Community string — shown for v1/v2c
+      conditionalPanel(
+        condition = "input.snmp_new_version != 'v3'",
+        textInput("snmp_new_community", "Community String *", value = "fpren_monitor")
+      ),
+      # SNMPv3 credentials — shown for v3 only
+      conditionalPanel(
+        condition = "input.snmp_new_version == 'v3'",
+        fluidRow(
+          column(4, textInput("snmp_new_v3_user",     "v3 Username *")),
+          column(4, textInput("snmp_new_v3_auth_key", "Auth Key")),
+          column(4, textInput("snmp_new_v3_priv_key", "Priv Key"))
+        )
+      ),
+      tags$hr(),
+      # Location — must be one of the user's registered assets
+      tags$strong("Location (required)"),
+      tags$div(style = "margin:4px 0 10px; font-size:12px; color:#666;",
+               "The device location must match one of your registered assets."),
+      if (!has_assets) {
+        tags$div(class = "alert alert-warning", style = "font-size:13px;",
+                 icon("exclamation-triangle"), " You have no registered assets. ",
+                 "Please add an asset on the Config tab before registering an SNMP device.")
+      } else {
+        selectInput("snmp_new_location", "Asset / Location *",
+                    choices = asset_choices, selectize = TRUE)
+      },
+      tags$hr(),
+      textAreaInput("snmp_new_oid_trees", "OID Trees (one per line)",
+                    value = ".1.3.6.1.2.1.1\n.1.3.6.1.4.1.2021.10",
+                    rows = 4,
+                    placeholder = "One OID prefix per line"),
+      checkboxInput("snmp_new_enabled", "Enabled — start polling immediately", value = TRUE)
+    ))
+  })
+
+  observeEvent(input$btn_snmp_save_device, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+
+    device_id    <- trimws(input$snmp_new_device_id %||% "")
+    host         <- trimws(input$snmp_new_host       %||% "")
+    version      <- input$snmp_new_version           %||% "v2c"
+    community    <- trimws(input$snmp_new_community  %||% "")
+    v3_user      <- trimws(input$snmp_new_v3_user    %||% "")
+    location_id  <- input$snmp_new_location          %||% ""
+    oid_raw      <- input$snmp_new_oid_trees         %||% ""
+    poll_int     <- as.integer(input$snmp_new_poll_interval %||% 60)
+    enabled_flag <- isTRUE(input$snmp_new_enabled)
+
+    # ── Field validation ──────────────────────────────────────────────────────
+    if (nchar(device_id) == 0) {
+      showNotification("Device ID is required.", type = "error"); return()
+    }
+    if (!grepl("^[A-Za-z0-9._-]+$", device_id)) {
+      showNotification("Device ID may only contain letters, digits, hyphens, underscores, and dots.",
+                       type = "error"); return()
+    }
+    if (nchar(host) == 0) {
+      showNotification("Host / IP is required.", type = "error"); return()
+    }
+    if (version != "v3" && nchar(community) == 0) {
+      showNotification("Community string is required for v1/v2c.", type = "error"); return()
+    }
+    if (version == "v3" && nchar(v3_user) == 0) {
+      showNotification("v3 username is required.", type = "error"); return()
+    }
+    if (nchar(location_id) == 0) {
+      showNotification("Location (asset) is required.", type = "error"); return()
+    }
+
+    # ── Validate location against user's actual assets (server-side) ──────────
+    fresh_assets <- .load_user_assets(auth_rv$username)
+    asset_match  <- NULL
+    if (is.data.frame(fresh_assets) && nrow(fresh_assets) > 0) {
+      idx <- which(as.character(fresh_assets$asset_id) == location_id)
+      if (length(idx) > 0) asset_match <- fresh_assets[idx[1], ]
+    }
+
+    if (is.null(asset_match)) {
+      showNotification(
+        "The selected location is not a registered asset of your account. Device not saved.",
+        type = "error", duration = 8
+      )
+      return()
+    }
+
+    # ── Check for duplicate device_id ─────────────────────────────────────────
+    dup_check <- tryCatch({
+      col <- mongo("snmp_devices", "weather_rss", url = MONGO_URI)
+      n   <- col$count(sprintf('{"device_id":"%s"}', device_id))
+      tryCatch(col$disconnect(), error = function(e2) NULL)
+      n
+    }, error = function(e) -1L)
+
+    if (dup_check > 0L) {
+      showNotification(paste0("Device ID '", device_id, "' already exists."),
+                       type = "error"); return()
+    }
+    if (dup_check < 0L) {
+      showNotification("Database error during duplicate check.", type = "error"); return()
+    }
+
+    # ── Build OID tree list ───────────────────────────────────────────────────
+    oid_trees <- Filter(nchar, trimws(strsplit(oid_raw, "\n")[[1]]))
+    if (length(oid_trees) == 0) oid_trees <- list(".1.3.6.1.2.1.1")
+
+    # ── Build document ────────────────────────────────────────────────────────
+    doc <- list(
+      device_id              = device_id,
+      host                   = host,
+      port                   = as.integer(input$snmp_new_port %||% 161),
+      version                = version,
+      community              = if (version != "v3") community else "",
+      v3_user                = if (version == "v3") v3_user else "",
+      v3_auth_key            = if (version == "v3") trimws(input$snmp_new_v3_auth_key %||% "") else "",
+      v3_priv_key            = if (version == "v3") trimws(input$snmp_new_v3_priv_key %||% "") else "",
+      v3_auth_proto          = "MD5",
+      v3_priv_proto          = "DES",
+      v3_security_level      = "authPriv",
+      oid_trees              = as.list(oid_trees),
+      poll_interval_seconds  = poll_int,
+      enabled                = enabled_flag,
+      location               = list(
+        asset_id   = as.character(asset_match$asset_id),
+        asset_name = as.character(asset_match$asset_name),
+        city       = as.character(asset_match$city)
+      ),
+      added_by               = auth_rv$username,
+      last_polled            = NULL,
+      tags                   = list(),
+      updated_at             = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    )
+
+    result <- tryCatch({
+      col <- mongo("snmp_devices", "weather_rss", url = MONGO_URI)
+      col$insert(jsonlite::toJSON(doc, auto_unbox = TRUE, null = "null"))
+      tryCatch(col$disconnect(), error = function(e2) NULL)
+      TRUE
+    }, error = function(e) conditionMessage(e))
+
+    if (isTRUE(result)) {
+      removeModal()
+      showNotification(
+        paste0("Device '", device_id, "' added (location: ", asset_match$asset_name, ")."),
+        type = "message", duration = 5
+      )
+      snmp_refresh_trigger(snmp_refresh_trigger() + 1L)
+    } else {
+      showNotification(paste0("Error saving device: ", result), type = "error", duration = 8)
+    }
+  })
+
+  # ── SNMP Device Delete ────────────────────────────────────────────────────────
+
+  observeEvent(input$btn_snmp_delete_device, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+
+    selected <- input$tbl_alarm_snmp_devices_rows_selected
+    if (length(selected) == 0) {
+      showNotification("Select a device row first, then click Delete Selected.",
+                       type = "warning"); return()
+    }
+
+    df <- snmp_devices_data()
+    if (!is.data.frame(df) || nrow(df) == 0 || selected > nrow(df)) {
+      showNotification("Could not identify the selected device.", type = "error"); return()
+    }
+
+    dev_id <- df$device_id[selected]
+
+    # Admins can delete any device; operators can only delete devices they added
+    if (auth_rv$role == "operator") {
+      added_by_val <- if ("added_by" %in% names(df)) df$added_by[selected] else ""
+      if (!identical(as.character(added_by_val), auth_rv$username)) {
+        showNotification(
+          "Operators may only delete devices they added themselves.",
+          type = "error", duration = 6
+        )
+        return()
+      }
+    }
+
+    snmp_delete_pending_rv(dev_id)
+
+    showModal(modalDialog(
+      title     = tagList(icon("trash"), " Confirm Delete"),
+      size      = "s",
+      easyClose = FALSE,
+      footer    = tagList(
+        modalButton("Cancel"),
+        actionButton("btn_snmp_confirm_delete", "Delete", class = "btn-danger")
+      ),
+      tags$p("Delete SNMP device ", tags$strong(dev_id), "?"),
+      tags$p(style = "color:#888; font-size:12px;",
+             "The device will be removed from active polling immediately.")
+    ))
+  })
+
+  observeEvent(input$btn_snmp_confirm_delete, {
+    req(auth_rv$logged_in, auth_rv$role %in% c("operator", "admin"))
+
+    dev_id <- snmp_delete_pending_rv()
+    if (is.null(dev_id) || nchar(dev_id) == 0) { removeModal(); return() }
+
+    result <- tryCatch({
+      col <- mongo("snmp_devices", "weather_rss", url = MONGO_URI)
+      col$remove(sprintf('{"device_id":"%s"}', dev_id))
+      tryCatch(col$disconnect(), error = function(e2) NULL)
+      TRUE
+    }, error = function(e) conditionMessage(e))
+
+    removeModal()
+    snmp_delete_pending_rv(NULL)
+
+    if (isTRUE(result)) {
+      showNotification(paste0("Device '", dev_id, "' removed."), type = "message")
+      snmp_refresh_trigger(snmp_refresh_trigger() + 1L)
+    } else {
+      showNotification(paste0("Error removing device: ", result), type = "error", duration = 8)
+    }
   })
 
 }

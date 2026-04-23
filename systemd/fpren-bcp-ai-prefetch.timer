@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly FPREN BCP AI narrative prefetch (1:30 AM, before 2PM report)
+
+[Timer]
+Unit=fpren-bcp-ai-prefetch.service
+OnCalendar=*-*-* 01:30:00
+AccuracySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -14,8 +14,10 @@ if (file.exists(.env_file)) {
   for (line in lines) {
     if (grepl("^[A-Z_]+=", line) && !grepl("^#", line)) {
       parts <- strsplit(line, "=", fixed = TRUE)[[1]]
-      key <- parts[1]; val <- paste(parts[-1], collapse = "=")
-      Sys.setenv(setNames(list(val), key))
+      if (length(parts) >= 2 && nchar(parts[1]) > 0) {
+        key <- parts[1]; val <- paste(parts[-1], collapse = "=")
+        do.call(Sys.setenv, setNames(list(val), key))
+      }
     }
   }
 }

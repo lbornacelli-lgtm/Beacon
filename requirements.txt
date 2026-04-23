@@ -1,0 +1,24 @@
+# FPREN Python dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Core (already installed) ──────────────────────────────────────────────────
+pymongo>=4.0
+requests>=2.28
+
+# ── Alarm System — new dependencies ──────────────────────────────────────────
+
+# SNMP polling + trap receiver (pysnmp 7.x — requires Python 3.12+)
+pysnmp>=7.1
+pyasn1>=0.6
+pyasn1-modules>=0.4
+
+# Twilio SMS notifications for Critical/Major alarms
+twilio>=8.0
+
+# Flask (already present via pip but documented here for completeness)
+flask>=2.3
+flask-login>=0.6
+flask-wtf>=1.1
+
+# bson / ObjectId (bundled with pymongo — no separate install needed)
+# If needed standalone: pymongo[srv]>=4.0

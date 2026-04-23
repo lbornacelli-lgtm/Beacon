@@ -50,12 +50,15 @@ logging.basicConfig(
 )
 log = logging.getLogger("RiversAgent")
 
-# Add weather_station to path for ai_client
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "weather_station"))
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 try:
-    from services.ai_client import run_agent, chat as ai_chat, is_configured as ai_ready
+    from weather_station.services.ai_client import run_agent, chat as ai_chat, is_configured as ai_ready
+    from weather_station.config.ai_config import TOKENS_RIVER_RESPONSE
     _AI_AVAILABLE = True
 except ImportError:
+    TOKENS_RIVER_RESPONSE = 600
     _AI_AVAILABLE = False
     log.warning("ai_client not importable — will use rule-based fallback summaries")
 
@@ -295,7 +298,7 @@ def run_agent_analysis(db) -> dict:
                 "a broadcast-ready summary. Use your tools to gather current data."
             ),
             max_iterations=8,
-            max_tokens=600,
+            max_tokens=TOKENS_RIVER_RESPONSE,
         )
     except Exception as exc:
         log.error("Agent error: %s — falling back to rule-based", exc)

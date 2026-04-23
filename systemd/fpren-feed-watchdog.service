@@ -1,0 +1,18 @@
+[Unit]
+Description=FPREN Feed Watchdog — monitors MongoDB feed collections for staleness
+After=network.target mongod.service fpren-alarm-engine.service
+Wants=mongod.service
+
+[Service]
+Type=simple
+User=ufuser
+WorkingDirectory=/home/ufuser/Fpren-main/fpren-agents/alarm_system/watchdogs
+ExecStart=/home/ufuser/Fpren-main/venv/bin/python3 feed_watchdog.py
+Restart=on-failure
+RestartSec=10
+Environment=MONGO_URI=mongodb://localhost:27017
+Environment=FEED_WD_INTERVAL=60
+EnvironmentFile=-/home/ufuser/Fpren-main/weather_station/.env
+
+[Install]
+WantedBy=multi-user.target

@@ -106,6 +106,9 @@ tryCatch(
   invisible(capture.output(hist_col$index(add = '{"icao":1,"timestamp":-1}'))),
   error = function(e) NULL   # index may already exist
 )
+# Note: 90-day TTL expiry on the timestamp field is managed at the MongoDB level.
+# To create manually: db.weather_history.createIndex({timestamp:1},{expireAfterSeconds:7776000})
+# TTL was applied via mongosh on 2026-04-11 — do not re-create here (would conflict).
 
 # ── Process each station ──────────────────────────────────────────────────────
 

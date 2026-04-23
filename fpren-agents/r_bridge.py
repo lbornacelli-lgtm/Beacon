@@ -19,6 +19,9 @@ class RBridge:
     def render_daily(self):
         return self._rscript(R_DIR / "render_reports.R", label="daily render")
 
+    def render_weekly(self):
+        return self._rscript(R_DIR / "render_reports.R", label="weekly render")
+
     def run_module(self, module):
         script = R_DIR / f"{module}.R"
         if not script.exists():

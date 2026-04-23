@@ -40,6 +40,7 @@ suppressPackageStartupMessages({
   library(knitr)
   library(kableExtra)
   library(lubridate)
+  library(jsonlite)
 })
 
 FPREN_BLUE <- "#003087"
@@ -414,57 +415,75 @@ if (nrow(evac_routes_df) == 0) {
 ## Closest Emergency Resources
 
 ```{r closest-resources, results='asis'}
-# Query OpenStreetMap Overpass API for emergency resources near asset
-overpass_resources <- tryCatch({
-  query <- sprintf(
-    '[out:json][timeout:20];(node["amenity"~"hospital|fire_station|police"](around:15000,%f,%f);way["amenity"~"hospital|fire_station|police"](around:15000,%f,%f););out body center 8;',
-    params$lat, params$lon, params$lat, params$lon
+# Cache-first emergency resources lookup (prefetched nightly by emergency_resources_prefetch.py)
+cache_key <- sprintf("%.2f_%.2f", round(params$lat, 2), round(params$lon, 2))
+er_col    <- safe_mongo("emergency_resources_cache")
+
+overpass_resources <- NULL
+
+# 1. Try MongoDB cache
+if (!is.null(er_col)) {
+  cached_er <- tryCatch(
+    er_col$find(sprintf('{"_id":"%s"}', cache_key), limit = 1),
+    error = function(e) NULL
   )
-  r <- httr::POST("https://overpass-api.de/api/interpreter",
-                  body = list(data = query), encode = "form", httr::timeout(20))
-  if (httr::status_code(r) != 200) stop("Overpass unavailable")
-  parsed <- httr::content(r, "parsed", encoding = "UTF-8")
-  elements <- parsed$elements
-  if (length(elements) == 0) NULL else {
-    rows <- lapply(elements, function(el) {
-      tags <- el$tags %||% list()
-      lat_e <- el$lat %||% (el$center$lat %||% NA)
-      lon_e <- el$lon %||% (el$center$lon %||% NA)
-      dist_km <- if (!is.na(lat_e) && !is.na(lon_e)) {
-        R <- 6371
-        dlat <- (lat_e - params$lat) * pi / 180
-        dlon <- (lon_e - params$lon) * pi / 180
-        a <- sin(dlat/2)^2 + cos(params$lat*pi/180)*cos(lat_e*pi/180)*sin(dlon/2)^2
-        round(R * 2 * atan2(sqrt(a), sqrt(1-a)), 2)
-      } else NA_real_
-      amenity_type <- tags[["amenity"]] %||% ""
-      resource_type <- switch(amenity_type,
-        hospital     = "Hospital",
-        fire_station = "Fire Station",
-        police       = "Police",
-        amenity_type)
-      addr_parts <- c(
-        if (!is.null(tags[["addr:housenumber"]]) && !is.null(tags[["addr:street"]]))
-          paste(tags[["addr:housenumber"]], tags[["addr:street"]]) else NULL,
-        tags[["addr:city"]] %||% NULL,
-        tags[["addr:state"]] %||% NULL,
-        tags[["addr:postcode"]] %||% NULL
-      )
-      address <- if (length(addr_parts) > 0) paste(addr_parts, collapse=", ") else "Address not listed"
-      data.frame(
-        Type     = resource_type,
-        Name     = tags[["name"]] %||% "(unnamed)",
-        Address  = address,
-        Dist_km  = dist_km,
-        stringsAsFactors = FALSE
-      )
-    })
-    df <- do.call(rbind, rows)
-    df <- df[order(df$Dist_km), ]
-    # Keep top 2 per type
-    do.call(rbind, lapply(split(df, df$Type), function(x) head(x, 2)))
+  if (!is.null(cached_er) && nrow(cached_er) > 0) {
+    raw <- cached_er$resources[[1]]
+    if (!is.null(raw) && length(raw) > 0) {
+      overpass_resources <- if (is.data.frame(raw)) raw
+                           else do.call(rbind, lapply(raw, as.data.frame))
+    }
   }
-}, error = function(e) NULL)
+}
+
+# 2. Fallback: live Overpass call (new assets not yet in cache)
+if (is.null(overpass_resources)) {
+  overpass_resources <- tryCatch({
+    query <- sprintf(
+      '[out:json][timeout:20];(node["amenity"~"hospital|fire_station|police"](around:15000,%f,%f);way["amenity"~"hospital|fire_station|police"](around:15000,%f,%f););out body center 8;',
+      params$lat, params$lon, params$lat, params$lon
+    )
+    r <- httr::POST("https://overpass-api.de/api/interpreter",
+                    body = list(data = query), encode = "form", httr::timeout(20))
+    if (httr::status_code(r) != 200) stop("Overpass unavailable")
+    parsed   <- httr::content(r, "parsed", encoding = "UTF-8")
+    elements <- parsed$elements
+    if (length(elements) == 0) NULL else {
+      rows <- lapply(elements, function(el) {
+        tags  <- el$tags %||% list()
+        lat_e <- el$lat %||% (el$center$lat %||% NA)
+        lon_e <- el$lon %||% (el$center$lon %||% NA)
+        dist_km <- if (!is.na(lat_e) && !is.na(lon_e)) {
+          R <- 6371
+          dlat <- (lat_e - params$lat) * pi / 180
+          dlon <- (lon_e - params$lon) * pi / 180
+          a <- sin(dlat/2)^2 + cos(params$lat*pi/180)*cos(lat_e*pi/180)*sin(dlon/2)^2
+          round(R * 2 * atan2(sqrt(a), sqrt(1-a)), 2)
+        } else NA_real_
+        amenity_type  <- tags[["amenity"]] %||% ""
+        resource_type <- switch(amenity_type,
+          hospital     = "Hospital",
+          fire_station = "Fire Station",
+          police       = "Police",
+          amenity_type)
+        addr_parts <- c(
+          if (!is.null(tags[["addr:housenumber"]]) && !is.null(tags[["addr:street"]]))
+            paste(tags[["addr:housenumber"]], tags[["addr:street"]]) else NULL,
+          tags[["addr:city"]] %||% NULL,
+          tags[["addr:state"]] %||% NULL,
+          tags[["addr:postcode"]] %||% NULL
+        )
+        address <- if (length(addr_parts) > 0) paste(addr_parts, collapse=", ")
+                   else "Address not listed"
+        data.frame(Type=resource_type, Name=tags[["name"]] %||% "(unnamed)",
+                   Address=address, Dist_km=dist_km, stringsAsFactors=FALSE)
+      })
+      df <- do.call(rbind, rows)
+      df <- df[order(df$Dist_km), ]
+      do.call(rbind, lapply(split(df, df$Type), function(x) head(x, 2)))
+    }
+  }, error = function(e) NULL)
+}
 
 if (is.null(overpass_resources) || nrow(overpass_resources) == 0) {
   cat("> **Closest resources data unavailable** — check internet access from server.\n")
@@ -734,27 +753,43 @@ if (is.null(census_rec)) {
     theme(plot.title=element_text(color=FPREN_BLUE, face="bold", size=10))
   print(p_cen)
 
-  # AI BCP demographic narrative
+  # AI BCP demographic narrative — cache-first (prefetched nightly by bcp_ai_prefetch.py)
   cat("\n\n**AI-Generated Demographic Analysis (LiteLLM):**\n\n")
-  ai_text <- tryCatch({
-    # Call census AI analyzer via system2
-    script <- "/home/ufuser/Fpren-main/weather_rss/census_ai_analyzer.py"
-    if (file.exists(script)) {
-      cmd_args <- c("-c", sprintf(
-        'import sys; sys.path.insert(0,"/home/ufuser/Fpren-main/weather_rss"); sys.path.insert(0,"/home/ufuser/Fpren-main");
+  ai_text <- ""
+
+  # 1. Try bcp_ai_narratives cache
+  ai_col <- safe_mongo("bcp_ai_narratives")
+  if (!is.null(ai_col)) {
+    cached_ai <- tryCatch(
+      ai_col$find(sprintf('{"_id":"%s"}', params$county), limit = 1),
+      error = function(e) NULL
+    )
+    if (!is.null(cached_ai) && nrow(cached_ai) > 0) {
+      ai_text <- cached_ai$narrative[1] %||% ""
+    }
+  }
+
+  # 2. Fallback: live subprocess call (county not yet in cache)
+  if (nchar(ai_text) == 0) {
+    ai_text <- tryCatch({
+      script <- "/home/ufuser/Fpren-main/weather_rss/census_ai_analyzer.py"
+      if (file.exists(script)) {
+        cmd_args <- c("-c", sprintf(
+          'import sys; sys.path.insert(0,"/home/ufuser/Fpren-main/weather_rss"); sys.path.insert(0,"/home/ufuser/Fpren-main");
 import census_ai_analyzer as ca
 print(ca.analyze_bcp_demographics("%s", "%s"))',
-        params$county, params$asset_name
-      ))
-      result <- system2("python3", args=cmd_args, stdout=TRUE, stderr=FALSE, timeout=30)
-      if (length(result) > 0) paste(result, collapse=" ") else ""
-    } else ""
-  }, error=function(e) "")
+          params$county, params$asset_name
+        ))
+        result <- system2("python3", args=cmd_args, stdout=TRUE, stderr=FALSE, timeout=30)
+        if (length(result) > 0) paste(result, collapse=" ") else ""
+      } else ""
+    }, error=function(e) "")
+  }
 
   if (nchar(ai_text) > 0) {
     cat("> *", ai_text, "*\n\n")
   } else {
-    # Fallback narrative
+    # Rule-based fallback
     cat(sprintf(
       "> *%s County has a vulnerability score of %.3f (%s), with %.1f%% of the population over age 65 and %.1f%% below the poverty line. These groups depend heavily on emergency radio broadcasts and may lack alternative information sources during a disaster.*\n\n",
       params$county, score, v_label,

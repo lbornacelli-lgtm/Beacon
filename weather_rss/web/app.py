@@ -4742,6 +4742,20 @@ def api_state_post():
     return jsonify({"ok": True})
 
 
+# ── Alarm Dashboard Blueprint ──────────────────────────────────────────────
+import sys as _sys
+_ALARM_SYS = "/home/ufuser/Fpren-main/fpren-agents/alarm_system"
+if _ALARM_SYS not in _sys.path:
+    _sys.path.insert(0, _ALARM_SYS)
+try:
+    from alarm_dashboard import alarm_bp
+    app.register_blueprint(alarm_bp)
+    import logging as _log
+    _log.getLogger(__name__).info("Alarm dashboard blueprint registered at /alarms")
+except Exception as _e:
+    import logging as _log
+    _log.getLogger(__name__).warning("Alarm dashboard not loaded: %s", _e)
+
 # -------------------- RUN ------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

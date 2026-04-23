@@ -1,0 +1,92 @@
+{% extends "alarms/base.html" %}
+{% block title %}FPREN Alarm History{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-clock-history me-2"></i>Cleared Alarms</span>
+    <span style="font-size:12px;color:var(--text-dim)">{{ total }} total</span>
+  </div>
+  <div class="card-body p-0">
+    {% set all_alarms = alarms + archived %}
+    {% if all_alarms %}
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Source</th>
+            <th>Alarm Name</th>
+            <th>Raised At</th>
+            <th>Cleared At</th>
+            <th>Duration</th>
+            <th>Events</th>
+            <th>Clear Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for a in all_alarms %}
+          <tr>
+            <td><span class="sev-badge sev-{{ a.severity }}">{{ a.severity }}</span></td>
+            <td style="font-size:12px;color:var(--text-dim)">{{ a.source }}</td>
+            <td>
+              <a href="/alarms/{{ a._id_str }}" style="color:var(--text);text-decoration:none">
+                {{ a.name }}
+              </a>
+            </td>
+            <td style="font-size:11px;color:var(--text-dim)">
+              {% if a.raised_at %}{{ a.raised_at.strftime('%m/%d/%y %H:%M') }}{% endif %}
+            </td>
+            <td style="font-size:11px;color:var(--text-dim)">
+              {% if a.cleared_at %}{{ a.cleared_at.strftime('%m/%d/%y %H:%M') }}{% endif %}
+            </td>
+            <td style="font-size:11px;color:var(--text-dim)">
+              {% if a.raised_at and a.cleared_at %}
+                {% set dur = (a.cleared_at - a.raised_at).total_seconds() | int %}
+                {% if dur < 3600 %}{{ dur // 60 }}m{% else %}{{ dur // 3600 }}h {{ (dur % 3600) // 60 }}m{% endif %}
+              {% endif %}
+            </td>
+            <td style="font-size:12px;color:var(--text-dim)">{{ a.event_count }}</td>
+            <td style="font-size:11px;color:var(--text-dim)">
+              {{ (a.clear_detail or '')[:80] }}{% if a.clear_detail and a.clear_detail|length > 80 %}…{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if pages > 1 %}
+    <div class="d-flex justify-content-center py-3">
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          {% if page > 1 %}
+          <li class="page-item">
+            <a class="page-link bg-dark border-secondary text-light" href="?page={{ page - 1 }}">Previous</a>
+          </li>
+          {% endif %}
+          {% for p in range(1, pages + 1) %}
+          <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link bg-dark border-secondary text-light" href="?page={{ p }}">{{ p }}</a>
+          </li>
+          {% endfor %}
+          {% if page < pages %}
+          <li class="page-item">
+            <a class="page-link bg-dark border-secondary text-light" href="?page={{ page + 1 }}">Next</a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5" style="color:var(--text-dim)">
+      <i class="bi bi-inbox" style="font-size:2rem"></i>
+      <div class="mt-2">No alarm history yet.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

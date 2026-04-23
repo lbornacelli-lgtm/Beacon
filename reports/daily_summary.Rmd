@@ -1,0 +1,214 @@
+---
+title: "FPREN Daily Summary Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: false
+    latex_engine: xelatex
+  html_document:
+    theme: cerulean
+    toc: true
+params:
+  date_from: ""
+  date_to: ""
+  mongo_uri: "mongodb://localhost:27017/"
+  zone_label: "All Florida"
+  include_weather: true
+  include_traffic: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+suppressPackageStartupMessages({
+  library(mongolite)
+  library(dplyr)
+  library(ggplot2)
+  library(lubridate)
+  library(knitr)
+})
+
+MONGO_URI <- params$mongo_uri
+DB_NAME   <- "weather_rss"
+
+fpren_col <- function(col) mongolite::mongo(collection = col, db = DB_NAME, url = MONGO_URI)
+
+# Date window
+report_date <- if (nchar(params$date_to) > 0) as.Date(params$date_to) else Sys.Date()
+start_date  <- if (nchar(params$date_from) > 0) as.Date(params$date_from) else report_date - 1
+start_iso   <- format(as.POSIXct(start_date), "%Y-%m-%dT00:00:00Z", tz = "UTC")
+end_iso     <- format(as.POSIXct(report_date + 1), "%Y-%m-%dT00:00:00Z", tz = "UTC")
+
+# ── Load alerts ───────────────────────────────────────────────────────────────
+alerts <- tryCatch({
+  col <- fpren_col("nws_alerts")
+  q   <- sprintf('{"fetched_at":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}',
+                 start_iso, end_iso)
+  df  <- col$find(q, fields = '{"event":1,"headline":1,"severity":1,"area_desc":1,"fetched_at":1}')
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+
+# ── Load processed alerts ─────────────────────────────────────────────────────
+alerts_proc <- tryCatch({
+  col <- fpren_col("alerts_processed")
+  q   <- sprintf('{"inserted_at":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}',
+                 start_iso, end_iso)
+  df  <- col$find(q, fields = '{"summary":1,"severity":1,"source":1,"inserted_at":1}')
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+
+# ── Load traffic ───────────────────────────────────────────────────────────────
+traffic <- if (params$include_traffic) {
+  tryCatch({
+    col <- fpren_col("fl_traffic")
+    q   <- sprintf('{"fetched_at":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}',
+                   start_iso, end_iso)
+    df  <- col$find(q, fields = '{"event_type":1,"road":1,"county":1,"severity":1,"fetched_at":1}')
+    col$disconnect()
+    df
+  }, error = function(e) data.frame())
+} else data.frame()
+
+# ── Load weather ───────────────────────────────────────────────────────────────
+weather <- if (params$include_weather) {
+  tryCatch({
+    col <- fpren_col("weather_history")
+    q   <- sprintf('{"timestamp":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}',
+                   start_iso, end_iso)
+    df  <- col$find(q, fields = '{"icao":1,"city":1,"temp_f":1,"wind_speed_kt":1,"flight_category":1,"timestamp":1}')
+    col$disconnect()
+    df
+  }, error = function(e) data.frame())
+} else data.frame()
+
+# ── Alarm summary ─────────────────────────────────────────────────────────────
+alarm_counts <- tryCatch({
+  col <- fpren_col("alarms")
+  q   <- sprintf('{"created_at":{"$gte":{"$date":"%s"},"$lt":{"$date":"%s"}}}',
+                 start_iso, end_iso)
+  df  <- col$find(q, fields = '{"severity":1,"status":1}')
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+```
+
+---
+
+**Report Date:** `r format(report_date, "%B %d, %Y")` | **Zone:** `r params$zone_label` | **Period:** `r start_date` to `r report_date`
+
+---
+
+## Alert Summary
+
+```{r alert-summary}
+n_alerts <- nrow(alerts)
+n_proc   <- nrow(alerts_proc)
+
+cat(sprintf("**%d** raw alerts fetched | **%d** processed through agent pipeline\n\n",
+            n_alerts, n_proc))
+
+if (n_alerts > 0 && "event" %in% names(alerts)) {
+  tbl <- alerts %>%
+    group_by(event = as.character(event)) %>%
+    summarise(Count = n(), .groups = "drop") %>%
+    arrange(desc(Count)) %>%
+    head(15)
+  knitr::kable(tbl, caption = "Top Alert Types (last 24 hours)", align = "lr")
+} else {
+  cat("No alerts in this period.\n")
+}
+```
+
+```{r alert-severity}
+if (n_proc > 0 && "severity" %in% names(alerts_proc)) {
+  sev_tbl <- alerts_proc %>%
+    mutate(severity = as.character(severity)) %>%
+    group_by(Severity = severity) %>%
+    summarise(Count = n(), .groups = "drop") %>%
+    arrange(desc(Count))
+  knitr::kable(sev_tbl, caption = "Processed Alert Severity Distribution")
+}
+```
+
+---
+
+## Weather Conditions
+
+```{r weather-summary}
+if (params$include_weather && nrow(weather) > 0 && "city" %in% names(weather)) {
+  wx_latest <- weather %>%
+    mutate(city = as.character(city)) %>%
+    group_by(city) %>%
+    slice_tail(n = 1) %>%
+    ungroup() %>%
+    arrange(city) %>%
+    select(City = city,
+           `Temp (°F)` = temp_f,
+           `Wind (kt)` = wind_speed_kt,
+           `Flight Cat` = flight_category)
+  knitr::kable(wx_latest, caption = "Latest Weather Conditions by City")
+} else {
+  cat("No weather data in this period.\n")
+}
+```
+
+```{r flight-cat-chart, fig.height=3}
+if (params$include_weather && nrow(weather) > 0 && "flight_category" %in% names(weather)) {
+  cat_colors <- c(VFR = "#27ae60", MVFR = "#3498db", IFR = "#e67e22", LIFR = "#c0392b", UNK = "#95a5a6")
+  fc_tbl <- weather %>%
+    mutate(flight_category = as.character(flight_category)) %>%
+    count(flight_category) %>%
+    mutate(flight_category = factor(flight_category,
+                                     levels = c("VFR","MVFR","IFR","LIFR","UNK")))
+  ggplot(fc_tbl, aes(x = flight_category, y = n, fill = flight_category)) +
+    geom_col(show.legend = FALSE) +
+    scale_fill_manual(values = cat_colors, na.value = "#95a5a6") +
+    labs(title = "Flight Category Distribution", x = "Category", y = "Observation Count") +
+    theme_minimal(base_size = 11)
+}
+```
+
+---
+
+## Traffic Incidents
+
+```{r traffic-summary}
+if (params$include_traffic && nrow(traffic) > 0) {
+  cat(sprintf("**%d** traffic incidents reported in period.\n\n", nrow(traffic)))
+  if ("county" %in% names(traffic)) {
+    cnty_tbl <- traffic %>%
+      mutate(county = as.character(county)) %>%
+      filter(county != "") %>%
+      count(County = county) %>%
+      arrange(desc(n)) %>%
+      rename(Incidents = n) %>%
+      head(10)
+    knitr::kable(cnty_tbl, caption = "Traffic Incidents by County (Top 10)")
+  }
+} else {
+  cat("No traffic incidents in this period.\n")
+}
+```
+
+---
+
+## System Alarms
+
+```{r alarm-summary}
+if (nrow(alarm_counts) > 0 && "severity" %in% names(alarm_counts)) {
+  alm_tbl <- alarm_counts %>%
+    mutate(severity = as.character(severity)) %>%
+    count(Severity = severity) %>%
+    arrange(desc(n)) %>%
+    rename(Count = n)
+  knitr::kable(alm_tbl, caption = "Alarms Raised in Period")
+} else {
+  cat("No alarms raised in this period.\n")
+}
+```
+
+---
+
+*Generated by FPREN — Florida Public Radio Emergency Network*
+*`r format(Sys.time(), "%Y-%m-%d %H:%M %Z")`*

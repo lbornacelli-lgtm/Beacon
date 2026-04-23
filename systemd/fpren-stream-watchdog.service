@@ -1,0 +1,19 @@
+[Unit]
+Description=FPREN Stream Watchdog — monitors Icecast mounts and raises stream alarms
+After=network.target mongod.service icecast2.service fpren-alarm-engine.service
+Wants=mongod.service icecast2.service
+
+[Service]
+Type=simple
+User=ufuser
+WorkingDirectory=/home/ufuser/Fpren-main/fpren-agents/alarm_system/watchdogs
+ExecStart=/home/ufuser/Fpren-main/venv/bin/python3 stream_watchdog.py
+Restart=on-failure
+RestartSec=10
+Environment=MONGO_URI=mongodb://localhost:27017
+Environment=ICECAST_HOST=127.0.0.1
+Environment=ICECAST_PORT=8000
+EnvironmentFile=-/home/ufuser/Fpren-main/weather_station/.env
+
+[Install]
+WantedBy=multi-user.target

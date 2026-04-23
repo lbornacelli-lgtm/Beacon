@@ -1,0 +1,136 @@
+{% extends "alarms/base.html" %}
+{% block title %}Alarm: {{ alarm.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="/alarms/" class="text-decoration-none" style="color:var(--text-dim)">
+    <i class="bi bi-arrow-left me-1"></i>Back to Active Alarms
+  </a>
+</div>
+
+<div class="row g-3">
+  <!-- Left: detail -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>
+          <span class="sev-badge sev-{{ alarm.severity }} me-2">{{ alarm.severity }}</span>
+          {{ alarm.name }}
+        </span>
+        <span class="sev-badge sev-{{ alarm.status }}">{{ alarm.status }}</span>
+      </div>
+      <div class="card-body">
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">Source</div>
+            <div>{{ alarm.source }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">Raised At</div>
+            <div style="font-size:13px">
+              {% if alarm.raised_at %}{{ alarm.raised_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}{% endif %}
+              {% if alarm.age_minutes is defined %}
+              <span class="age-badge ms-1 {% if alarm.age_minutes > 60 %}age-old{% endif %}">
+                ({{ alarm.age_minutes }}m ago)
+              </span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">Event Count</div>
+            <div>{{ alarm.event_count }}</div>
+          </div>
+        </div>
+
+        {% if alarm.tags %}
+        <div class="mb-3">
+          {% for tag in alarm.tags %}
+          <span class="badge bg-secondary me-1">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <h6 style="color:var(--text-dim);font-size:12px;text-transform:uppercase;letter-spacing:.5px">Detail</h6>
+        <pre>{{ alarm.detail or "(none)" }}</pre>
+
+        <h6 style="color:var(--text-dim);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:16px">Suggested Remediation</h6>
+        <pre style="color:#58a6ff">{{ alarm.remediation or "(none)" }}</pre>
+
+        {% if alarm.clear_detail %}
+        <h6 style="color:var(--cleared);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:16px">Clear Reason</h6>
+        <pre style="color:var(--cleared)">{{ alarm.clear_detail }}</pre>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: timeline + actions -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Timeline</div>
+      <div class="card-body" style="font-size:13px">
+        <div class="mb-2">
+          <span style="color:var(--text-dim)">Raised</span><br>
+          {% if alarm.raised_at %}
+            <strong>{{ alarm.raised_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</strong>
+          {% else %}<span style="color:var(--text-dim)">—</span>{% endif %}
+        </div>
+        {% if alarm.escalated_at %}
+        <div class="mb-2">
+          <span style="color:var(--major)">Escalated</span><br>
+          <strong>{{ alarm.escalated_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</strong>
+        </div>
+        {% endif %}
+        {% if alarm.acknowledged_at %}
+        <div class="mb-2">
+          <span style="color:var(--ack)">Acknowledged by {{ alarm.acknowledged_by }}</span><br>
+          <strong>{{ alarm.acknowledged_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</strong>
+        </div>
+        {% endif %}
+        {% if alarm.notified_at %}
+        <div class="mb-2">
+          <span style="color:var(--text-dim)">Last Notified</span><br>
+          <strong>{{ alarm.notified_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</strong>
+        </div>
+        {% endif %}
+        {% if alarm.cleared_at %}
+        <div class="mb-2">
+          <span style="color:var(--cleared)">Cleared</span><br>
+          <strong>{{ alarm.cleared_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</strong>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if alarm.status in ('active', 'acknowledged') %}
+    <div class="card">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-flex flex-column gap-2">
+        {% if alarm.status == 'active' %}
+        <form method="POST" action="/alarms/{{ alarm._id_str }}/acknowledge">
+          <div class="mb-2">
+            <input name="username" class="form-control form-control-sm bg-dark text-light border-secondary"
+                   placeholder="Your name" required>
+          </div>
+          <button class="btn btn-warning btn-sm w-100">
+            <i class="bi bi-check2 me-1"></i>Acknowledge
+          </button>
+        </form>
+        {% endif %}
+        <form method="POST" action="/alarms/{{ alarm._id_str }}/clear">
+          <div class="mb-2">
+            <textarea name="detail" class="form-control form-control-sm bg-dark text-light border-secondary"
+                      rows="2" placeholder="Clear reason (optional)"></textarea>
+          </div>
+          <button class="btn btn-success btn-sm w-100"
+                  onclick="return confirm('Mark this alarm as cleared?')">
+            <i class="bi bi-x-circle me-1"></i>Clear Alarm
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,246 @@
+---
+title: "FPREN Weekly Trends Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    latex_engine: xelatex
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_float: true
+params:
+  weeks_back: 4
+  mongo_uri: "mongodb://localhost:27017/"
+  station_filter: ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 9, fig.height = 4)
+suppressPackageStartupMessages({
+  library(mongolite)
+  library(dplyr)
+  library(ggplot2)
+  library(lubridate)
+  library(knitr)
+  library(tidyr)
+})
+
+MONGO_URI <- params$mongo_uri
+DB_NAME   <- "weather_rss"
+
+fpren_col <- function(col) mongolite::mongo(collection = col, db = DB_NAME, url = MONGO_URI)
+
+weeks_back <- max(1L, as.integer(params$weeks_back))
+cutoff     <- Sys.time() - weeks_back * 7 * 86400
+cutoff_iso <- format(cutoff, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
+# ── Alert trends ──────────────────────────────────────────────────────────────
+alerts_raw <- tryCatch({
+  col <- fpren_col("nws_alerts")
+  q   <- sprintf('{"fetched_at":{"$gte":{"$date":"%s"}}}', cutoff_iso)
+  df  <- col$find(q, fields = '{"event":1,"severity":1,"fetched_at":1}')
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+
+# ── Agent execution trends ────────────────────────────────────────────────────
+exec_log <- tryCatch({
+  col <- fpren_col("execution_log")
+  q   <- sprintf('{"timestamp":{"$gte":{"$date":"%s"}}}', cutoff_iso)
+  df  <- col$find(q, fields = '{"agent_name":1,"model_tier":1,"latency_ms":1,"status":1,"timestamp":1}')
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+
+# ── Weather trends ────────────────────────────────────────────────────────────
+weather <- tryCatch({
+  col   <- fpren_col("weather_history")
+  q     <- sprintf('{"timestamp":{"$gte":{"$date":"%s"}}}', cutoff_iso)
+  flds  <- '{"icao":1,"city":1,"temp_f":1,"wind_speed_kt":1,"flight_category":1,"timestamp":1}'
+  df    <- col$find(q, fields = flds)
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+
+# ── Traffic trends ────────────────────────────────────────────────────────────
+traffic <- tryCatch({
+  col <- fpren_col("fl_traffic")
+  q   <- sprintf('{"fetched_at":{"$gte":{"$date":"%s"}}}', cutoff_iso)
+  df  <- col$find(q, fields = '{"event_type":1,"severity":1,"county":1,"fetched_at":1}')
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+
+# ── Routing scores ────────────────────────────────────────────────────────────
+routing <- tryCatch({
+  col <- fpren_col("routing_scores")
+  df  <- col$find("{}", fields = '{"agent_name":1,"model_tier":1,"prompt_file":1,"avg_score":1,"retry_rate":1,"error_rate":1,"n":1}')
+  col$disconnect()
+  df
+}, error = function(e) data.frame())
+```
+
+# FPREN Weekly Trends — `r weeks_back`-Week Window
+
+**Period:** `r format(cutoff, "%B %d")` – `r format(Sys.Date(), "%B %d, %Y")`
+
+---
+
+## Alert Volume Trends
+
+```{r alert-volume}
+if (nrow(alerts_raw) > 0 && "fetched_at" %in% names(alerts_raw)) {
+  alerts_ts <- alerts_raw %>%
+    mutate(week = floor_date(
+      as.POSIXct(as.character(fetched_at), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+      "week"
+    )) %>%
+    filter(!is.na(week)) %>%
+    count(week)
+
+  ggplot(alerts_ts, aes(x = week, y = n)) +
+    geom_col(fill = "#e74c3c") +
+    geom_smooth(method = "loess", se = FALSE, colour = "#2c3e50", size = 0.8) +
+    scale_x_datetime(date_labels = "%b %d", date_breaks = "1 week") +
+    labs(title = "Weekly Alert Volume", x = NULL, y = "Alert Count") +
+    theme_minimal(base_size = 11)
+} else {
+  cat("No alert data in this period.\n")
+}
+```
+
+```{r alert-type-breakdown}
+if (nrow(alerts_raw) > 0 && "event" %in% names(alerts_raw)) {
+  type_tbl <- alerts_raw %>%
+    mutate(event = as.character(event)) %>%
+    count(event, sort = TRUE) %>%
+    head(12) %>%
+    rename(`Alert Type` = event, Count = n)
+  knitr::kable(type_tbl, caption = paste("Top Alert Types —", weeks_back, "Week Window"))
+}
+```
+
+---
+
+## Weather Trends
+
+```{r temp-trend}
+if (nrow(weather) > 0 && all(c("city","temp_f","timestamp") %in% names(weather))) {
+  wx_ts <- weather %>%
+    mutate(
+      city = as.character(city),
+      ts   = as.POSIXct(as.character(timestamp),
+                        format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+      day  = as.Date(ts)
+    ) %>%
+    filter(!is.na(ts)) %>%
+    group_by(city, day) %>%
+    summarise(avg_temp = mean(as.numeric(temp_f), na.rm = TRUE), .groups = "drop")
+
+  # Keep top 6 cities by data volume
+  top_cities <- wx_ts %>% count(city, sort = TRUE) %>% head(6) %>% pull(city)
+  wx_ts      <- wx_ts %>% filter(city %in% top_cities)
+
+  if (nrow(wx_ts) > 0) {
+    ggplot(wx_ts, aes(x = day, y = avg_temp, colour = city)) +
+      geom_line(size = 0.8, alpha = 0.9) +
+      geom_smooth(aes(group = city), method = "loess", se = FALSE, size = 0.4, linetype = "dotted") +
+      labs(title = "Daily Average Temperature by City", x = NULL, y = "Temp (°F)", colour = "City") +
+      theme_minimal(base_size = 11) +
+      theme(legend.position = "right")
+  }
+}
+```
+
+```{r flight-cat-trend}
+if (nrow(weather) > 0 && "flight_category" %in% names(weather)) {
+  fc_tbl <- weather %>%
+    mutate(flight_category = as.character(flight_category)) %>%
+    count(flight_category) %>%
+    mutate(pct = round(n / sum(n) * 100, 1)) %>%
+    arrange(factor(flight_category, levels = c("VFR","MVFR","IFR","LIFR","UNK")))
+  knitr::kable(fc_tbl %>% rename(`Flight Cat` = flight_category, Count = n, `%` = pct),
+               caption = "Flight Category Distribution")
+}
+```
+
+---
+
+## Traffic Trends
+
+```{r traffic-trend}
+if (nrow(traffic) > 0 && "fetched_at" %in% names(traffic)) {
+  traf_ts <- traffic %>%
+    mutate(
+      day = as.Date(as.POSIXct(as.character(fetched_at),
+                               format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+    ) %>%
+    filter(!is.na(day)) %>%
+    count(day)
+
+  ggplot(traf_ts, aes(x = day, y = n)) +
+    geom_col(fill = "#f39c12") +
+    scale_x_date(date_labels = "%b %d", date_breaks = "1 week") +
+    labs(title = "Daily Traffic Incidents", x = NULL, y = "Incident Count") +
+    theme_minimal(base_size = 11)
+} else {
+  cat("No traffic data in this period.\n")
+}
+```
+
+---
+
+## Agent Execution Performance
+
+```{r exec-perf}
+if (nrow(exec_log) > 0 && "agent_name" %in% names(exec_log)) {
+  agent_perf <- exec_log %>%
+    mutate(
+      agent_name = as.character(agent_name),
+      latency_ms = as.numeric(latency_ms),
+      status     = as.character(status)
+    ) %>%
+    group_by(`Agent` = agent_name) %>%
+    summarise(
+      Calls     = n(),
+      `Avg Latency (ms)` = round(mean(latency_ms, na.rm = TRUE)),
+      `P95 Latency (ms)` = round(quantile(latency_ms, 0.95, na.rm = TRUE)),
+      `Error Rate`        = sprintf("%.1f%%", mean(status != "ok", na.rm = TRUE) * 100),
+      .groups = "drop"
+    )
+  knitr::kable(agent_perf, caption = "Agent Execution Statistics")
+} else {
+  cat("No execution log data. Director must run at least once to populate execution_log.\n")
+}
+```
+
+---
+
+## Prompt/Model Routing Scores
+
+```{r routing-scores}
+if (nrow(routing) > 0 && "agent_name" %in% names(routing)) {
+  score_tbl <- routing %>%
+    mutate(across(where(is.list), as.character)) %>%
+    transmute(
+      Agent      = as.character(agent_name),
+      `Model Tier` = as.character(model_tier),
+      Prompt     = basename(as.character(prompt_file)),
+      `Avg Score` = round(as.numeric(avg_score), 3),
+      `Retry Rate` = sprintf("%.1f%%", as.numeric(retry_rate) * 100),
+      `Error Rate` = sprintf("%.1f%%", as.numeric(error_rate) * 100),
+      Calls      = as.integer(n)
+    ) %>%
+    arrange(desc(`Avg Score`))
+  knitr::kable(score_tbl, caption = "Agent/Prompt Routing Scores (higher = better)")
+} else {
+  cat("No routing scores yet. Run outcome_scorer.R after execution_log is populated.\n")
+}
+```
+
+---
+
+*Generated by FPREN — Florida Public Radio Emergency Network*
+*`r format(Sys.time(), "%Y-%m-%d %H:%M %Z")`*

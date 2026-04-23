@@ -25,7 +25,8 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from pymongo import MongoClient
-from weather_station.services.ai_client import chat, is_configured
+from weather_station.services.ai_client import chat_with_retry, is_configured
+from weather_station.config.ai_config import TOKENS_BROADCAST
 from weather_station.services.elevenlabs_tts import say as el_say, is_configured as el_configured
 from weather_station.core.tts_service import TTSService
 
@@ -123,7 +124,7 @@ def generate_script(db, zone_id: str) -> str:
                 f"Please monitor local conditions. This has been FPREN.")
 
     try:
-        script = chat(prompt, system=_BROADCAST_SYSTEM, max_tokens=200)
+        script = chat_with_retry(prompt, system=_BROADCAST_SYSTEM, max_tokens=TOKENS_BROADCAST)
         logger.info("AI broadcast script generated for %s (%d chars)", zone_id, len(script))
         return script
     except Exception as e:
