@@ -15,10 +15,11 @@ pyasn1-modules>=0.4
 # Twilio SMS notifications for Critical/Major alarms
 twilio>=8.0
 
-# Flask (already present via pip but documented here for completeness)
+# Flask + production WSGI server
 flask>=2.3
 flask-login>=0.6
 flask-wtf>=1.1
+gunicorn>=20.0
 
 # bson / ObjectId (bundled with pymongo — no separate install needed)
 # If needed standalone: pymongo[srv]>=4.0

@@ -7,10 +7,18 @@ Wants=mongod.service
 Type=simple
 User=ufuser
 WorkingDirectory=/home/ufuser/Fpren-main/weather_rss/web
-ExecStart=/home/ufuser/Fpren-main/venv/bin/python3 app.py
+ExecStart=/home/ufuser/Fpren-main/venv/bin/gunicorn \
+    --workers 7 \
+    --timeout 120 \
+    --bind 0.0.0.0:5000 \
+    --access-logfile /home/ufuser/Fpren-main/weather_rss/logs/gunicorn_access.log \
+    --error-logfile /home/ufuser/Fpren-main/weather_rss/logs/gunicorn_error.log \
+    --log-level info \
+    app:app
 Restart=on-failure
 RestartSec=10
 Environment=MONGO_URI=mongodb://localhost:27017
+Environment=FLASK_SECRET_KEY=<generate-with: python3 -c "import secrets; print(secrets.token_hex(32))">
 
 [Install]
 WantedBy=multi-user.target
